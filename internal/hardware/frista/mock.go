@@ -38,6 +38,12 @@ type MockReader struct {
 	server     *http.Server
 	serverAddr string // diisi setelah Start kalau ada server
 
+	// onFPFailRequest dipanggil oleh handler POST /mock/fp-fail.
+	// Hook callback design — frista mock TIDAK import fingerprint
+	// package; Wails app yang wire callback (mis. fpMock.SetNextFail)
+	// supaya separation of concerns terjaga.
+	onFPFailRequest func()
+
 	logger *slog.Logger
 }
 
@@ -64,6 +70,20 @@ func (m *MockReader) SetLogger(l *slog.Logger) {
 	if l != nil {
 		m.logger = l
 	}
+}
+
+// SetOnFPFail mendaftarkan callback yang dipanggil saat HTTP request
+// POST /mock/fp-fail diterima. Wails app saat init pasok:
+//
+//	fristaMock.SetOnFPFail(fpMock.SetNextFail)
+//
+// supaya developer bisa pakai `make mock-fp-fail` untuk simulasi
+// fingerprint gagal sekali. Boleh nil — handler akan return 200 dengan
+// warning kalau belum ada hook terdaftar.
+func (m *MockReader) SetOnFPFail(cb func()) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onFPFailRequest = cb
 }
 
 // Start menandai reader aktif. Channel sudah ter-buffer dari

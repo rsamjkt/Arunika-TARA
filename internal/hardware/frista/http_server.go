@@ -27,6 +27,7 @@ func (m *MockReader) startHTTPLocked(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mock/card-read", m.handleCardRead)
 	mux.HandleFunc("/mock/card-read-delay", m.handleCardReadDelay)
+	mux.HandleFunc("/mock/fp-fail", m.handleFPFail)
 	mux.HandleFunc("/", m.handleInfoPage)
 
 	m.server = &http.Server{
@@ -162,6 +163,41 @@ func (m *MockReader) handleCardReadDelay(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// handleFPFail — POST /mock/fp-fail
+//
+//	Trigger fingerprint mock untuk gagal sekali pada Verify() berikutnya.
+//	Body tidak diperlukan. Idempotent — dipanggil 2x berturut tetap
+//	hanya 1 fail (karena flag direset setelah 1 Verify).
+//
+//	Response 202: { "ok": true }
+//	Response 200 + warning: { "ok": true, "warning": "..." } kalau callback
+//	   belum di-wire (Wails app belum panggil SetOnFPFail).
+func (m *MockReader) handleFPFail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{
+			"error": "method not allowed, gunakan POST",
+		})
+		return
+	}
+
+	m.mu.Lock()
+	cb := m.onFPFailRequest
+	m.mu.Unlock()
+
+	if cb == nil {
+		m.logger.Warn("frista mock: /mock/fp-fail dipanggil tapi callback belum di-wire")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":      true,
+			"warning": "callback belum terdaftar — panggil fristaMock.SetOnFPFail(fpMock.SetNextFail) saat init",
+		})
+		return
+	}
+
+	cb()
+	m.logger.Info("frista mock: fingerprint fail-next triggered")
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
 // handleInfoPage — GET /
 // HTML sederhana dengan endpoint info + curl examples copy-paste.
 func (m *MockReader) handleInfoPage(w http.ResponseWriter, r *http.Request) {
@@ -170,10 +206,10 @@ func (m *MockReader) handleInfoPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, infoPageHTML, m.serverAddr, m.serverAddr, m.serverAddr)
+	fmt.Fprintf(w, infoPageHTML, m.serverAddr, m.serverAddr, m.serverAddr, m.serverAddr)
 }
 
-// infoPageHTML diformat dengan 3x %s — semuanya isi serverAddr.
+// infoPageHTML diformat dengan 4x %s — semuanya isi serverAddr.
 const infoPageHTML = `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -225,6 +261,11 @@ return seketika, emit terjadi di background.</p>
 <pre>curl -X POST 'http://%s/mock/card-read-delay?seconds=5' \
   -H "Content-Type: application/json" \
   -d '{"nik":"3271234567890001","nama":"Budi"}'</pre>
+
+<h2>POST /mock/fp-fail</h2>
+<p>Trigger fingerprint mock untuk gagal sekali pada Verify() berikutnya.
+Body tidak diperlukan.</p>
+<pre>curl -X POST http://%s/mock/fp-fail</pre>
 
 <h2>Tip</h2>
 <p>Pakai shortcut Makefile: <code>make mock-card-default</code> atau

@@ -237,6 +237,77 @@ func TestHTTP_CardReadDelay_SecondsOutOfRange_400(t *testing.T) {
 }
 
 // ============================================================
+// POST /mock/fp-fail — callback wiring
+// ============================================================
+
+func TestHTTP_FPFail_CallbackInvoked(t *testing.T) {
+	m, url := newMockHTTP(t)
+
+	var fired int
+	m.SetOnFPFail(func() { fired++ })
+
+	resp, err := http.Post(url+"/mock/fp-fail", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", resp.StatusCode)
+	}
+	if fired != 1 {
+		t.Errorf("callback fired %d kali, want 1", fired)
+	}
+}
+
+func TestHTTP_FPFail_CallbackBelumWired_200WithWarning(t *testing.T) {
+	_, url := newMockHTTP(t)
+	// SetOnFPFail TIDAK dipanggil — callback nil
+
+	resp, err := http.Post(url+"/mock/fp-fail", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "warning") {
+		t.Errorf("response harus mention warning callback belum di-wire: %s", body)
+	}
+}
+
+func TestHTTP_FPFail_GETNotAllowed_405(t *testing.T) {
+	_, url := newMockHTTP(t)
+
+	resp, err := http.Get(url + "/mock/fp-fail")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", resp.StatusCode)
+	}
+}
+
+func TestHTTP_FPFail_MultipleCalls_CallbackPerCall(t *testing.T) {
+	m, url := newMockHTTP(t)
+
+	var fired int
+	m.SetOnFPFail(func() { fired++ })
+
+	for i := 0; i < 3; i++ {
+		resp, _ := http.Post(url+"/mock/fp-fail", "application/json", nil)
+		resp.Body.Close()
+	}
+	if fired != 3 {
+		t.Errorf("callback fired %d kali, want 3", fired)
+	}
+}
+
+// ============================================================
 // GET /
 // ============================================================
 
