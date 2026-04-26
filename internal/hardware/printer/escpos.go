@@ -17,16 +17,20 @@ import (
 // ============================================================
 
 var (
-	escReset       = []byte{0x1B, 0x40}             // ESC @  — reset printer
-	escBoldOn      = []byte{0x1B, 0x45, 0x01}       // ESC E 1
-	escBoldOff     = []byte{0x1B, 0x45, 0x00}       // ESC E 0
-	escAlignLeft   = []byte{0x1B, 0x61, 0x00}       // ESC a 0
-	escAlignCenter = []byte{0x1B, 0x61, 0x01}       // ESC a 1
-	escSizeNormal  = []byte{0x1D, 0x21, 0x00}       // GS ! 0
-	escSizeDouble  = []byte{0x1D, 0x21, 0x11}       // GS ! 0x11 (2x w/h) — untuk no antrian
-	escFeed        = []byte{0x0A}                   // LF
-	escCutPaper    = []byte{0x1D, 0x56, 0x00}       // GS V 0 — full cut
-	escFeedTriple  = []byte{0x0A, 0x0A, 0x0A}       // 3 baris kosong sebelum cut
+	escReset       = []byte{0x1B, 0x40}       // ESC @  — reset printer
+	escBoldOn      = []byte{0x1B, 0x45, 0x01} // ESC E 1
+	escBoldOff     = []byte{0x1B, 0x45, 0x00} // ESC E 0
+	escAlignLeft   = []byte{0x1B, 0x61, 0x00} // ESC a 0
+	escAlignCenter = []byte{0x1B, 0x61, 0x01} // ESC a 1
+	escFeed        = []byte{0x0A}             // LF
+	escCutPaper    = []byte{0x1D, 0x56, 0x00} // GS V 0 — full cut
+	escFeedTriple  = []byte{0x0A, 0x0A, 0x0A} // 3 baris kosong sebelum cut
+
+	// escSizeNormal {0x1D, 0x21, 0x00} dan escSizeDouble
+	// {0x1D, 0x21, 0x11} di-reserve untuk bold-large-text feature
+	// (mis. nomor antrian double-height). Belum dipakai — di-comment
+	// supaya lint clean. Re-enable saat encodeESCPOS handle marker
+	// "[BIG]...".
 )
 
 // ============================================================

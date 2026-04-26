@@ -417,9 +417,8 @@ func TestDetectorMatrix_TidakLeakGoroutine_SetelahTimeoutSkenario(t *testing.T) 
 // ============================================================
 
 func TestDetectorMatrix_MockCounterIntegrityDiConcurrent(t *testing.T) {
-	d := detectorWithHits(t, checkHits{kontrol: true})
-	// Ambil mock khanza dari detector — kita perlu inject ulang supaya
-	// bisa periksa CallCount-nya.
+	// Build detector dengan mocks yang kita pegang langsung supaya
+	// bisa cek CallCount setelah test.
 	v := vclaim.NewMock()
 	a := antrol.NewMock()
 	k := khanza.NewMock()
@@ -430,7 +429,7 @@ func TestDetectorMatrix_MockCounterIntegrityDiConcurrent(t *testing.T) {
 	k.GetSuratKontrolFunc = func(ctx context.Context, noRM string) ([]domain.SuratKontrol, error) {
 		return []domain.SuratKontrol{{TglRencana: today}}, nil
 	}
-	d = New(v, a, k)
+	d := New(v, a, k)
 	d.parallelTimeout = 500 * time.Millisecond
 
 	const N = 30

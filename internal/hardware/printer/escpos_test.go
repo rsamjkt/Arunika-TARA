@@ -310,7 +310,10 @@ func TestESCPOSPrinter_Stop_Idempotent(t *testing.T) {
 // ============================================================
 
 func TestNewESCPOS_ReturnThermalPrinterInterface(t *testing.T) {
-	var p ThermalPrinter = NewESCPOS(config.PrinterConfig{Mode: "console"}, nil)
+	// Verify NewESCPOS satisfies ThermalPrinter interface at compile time
+	// + runtime non-nil. Compile-time check via package-level _ var di
+	// escpos.go (sudah ada). Di sini cuma runtime check.
+	p := NewESCPOS(config.PrinterConfig{Mode: "console"}, nil)
 	if p == nil {
 		t.Fatal("NewESCPOS return nil")
 	}

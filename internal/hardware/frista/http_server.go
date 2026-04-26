@@ -206,7 +206,9 @@ func (m *MockReader) handleInfoPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, infoPageHTML, m.serverAddr, m.serverAddr, m.serverAddr, m.serverAddr)
+	// Best-effort write ke HTTP response — kalau client putus mid-write
+	// tidak ada yang bisa kita lakukan.
+	_, _ = fmt.Fprintf(w, infoPageHTML, m.serverAddr, m.serverAddr, m.serverAddr, m.serverAddr)
 }
 
 // infoPageHTML diformat dengan 4x %s — semuanya isi serverAddr.

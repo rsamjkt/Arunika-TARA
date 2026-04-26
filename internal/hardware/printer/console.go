@@ -101,15 +101,17 @@ func (p *ConsolePrinter) Print(ctx context.Context, docType string, data any) er
 	defer p.mu.Unlock()
 
 	ts := p.now().Format("2006-01-02 15:04:05 WIB")
-	fmt.Fprintln(p.out, "================================================")
-	fmt.Fprintf(p.out, "  [CETAK] %s\n", docType)
-	fmt.Fprintln(p.out, " ", ts)
-	fmt.Fprintln(p.out, "------------------------------------------------")
-	fmt.Fprint(p.out, rendered)
+	// Best-effort write ke writer (stdout / buffer) — gagal write
+	// untuk console printer tidak fatal.
+	_, _ = fmt.Fprintln(p.out, "================================================")
+	_, _ = fmt.Fprintf(p.out, "  [CETAK] %s\n", docType)
+	_, _ = fmt.Fprintln(p.out, " ", ts)
+	_, _ = fmt.Fprintln(p.out, "------------------------------------------------")
+	_, _ = fmt.Fprint(p.out, rendered)
 	if !strings.HasSuffix(rendered, "\n") {
-		fmt.Fprintln(p.out)
+		_, _ = fmt.Fprintln(p.out)
 	}
-	fmt.Fprintln(p.out, "================================================")
+	_, _ = fmt.Fprintln(p.out, "================================================")
 	return nil
 }
 
@@ -125,13 +127,13 @@ func (p *ConsolePrinter) Reprint(ctx context.Context, printHistoryID int64) erro
 	}
 
 	p.mu.Lock()
-	fmt.Fprintln(p.out, "================================================")
-	fmt.Fprintf(p.out, "[REPRINT] %s (id=%d, count=%d)\n",
+	_, _ = fmt.Fprintln(p.out, "================================================")
+	_, _ = fmt.Fprintf(p.out, "[REPRINT] %s (id=%d, count=%d)\n",
 		h.DocType, h.ID, h.ReprintCount.Int64+1)
-	fmt.Fprintln(p.out, "------------------------------------------------")
-	p.out.Write(h.EscposBytes)
-	fmt.Fprintln(p.out)
-	fmt.Fprintln(p.out, "================================================")
+	_, _ = fmt.Fprintln(p.out, "------------------------------------------------")
+	_, _ = p.out.Write(h.EscposBytes)
+	_, _ = fmt.Fprintln(p.out)
+	_, _ = fmt.Fprintln(p.out, "================================================")
 	p.mu.Unlock()
 
 	if err := p.store.IncrementReprintCount(ctx, printHistoryID); err != nil {

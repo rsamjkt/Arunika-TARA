@@ -68,7 +68,3 @@ func (c *Client) SetTimeout(d time.Duration) {
 	c.httpClient.SetTimeout(d)
 }
 
-// setNow mengganti fungsi penghasil timestamp — hanya untuk test.
-func (c *Client) setNow(fn func() time.Time) {
-	c.now = fn
-}
