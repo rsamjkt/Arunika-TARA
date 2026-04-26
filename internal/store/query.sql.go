@@ -30,7 +30,7 @@ func (q *Queries) ConfirmSEP(ctx context.Context, arg ConfirmSEPParams) error {
 
 const deleteAntrianToday = `-- name: DeleteAntrianToday :execrows
 DELETE FROM antrian_lokal
-WHERE date(created_at, 'localtime') = date('now', 'localtime')
+WHERE date(created_at) = date('now', 'localtime')
 `
 
 // Reset counter harian -- hapus semua entry hari ini.
@@ -47,11 +47,16 @@ const getMaxNoUrutToday = `-- name: GetMaxNoUrutToday :one
 SELECT CAST(COALESCE(MAX(no_urut), 0) AS INTEGER) AS max_urut
 FROM antrian_lokal
 WHERE jenis = ?
-  AND date(created_at, 'localtime') = date('now', 'localtime')
+  AND date(created_at) = date('now', 'localtime')
 `
 
 // Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
-// HARI INI (zona localtime). 0 jika belum ada -- caller add 1 untuk next.
+// HARI INI. 0 jika belum ada -- caller add 1 untuk next.
+//
+// CATATAN created_at sudah disimpan sebagai localtime via schema
+// DEFAULT (datetime('now','localtime')). JANGAN tambah modifier
+// 'localtime' di sini karena akan double-shift (treat as UTC + apply
+// offset lagi) -- bug yang menyebabkan test fail setelah jam 17 WIB.
 func (q *Queries) GetMaxNoUrutToday(ctx context.Context, jenis string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getMaxNoUrutToday, jenis)
 	var max_urut int64

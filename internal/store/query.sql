@@ -27,17 +27,22 @@ WHERE id = ?;
 
 -- name: GetMaxNoUrutToday :one
 -- Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
--- HARI INI (zona localtime). 0 jika belum ada -- caller add 1 untuk next.
+-- HARI INI. 0 jika belum ada -- caller add 1 untuk next.
+--
+-- CATATAN created_at sudah disimpan sebagai localtime via schema
+-- DEFAULT (datetime('now','localtime')). JANGAN tambah modifier
+-- 'localtime' di sini karena akan double-shift (treat as UTC + apply
+-- offset lagi) -- bug yang menyebabkan test fail setelah jam 17 WIB.
 SELECT CAST(COALESCE(MAX(no_urut), 0) AS INTEGER) AS max_urut
 FROM antrian_lokal
 WHERE jenis = ?
-  AND date(created_at, 'localtime') = date('now', 'localtime');
+  AND date(created_at) = date('now', 'localtime');
 
 -- name: DeleteAntrianToday :execrows
 -- Reset counter harian -- hapus semua entry hari ini.
 -- Dipakai oleh AntrianService.ResetAll (cron 00:01 atau manual admin).
 DELETE FROM antrian_lokal
-WHERE date(created_at, 'localtime') = date('now', 'localtime');
+WHERE date(created_at) = date('now', 'localtime');
 
 -- ============================================================
 -- pending_sep -- SEP yang menunggu sync ke Khanza

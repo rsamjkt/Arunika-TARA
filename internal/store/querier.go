@@ -14,7 +14,12 @@ type Querier interface {
 	// Dipakai oleh AntrianService.ResetAll (cron 00:01 atau manual admin).
 	DeleteAntrianToday(ctx context.Context) (int64, error)
 	// Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
-	// HARI INI (zona localtime). 0 jika belum ada -- caller add 1 untuk next.
+	// HARI INI. 0 jika belum ada -- caller add 1 untuk next.
+	//
+	// CATATAN created_at sudah disimpan sebagai localtime via schema
+	// DEFAULT (datetime('now','localtime')). JANGAN tambah modifier
+	// 'localtime' di sini karena akan double-shift (treat as UTC + apply
+	// offset lagi) -- bug yang menyebabkan test fail setelah jam 17 WIB.
 	GetMaxNoUrutToday(ctx context.Context, jenis string) (int64, error)
 	GetPendingAntrian(ctx context.Context, limit int64) ([]AntrianLokal, error)
 	GetPendingSEPs(ctx context.Context, arg GetPendingSEPsParams) ([]PendingSep, error)
