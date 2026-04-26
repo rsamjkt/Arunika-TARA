@@ -1,0 +1,488 @@
+export namespace domain {
+	
+	export class Peserta {
+	    NoKartu: string;
+	    NoRM: string;
+	    NIK: string;
+	    Nama: string;
+	    TglLahir: string;
+	    StatusAktif: string;
+	    KelasHak: string;
+	    JenisPeserta: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Peserta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.NoKartu = source["NoKartu"];
+	        this.NoRM = source["NoRM"];
+	        this.NIK = source["NIK"];
+	        this.Nama = source["Nama"];
+	        this.TglLahir = source["TglLahir"];
+	        this.StatusAktif = source["StatusAktif"];
+	        this.KelasHak = source["KelasHak"];
+	        this.JenisPeserta = source["JenisPeserta"];
+	    }
+	}
+	export class DetectionResult {
+	    Type: number;
+	    Peserta?: Peserta;
+	    Data: any;
+	    Err: any;
+	    // Go type: time
+	    DetectedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new DetectionResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Type = source["Type"];
+	        this.Peserta = this.convertValues(source["Peserta"], Peserta);
+	        this.Data = source["Data"];
+	        this.Err = source["Err"];
+	        this.DetectedAt = this.convertValues(source["DetectedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class JadwalDokter {
+	    KdDokter: string;
+	    NmDokter: string;
+	    KdPoli: string;
+	    NmPoli: string;
+	    Hari: string;
+	    JamMulai: string;
+	    JamSelesai: string;
+	    Kuota: number;
+	    Sisa: number;
+	    Aktif: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new JadwalDokter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.KdDokter = source["KdDokter"];
+	        this.NmDokter = source["NmDokter"];
+	        this.KdPoli = source["KdPoli"];
+	        this.NmPoli = source["NmPoli"];
+	        this.Hari = source["Hari"];
+	        this.JamMulai = source["JamMulai"];
+	        this.JamSelesai = source["JamSelesai"];
+	        this.Kuota = source["Kuota"];
+	        this.Sisa = source["Sisa"];
+	        this.Aktif = source["Aktif"];
+	    }
+	}
+	export class Pasien {
+	    NoRM: string;
+	    Nama: string;
+	    NIK: string;
+	    NoKartu: string;
+	    TglLahir: string;
+	    JK: string;
+	    Alamat: string;
+	    NoTelp: string;
+	    IhsNumber: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Pasien(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.NoRM = source["NoRM"];
+	        this.Nama = source["Nama"];
+	        this.NIK = source["NIK"];
+	        this.NoKartu = source["NoKartu"];
+	        this.TglLahir = source["TglLahir"];
+	        this.JK = source["JK"];
+	        this.Alamat = source["Alamat"];
+	        this.NoTelp = source["NoTelp"];
+	        this.IhsNumber = source["IhsNumber"];
+	    }
+	}
+	export class Pendaftaran {
+	    NoRawat: string;
+	    NoRM: string;
+	    KdPoli: string;
+	    NmPoli: string;
+	    KdDokter: string;
+	    NmDokter: string;
+	    TglPeriksa: string;
+	    NoUrut: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Pendaftaran(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.NoRawat = source["NoRawat"];
+	        this.NoRM = source["NoRM"];
+	        this.KdPoli = source["KdPoli"];
+	        this.NmPoli = source["NmPoli"];
+	        this.KdDokter = source["KdDokter"];
+	        this.NmDokter = source["NmDokter"];
+	        this.TglPeriksa = source["TglPeriksa"];
+	        this.NoUrut = source["NoUrut"];
+	    }
+	}
+	export class PendaftaranRequest {
+	    NoRM: string;
+	    KdPoli: string;
+	    KdDokter: string;
+	    TglPeriksa: string;
+	    JamPeriksa: string;
+	    Penjamin: string;
+	    NoSEP: string;
+	    Catatan: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendaftaranRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.NoRM = source["NoRM"];
+	        this.KdPoli = source["KdPoli"];
+	        this.KdDokter = source["KdDokter"];
+	        this.TglPeriksa = source["TglPeriksa"];
+	        this.JamPeriksa = source["JamPeriksa"];
+	        this.Penjamin = source["Penjamin"];
+	        this.NoSEP = source["NoSEP"];
+	        this.Catatan = source["Catatan"];
+	    }
+	}
+	
+	export class SEP {
+	    NoSEP: string;
+	    NoKartu: string;
+	    TglSEP: string;
+	    KdPoli: string;
+	    NmPoli: string;
+	    KdDokter: string;
+	    NmDokter: string;
+	    // Go type: time
+	    CreatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new SEP(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.NoSEP = source["NoSEP"];
+	        this.NoKartu = source["NoKartu"];
+	        this.TglSEP = source["TglSEP"];
+	        this.KdPoli = source["KdPoli"];
+	        this.NmPoli = source["NmPoli"];
+	        this.KdDokter = source["KdDokter"];
+	        this.NmDokter = source["NmDokter"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SEPRequest {
+	    NoKartu: string;
+	    TglSEP: string;
+	    KdPoli: string;
+	    KdDokter: string;
+	    JnsPelayanan: string;
+	    KelasRawat: string;
+	    NoRujukan: string;
+	    CatatanPelayanan: string;
+	    FPToken: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SEPRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.NoKartu = source["NoKartu"];
+	        this.TglSEP = source["TglSEP"];
+	        this.KdPoli = source["KdPoli"];
+	        this.KdDokter = source["KdDokter"];
+	        this.JnsPelayanan = source["JnsPelayanan"];
+	        this.KelasRawat = source["KelasRawat"];
+	        this.NoRujukan = source["NoRujukan"];
+	        this.CatatanPelayanan = source["CatatanPelayanan"];
+	        this.FPToken = source["FPToken"];
+	    }
+	}
+	export class Ticket {
+	    ID: string;
+	    Nomor: string;
+	    Jenis: string;
+	    SubJenis: string;
+	    Prefix: string;
+	    NoUrut: number;
+	    NoRM: string;
+	    NoPoli: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    PrintedAt?: any;
+	    IsOffline: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Ticket(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Nomor = source["Nomor"];
+	        this.Jenis = source["Jenis"];
+	        this.SubJenis = source["SubJenis"];
+	        this.Prefix = source["Prefix"];
+	        this.NoUrut = source["NoUrut"];
+	        this.NoRM = source["NoRM"];
+	        this.NoPoli = source["NoPoli"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.PrintedAt = this.convertValues(source["PrintedAt"], null);
+	        this.IsOffline = source["IsOffline"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace main {
+	
+	export class HardwareStatus {
+	    frista: boolean;
+	    fingerprint: boolean;
+	    printer: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HardwareStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.frista = source["frista"];
+	        this.fingerprint = source["fingerprint"];
+	        this.printer = source["printer"];
+	    }
+	}
+	export class SystemStatus {
+	    hardware: HardwareStatus;
+	    online: boolean;
+	    platform: string;
+	    version: string;
+	    uptime_sec: number;
+	    started_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SystemStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hardware = this.convertValues(source["hardware"], HardwareStatus);
+	        this.online = source["online"];
+	        this.platform = source["platform"];
+	        this.version = source["version"];
+	        this.uptime_sec = source["uptime_sec"];
+	        this.started_at = source["started_at"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace sql {
+	
+	export class NullInt64 {
+	    Int64: number;
+	    Valid: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NullInt64(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Int64 = source["Int64"];
+	        this.Valid = source["Valid"];
+	    }
+	}
+	export class NullString {
+	    String: string;
+	    Valid: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NullString(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.String = source["String"];
+	        this.Valid = source["Valid"];
+	    }
+	}
+	export class NullTime {
+	    // Go type: time
+	    Time: any;
+	    Valid: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NullTime(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Time = this.convertValues(source["Time"], null);
+	        this.Valid = source["Valid"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace store {
+	
+	export class PendingSep {
+	    id: number;
+	    no_kartu: string;
+	    kategori: string;
+	    payload_json: string;
+	    vclaim_response: sql.NullString;
+	    status: sql.NullString;
+	    retry_count: sql.NullInt64;
+	    last_error: sql.NullString;
+	    created_at: sql.NullTime;
+	    confirmed_by: sql.NullString;
+	    confirmed_at: sql.NullTime;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingSep(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.no_kartu = source["no_kartu"];
+	        this.kategori = source["kategori"];
+	        this.payload_json = source["payload_json"];
+	        this.vclaim_response = this.convertValues(source["vclaim_response"], sql.NullString);
+	        this.status = this.convertValues(source["status"], sql.NullString);
+	        this.retry_count = this.convertValues(source["retry_count"], sql.NullInt64);
+	        this.last_error = this.convertValues(source["last_error"], sql.NullString);
+	        this.created_at = this.convertValues(source["created_at"], sql.NullTime);
+	        this.confirmed_by = this.convertValues(source["confirmed_by"], sql.NullString);
+	        this.confirmed_at = this.convertValues(source["confirmed_at"], sql.NullTime);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
