@@ -41,6 +41,7 @@ import (
 	"github.com/arunika/apm-go/internal/integration/antrol"
 	"github.com/arunika/apm-go/internal/integration/khanza"
 	"github.com/arunika/apm-go/internal/integration/vclaim"
+	"github.com/arunika/apm-go/internal/reconcile"
 	"github.com/arunika/apm-go/internal/service/antrian"
 	"github.com/arunika/apm-go/internal/service/detector"
 	"github.com/arunika/apm-go/internal/service/sep"
@@ -71,7 +72,8 @@ type App struct {
 	antrianSvc  *antrian.AntrianService
 	sepSvc      *sep.SEPService
 
-	cron *cron.Cron
+	cron       *cron.Cron
+	reconciler *reconcile.ReconcileWorker
 
 	// Session cache — PHI-sensitive. Diset saat DetectPatient sukses,
 	// dipakai BuatSEPxxx supaya UI tidak harus carry Peserta di payload.
@@ -105,6 +107,9 @@ func (a *App) startup(ctx context.Context) {
 // Defensif terhadap nil — startup mungkin partial gagal tapi shutdown
 // tetap dipanggil Wails.
 func (a *App) shutdown(ctx context.Context) {
+	if a.reconciler != nil {
+		a.reconciler.Stop()
+	}
 	if a.cron != nil {
 		a.cron.Stop()
 	}
@@ -185,6 +190,16 @@ func (a *App) initialize(ctx context.Context) error {
 		a.logger.Warn("daily reset cron failed", "err", err.Error())
 	}
 	a.cron = c
+
+	// Reconcile worker — track online/offline + sync backlog
+	a.reconciler = reconcile.NewWithOptions(db, a.khanza, reconcile.Options{
+		OnStateChange: func(online bool) {
+			// Emit ke Vue: false = sedang offline, true = pulih
+			a.emitEvent("system:offline", !online)
+			a.logger.Info("reconcile state change", "online", online)
+		},
+	})
+	a.reconciler.Start(ctx)
 
 	a.logger.Info("app initialized",
 		"platform", a.hw.Platform(),

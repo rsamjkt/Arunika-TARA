@@ -13,6 +13,10 @@ type Querier interface {
 	// Reset counter harian -- hapus semua entry hari ini.
 	// Dipakai oleh AntrianService.ResetAll (cron 00:01 atau manual admin).
 	DeleteAntrianToday(ctx context.Context) (int64, error)
+	// Reconcile worker fetch records yang masih perlu di-sync.
+	// Filter: sync_status = 'pending' dan retry_count < threshold.
+	// Setelah retry_count >= threshold, caller akan MarkAntrianFailed.
+	GetAntrianForSync(ctx context.Context, arg GetAntrianForSyncParams) ([]AntrianLokal, error)
 	// Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
 	// HARI INI. 0 jika belum ada -- caller add 1 untuk next.
 	//
@@ -28,6 +32,9 @@ type Querier interface {
 	// Tiebreaker id DESC karena datetime('now','localtime') hanya resolusi detik,
 	// multiple insert dalam detik yang sama bisa punya timestamp identik.
 	GetRecentLogs(ctx context.Context, limit int64) ([]ReconcileLog, error)
+	// Reconcile worker increment counter saat attempt sync gagal.
+	// last_error untuk audit + admin panel display.
+	IncrementAntrianRetry(ctx context.Context, arg IncrementAntrianRetryParams) error
 	IncrementReprintCount(ctx context.Context, id int64) error
 	IncrementSEPRetry(ctx context.Context, arg IncrementSEPRetryParams) error
 	// ============================================================

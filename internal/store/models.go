@@ -20,6 +20,8 @@ type AntrianLokal struct {
 	CreatedAt  sql.NullTime   `json:"created_at"`
 	SyncedAt   sql.NullTime   `json:"synced_at"`
 	SyncStatus sql.NullString `json:"sync_status"`
+	RetryCount sql.NullInt64  `json:"retry_count"`
+	LastError  sql.NullString `json:"last_error"`
 }
 
 type ConfigCache struct {

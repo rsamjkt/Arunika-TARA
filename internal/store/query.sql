@@ -25,6 +25,25 @@ UPDATE antrian_lokal
 SET sync_status = 'failed'
 WHERE id = ?;
 
+-- name: IncrementAntrianRetry :exec
+-- Reconcile worker increment counter saat attempt sync gagal.
+-- last_error untuk audit + admin panel display.
+UPDATE antrian_lokal
+SET retry_count = retry_count + 1,
+    last_error  = ?
+WHERE id = ?;
+
+-- name: GetAntrianForSync :many
+-- Reconcile worker fetch records yang masih perlu di-sync.
+-- Filter: sync_status = 'pending' dan retry_count < threshold.
+-- Setelah retry_count >= threshold, caller akan MarkAntrianFailed.
+SELECT *
+FROM antrian_lokal
+WHERE sync_status = 'pending'
+  AND retry_count < ?
+ORDER BY created_at ASC
+LIMIT ?;
+
 -- name: GetMaxNoUrutToday :one
 -- Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
 -- HARI INI. 0 jika belum ada -- caller add 1 untuk next.

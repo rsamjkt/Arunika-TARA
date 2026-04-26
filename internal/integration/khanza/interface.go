@@ -24,6 +24,11 @@ import (
 // Implementasi nyata: *Client (HTTP via resty).
 // Implementasi test: *MockKhanzaClient.
 type KhanzaClient interface {
+	// HealthCheck ping server. nil = reachable, error = unreachable
+	// (mungkin ErrOffline kalau koneksi mati). Dipakai oleh reconcile
+	// worker untuk track online/offline state.
+	HealthCheck(ctx context.Context) error
+
 	// CariPasien melakukan pencarian pasien berdasarkan NoRM, NIK, nama,
 	// atau no telp. Khanza menentukan strategi match di sisi server.
 	// Return (nil, nil) jika tidak ada match (bukan error).

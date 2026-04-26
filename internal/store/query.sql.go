@@ -43,6 +43,60 @@ func (q *Queries) DeleteAntrianToday(ctx context.Context) (int64, error) {
 	return result.RowsAffected()
 }
 
+const getAntrianForSync = `-- name: GetAntrianForSync :many
+SELECT id, jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli, created_at, synced_at, sync_status, retry_count, last_error
+FROM antrian_lokal
+WHERE sync_status = 'pending'
+  AND retry_count < ?
+ORDER BY created_at ASC
+LIMIT ?
+`
+
+type GetAntrianForSyncParams struct {
+	RetryCount sql.NullInt64 `json:"retry_count"`
+	Limit      int64         `json:"limit"`
+}
+
+// Reconcile worker fetch records yang masih perlu di-sync.
+// Filter: sync_status = 'pending' dan retry_count < threshold.
+// Setelah retry_count >= threshold, caller akan MarkAntrianFailed.
+func (q *Queries) GetAntrianForSync(ctx context.Context, arg GetAntrianForSyncParams) ([]AntrianLokal, error) {
+	rows, err := q.db.QueryContext(ctx, getAntrianForSync, arg.RetryCount, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AntrianLokal{}
+	for rows.Next() {
+		var i AntrianLokal
+		if err := rows.Scan(
+			&i.ID,
+			&i.Jenis,
+			&i.SubJenis,
+			&i.Nomor,
+			&i.Prefix,
+			&i.NoUrut,
+			&i.NoRm,
+			&i.NoPoli,
+			&i.CreatedAt,
+			&i.SyncedAt,
+			&i.SyncStatus,
+			&i.RetryCount,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMaxNoUrutToday = `-- name: GetMaxNoUrutToday :one
 SELECT CAST(COALESCE(MAX(no_urut), 0) AS INTEGER) AS max_urut
 FROM antrian_lokal
@@ -65,7 +119,7 @@ func (q *Queries) GetMaxNoUrutToday(ctx context.Context, jenis string) (int64, e
 }
 
 const getPendingAntrian = `-- name: GetPendingAntrian :many
-SELECT id, jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli, created_at, synced_at, sync_status
+SELECT id, jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli, created_at, synced_at, sync_status, retry_count, last_error
 FROM antrian_lokal
 WHERE sync_status = 'pending'
 ORDER BY created_at ASC
@@ -93,6 +147,8 @@ func (q *Queries) GetPendingAntrian(ctx context.Context, limit int64) ([]Antrian
 			&i.CreatedAt,
 			&i.SyncedAt,
 			&i.SyncStatus,
+			&i.RetryCount,
+			&i.LastError,
 		); err != nil {
 			return nil, err
 		}
@@ -242,6 +298,25 @@ func (q *Queries) GetRecentLogs(ctx context.Context, limit int64) ([]ReconcileLo
 	return items, nil
 }
 
+const incrementAntrianRetry = `-- name: IncrementAntrianRetry :exec
+UPDATE antrian_lokal
+SET retry_count = retry_count + 1,
+    last_error  = ?
+WHERE id = ?
+`
+
+type IncrementAntrianRetryParams struct {
+	LastError sql.NullString `json:"last_error"`
+	ID        int64          `json:"id"`
+}
+
+// Reconcile worker increment counter saat attempt sync gagal.
+// last_error untuk audit + admin panel display.
+func (q *Queries) IncrementAntrianRetry(ctx context.Context, arg IncrementAntrianRetryParams) error {
+	_, err := q.db.ExecContext(ctx, incrementAntrianRetry, arg.LastError, arg.ID)
+	return err
+}
+
 const incrementReprintCount = `-- name: IncrementReprintCount :exec
 UPDATE print_history
 SET reprint_count = reprint_count + 1
@@ -274,7 +349,7 @@ const insertAntrian = `-- name: InsertAntrian :one
 
 INSERT INTO antrian_lokal (jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli, created_at, synced_at, sync_status
+RETURNING id, jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli, created_at, synced_at, sync_status, retry_count, last_error
 `
 
 type InsertAntrianParams struct {
@@ -313,6 +388,8 @@ func (q *Queries) InsertAntrian(ctx context.Context, arg InsertAntrianParams) (A
 		&i.CreatedAt,
 		&i.SyncedAt,
 		&i.SyncStatus,
+		&i.RetryCount,
+		&i.LastError,
 	)
 	return i, err
 }

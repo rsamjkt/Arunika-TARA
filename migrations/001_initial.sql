@@ -19,7 +19,12 @@ CREATE TABLE IF NOT EXISTS antrian_lokal (
     no_poli     TEXT,
     created_at  DATETIME DEFAULT (datetime('now','localtime')),
     synced_at   DATETIME,
-    sync_status TEXT     DEFAULT 'pending'
+    sync_status TEXT     DEFAULT 'pending',
+    -- Reconcile worker retry tracking (P-050).
+    -- retry_count: increment tiap attempt sync gagal.
+    -- last_error: pesan error terakhir untuk audit/debug.
+    retry_count INTEGER DEFAULT 0,
+    last_error  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_antrian_sync_status

@@ -21,6 +21,7 @@ import (
 // Keduanya bisa dipakai bareng — Func selalu menang kalau di-set
 // langsung. SetResponse internal-nya overwrite Func sesuai method.
 type MockKhanzaClient struct {
+	HealthCheckFunc       func(ctx context.Context) error
 	CariPasienFunc        func(ctx context.Context, q string) (*domain.Pasien, error)
 	GetSuratKontrolFunc   func(ctx context.Context, noRM string) ([]domain.SuratKontrol, error)
 	GetRiwayatRANAPFunc   func(ctx context.Context, noRM string) ([]domain.RiwayatRANAP, error)
@@ -72,6 +73,8 @@ func (m *MockKhanzaClient) recordCall(name string) {
 //	"UpdateSatuSehatID" → nil (response diabaikan)
 func (m *MockKhanzaClient) SetResponse(method string, response any, err error) {
 	switch method {
+	case "HealthCheck":
+		m.HealthCheckFunc = func(ctx context.Context) error { return err }
 	case "CariPasien":
 		p, _ := response.(*domain.Pasien)
 		m.CariPasienFunc = func(ctx context.Context, q string) (*domain.Pasien, error) {
@@ -118,6 +121,14 @@ func (m *MockKhanzaClient) SetResponse(method string, response any, err error) {
 	default:
 		panic(fmt.Sprintf("MockKhanzaClient.SetResponse: unknown method %q", method))
 	}
+}
+
+func (m *MockKhanzaClient) HealthCheck(ctx context.Context) error {
+	m.recordCall("HealthCheck")
+	if m.HealthCheckFunc != nil {
+		return m.HealthCheckFunc(ctx)
+	}
+	return nil
 }
 
 func (m *MockKhanzaClient) CariPasien(ctx context.Context, q string) (*domain.Pasien, error) {

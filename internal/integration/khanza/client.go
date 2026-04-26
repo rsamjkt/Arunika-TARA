@@ -77,6 +77,28 @@ func (c *Client) SetBaseURL(u string) {
 	c.httpClient.SetBaseURL(c.baseURL)
 }
 
+// HealthCheck ping endpoint /health (atau base "/" sebagai fallback).
+// nil = reachable, ErrOffline = jaringan mati, error lain = HTTP error.
+//
+// Khanza tidak punya endpoint /health standar, tapi GET / biasanya
+// return 200 (Laravel welcome page) atau 401 (auth required) — yang
+// penting koneksi TCP berhasil. ErrOffline hanya saat connection
+// refused / DNS fail / network unreachable.
+func (c *Client) HealthCheck(ctx context.Context) error {
+	resp, err := c.httpClient.R().
+		SetContext(ctx).
+		Get("/health")
+	if err != nil {
+		return wrapOffline(err)
+	}
+	// 5xx → backend up tapi sakit
+	if resp.StatusCode() >= 500 {
+		return fmt.Errorf("khanza unhealthy: HTTP %d", resp.StatusCode())
+	}
+	// 2xx/3xx/4xx semua OK untuk health check (server alive)
+	return nil
+}
+
 // envelope adalah response wrapper standard Khanza Laravel:
 //
 //	{ "success": true, "message": "OK", "data": <payload> }
