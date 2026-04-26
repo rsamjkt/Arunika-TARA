@@ -10,6 +10,12 @@ import (
 
 type Querier interface {
 	ConfirmSEP(ctx context.Context, arg ConfirmSEPParams) error
+	// Reset counter harian -- hapus semua entry hari ini.
+	// Dipakai oleh AntrianService.ResetAll (cron 00:01 atau manual admin).
+	DeleteAntrianToday(ctx context.Context) (int64, error)
+	// Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
+	// HARI INI (zona localtime). 0 jika belum ada -- caller add 1 untuk next.
+	GetMaxNoUrutToday(ctx context.Context, jenis string) (int64, error)
 	GetPendingAntrian(ctx context.Context, limit int64) ([]AntrianLokal, error)
 	GetPendingSEPs(ctx context.Context, arg GetPendingSEPsParams) ([]PendingSep, error)
 	GetPrintHistory(ctx context.Context, id int64) (PrintHistory, error)

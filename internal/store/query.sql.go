@@ -28,6 +28,37 @@ func (q *Queries) ConfirmSEP(ctx context.Context, arg ConfirmSEPParams) error {
 	return err
 }
 
+const deleteAntrianToday = `-- name: DeleteAntrianToday :execrows
+DELETE FROM antrian_lokal
+WHERE date(created_at, 'localtime') = date('now', 'localtime')
+`
+
+// Reset counter harian -- hapus semua entry hari ini.
+// Dipakai oleh AntrianService.ResetAll (cron 00:01 atau manual admin).
+func (q *Queries) DeleteAntrianToday(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAntrianToday)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getMaxNoUrutToday = `-- name: GetMaxNoUrutToday :one
+SELECT CAST(COALESCE(MAX(no_urut), 0) AS INTEGER) AS max_urut
+FROM antrian_lokal
+WHERE jenis = ?
+  AND date(created_at, 'localtime') = date('now', 'localtime')
+`
+
+// Counter offline per jenis: nomor terbesar yang sudah pernah dikeluarkan
+// HARI INI (zona localtime). 0 jika belum ada -- caller add 1 untuk next.
+func (q *Queries) GetMaxNoUrutToday(ctx context.Context, jenis string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getMaxNoUrutToday, jenis)
+	var max_urut int64
+	err := row.Scan(&max_urut)
+	return max_urut, err
+}
+
 const getPendingAntrian = `-- name: GetPendingAntrian :many
 SELECT id, jenis, sub_jenis, nomor, prefix, no_urut, no_rm, no_poli, created_at, synced_at, sync_status
 FROM antrian_lokal

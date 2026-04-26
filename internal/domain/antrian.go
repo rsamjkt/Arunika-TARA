@@ -40,6 +40,12 @@ type Ticket struct {
 	NoPoli    string
 	CreatedAt time.Time
 	PrintedAt *time.Time
+
+	// IsOffline true jika ticket di-issue dari counter lokal SQLite
+	// (mode offline saat Khanza tidak reachable). UI bisa pakai untuk
+	// menampilkan badge "OFFLINE" + reminder bahwa nomor akan di-sync
+	// kembali setelah koneksi pulih.
+	IsOffline bool
 }
 
 // FormatNomor membentuk nomor antrian yang dicetak ke tiket dan ditampilkan
