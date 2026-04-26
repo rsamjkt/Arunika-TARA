@@ -5,89 +5,62 @@
 #
 # Di Windows production, jalankan `apm.exe --encrypt-config` setelah copy
 # untuk meng-enkripsi credential dengan Windows DPAPI + AES-256-GCM.
+# Field bersuffix _enc menerima nilai plaintext (akan dienkripsi otomatis)
+# atau format "ENC:<base64>" hasil enkripsi.
 
 [app]
-mode             = "development"           # development | production
-log_level        = "info"                  # debug | info | warn | error
-locale           = "id-ID"
-kiosk_id         = "KIOSK-01"              # identifier unik per mesin
-ppk_pelayanan    = "1234R001"              # kode PPK BPJS rumah sakit ini
+idle_timeout_sec = 60
+log_level        = "info"          # debug | info | warn | error
+log_dir          = "./logs"
+timezone         = "Asia/Jakarta"
+version          = "1.0.0"
 
 [server]
-# Khanza SIMRS REST API
-khanza_url       = "http://192.168.1.10:8080"
-khanza_token     = "REPLACE_WITH_BEARER_TOKEN"
-khanza_timeout   = "10s"
+# SIMRS Khanza (Laravel REST API di jaringan RS)
+khanza_url      = "http://192.168.1.10:8080"
+khanza_api_key  = "REPLACE_WITH_BEARER_TOKEN"
+timeout_ms      = 10000
+retry           = 2
 
-[bpjs.vclaim]
-# Production: https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
-# Development: https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/
-base_url         = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
-cons_id          = "REPLACE_WITH_CONS_ID"
-consumer_secret  = "REPLACE_WITH_CONSUMER_SECRET"
-user_key         = "REPLACE_WITH_USER_KEY"
-timeout          = "15s"
-
-[bpjs.antrol]
-# Antrean Online — credential terpisah dari VClaim
-base_url         = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
-cons_id          = "REPLACE_WITH_ANTROL_CONS_ID"
-consumer_secret  = "REPLACE_WITH_ANTROL_SECRET"
-user_key         = "REPLACE_WITH_ANTROL_USER_KEY"
-timeout          = "10s"
-
-[bpjs.fingerprint]
-# After.exe REST endpoint (lokal di mesin Windows)
-base_url         = "https://fp.bpjs-kesehatan.go.id/finger-rest/"
-username         = "REPLACE_WITH_FP_USERNAME"
-password         = "REPLACE_WITH_FP_PASSWORD"
-scan_timeout     = "30s"
-
-[satusehat]
-# OAuth2 client credentials — aktivasi Satu Sehat Mobile
-base_url         = "https://api-satusehat.kemkes.go.id/"
-client_id        = "REPLACE_WITH_CLIENT_ID"
-client_secret    = "REPLACE_WITH_CLIENT_SECRET"
-organization_id  = "REPLACE_WITH_ORG_ID"
-
-[frista]
-# Path absolut frista.exe (Windows only — di Mac otomatis pakai mock)
-exe_path         = "C:\\Program Files\\Frista\\frista.exe"
-username         = "REPLACE_WITH_FRISTA_USERNAME"
-password         = "REPLACE_WITH_FRISTA_PASSWORD"
-auto_login_delay = "3s"
+[bpjs]
+# VClaim — production: https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
+# VClaim — development: https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/
+vclaim_url           = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
+cons_id              = "REPLACE_WITH_CONS_ID"
+consumer_secret      = "REPLACE_WITH_CONSUMER_SECRET"
+antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
+detector_timeout_ms  = 5000        # Smart Detector parallel-check timeout
 
 [fingerprint]
-# Path After.exe (Windows only)
-exe_path         = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
-auto_login_delay = "3s"
+# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only)
+exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
+rest_url           = "https://fp.bpjs-kesehatan.go.id/finger-rest/"
+username_enc       = "REPLACE_WITH_FP_USERNAME"
+password_enc       = "REPLACE_WITH_FP_PASSWORD"
+scan_timeout_sec   = 30
+poll_interval_ms   = 500
+
+[frista]
+# Frista card reader (Windows only — di Mac otomatis pakai mock)
+exe_path          = "C:\\Program Files\\Frista\\frista.exe"
+username_enc      = "REPLACE_WITH_FRISTA_USERNAME"
+password_enc      = "REPLACE_WITH_FRISTA_PASSWORD"
+read_timeout_ms   = 1000
+restart_on_crash  = true
 
 [printer]
-# ESC/POS thermal printer
-type             = "usb"                   # usb | serial | network
-device           = "POS-58"                # nama printer (USB) / COM port (serial) / IP:port (network)
-paper_width      = 58                      # mm — biasanya 58 atau 80
-encoding         = "cp437"
+# Mode: "console" (Mac dev — print ke stdout) | "escpos_usb" | "escpos_serial" | "escpos_network"
+mode      = "console"
+port      = "POS-58"               # nama printer (USB) / COM port (serial) / IP:port (network)
+width_mm  = 58                     # 58 atau 80
 
 [antrian]
-# Reset counter antrian harian
-reset_cron       = "0 0 * * *"             # jam 00:00 setiap hari
-prefix_loket     = "A"
-prefix_poli      = "P"
-prefix_umum      = "U"
-
-[storage]
-sqlite_path      = "./data/apm.db"
-backup_dir       = "./data/backup"
-backup_keep_days = 30
-
-[reconcile]
-# Background worker untuk antrian offline
-enabled          = true
-interval         = "30s"
-max_retry        = 5
+loket_prefix = "A"
+poli_prefix  = "B"
+umum_prefix  = "C"
+reset_time   = "00:01"             # HH:MM WIB — reset counter harian
 
 [dev]
-# Hanya berlaku saat mode = "development" atau platform != windows
+# Hanya berlaku di non-Windows (Mac/Linux). Hardware otomatis di-mock.
 mock_hardware    = true
 mock_server_port = 9090
