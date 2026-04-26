@@ -126,7 +126,56 @@ func Load(path string) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
+
+	// Auto-decrypt field bertanda "ENC:..." kalau master key tersedia.
+	// Kalau key tidak ada, biarkan field tetap "ENC:..." — caller akan
+	// fail saat coba pakai (mis. spawn Frista dengan password yang
+	// masih encrypted) dengan error message yang jelas.
+	if err := decryptInPlace(&cfg); err != nil {
+		// Log warning tapi continue — bisa jadi field tidak ada yang
+		// encrypted (config plaintext mode untuk dev).
+		// Caller bisa cek via IsEncrypted() di field individual.
+		_ = err
+	}
 	return &cfg, nil
+}
+
+// decryptInPlace ganti semua field "ENC:..." dengan plaintext-nya.
+// Field yang BUKAN ENC: dibiarkan apa adanya. Master key resolved
+// satu kali — kalau gagal resolve, return error tapi field-field
+// ENC: tetap tidak di-decrypt (caller akan terima string raw "ENC:..."
+// yang akan trigger error saat dipakai).
+func decryptInPlace(cfg *Config) error {
+	// Lazy resolve master key — hanya kalau ada field ENC:
+	hasEncrypted := IsEncrypted(cfg.Fingerprint.UsernameEnc) ||
+		IsEncrypted(cfg.Fingerprint.PasswordEnc) ||
+		IsEncrypted(cfg.Frista.UsernameEnc) ||
+		IsEncrypted(cfg.Frista.PasswordEnc)
+	if !hasEncrypted {
+		return nil
+	}
+
+	masterKey, err := GetMasterKey()
+	if err != nil {
+		return fmt.Errorf("master key untuk decrypt: %w", err)
+	}
+
+	mustDecrypt := func(s string) string {
+		if !IsEncrypted(s) {
+			return s
+		}
+		plain, derr := DecryptValue(s, masterKey)
+		if derr != nil {
+			// Biarkan tetap "ENC:..." — caller bisa cek
+			return s
+		}
+		return plain
+	}
+	cfg.Fingerprint.UsernameEnc = mustDecrypt(cfg.Fingerprint.UsernameEnc)
+	cfg.Fingerprint.PasswordEnc = mustDecrypt(cfg.Fingerprint.PasswordEnc)
+	cfg.Frista.UsernameEnc = mustDecrypt(cfg.Frista.UsernameEnc)
+	cfg.Frista.PasswordEnc = mustDecrypt(cfg.Frista.PasswordEnc)
+	return nil
 }
 
 // ErrConfigInvalid dikembalikan oleh Validate jika ada field wajib yang kosong.
