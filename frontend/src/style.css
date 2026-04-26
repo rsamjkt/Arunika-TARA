@@ -13,11 +13,26 @@
 html,
 body {
   margin: 0;
+  background-color: #F5F6F8;
+  color: #0E1117;
   font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
     'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
-  height: 100vh;
+  min-height: 100vh;
+}
+
+/* Touch-friendly: kiosk tidak butuh text-select untuk konten biasa,
+   tapi keep di input fields. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
