@@ -1,4 +1,4 @@
-.PHONY: help dev build-mac build-windows test test-integration test-coverage lint clean setup-cross-compile mock-card-read mock-card-default mock-fp-fail mocks
+.PHONY: help dev build-mac build-windows test test-integration test-coverage lint clean setup-cross-compile mock-card-read mock-card-default mock-card-delay mock-fp-fail mocks
 
 # Default — list semua target
 help:
@@ -14,8 +14,11 @@ help:
 	@echo "  make lint              golangci-lint"
 	@echo "  make clean             Hapus build artifacts"
 	@echo ""
-	@echo "  make mock-card-read NIK=... NAMA=...   Simulasi tap KTP via Frista mock"
-	@echo "  make mock-fp-fail                       Force fingerprint gagal sekali"
+	@echo "  make mock-card-read NIK=... NAMA=... KARTU=...   Simulasi tap KTP via Frista mock"
+	@echo "  make mock-card-default                            Sama dengan card-read pakai data default"
+	@echo "  make mock-card-delay [SECONDS=N]                  Inject card-read setelah N detik (default 3)"
+	@echo "  make mock-fp-fail                                 Force fingerprint gagal sekali"
+	@echo "  Frista mock info page: open http://localhost:9090"
 	@echo ""
 	@echo "  make setup-cross-compile               Install mingw-w64 toolchain (butuh brew)"
 
@@ -56,15 +59,27 @@ lint:
 clean:
 	rm -rf build/bin dist frontend/dist coverage.txt coverage.html
 
-# Mock helpers untuk dev di Mac
+# Mock helpers untuk dev di Mac (Frista mock HTTP server, lihat
+# internal/hardware/frista/http_server.go).
+#
+# Pakai: make mock-card-read NIK=... NAMA="..." KARTU=...
+# Atau:  make mock-card-default
 mock-card-read:
 	@curl -sX POST http://localhost:9090/mock/card-read \
 		-H "Content-Type: application/json" \
-		-d '{"nik":"$(NIK)","nama":"$(NAMA)","tgl_lahir":"1980-05-15","alamat":"Jl. Merdeka No. 1, Jakarta","no_kartu":"0001234567890012"}'
-	@echo ""
+		-d '{"nik":"$(NIK)","nama":"$(NAMA)","tgl_lahir":"1990-01-15","alamat":"Jl. Test No.1","no_kartu":"$(KARTU)"}' \
+		| echo "✅ Card read injected"
 
 mock-card-default:
-	@$(MAKE) mock-card-read NIK=3271234567890001 NAMA="Test Pasien"
+	@$(MAKE) mock-card-read NIK=3271234567890001 NAMA="Budi Santoso" KARTU=0001234567890012
+
+# Inject dengan delay (default 3 detik) — pakai untuk test scenario
+# "kartu di-tap N detik dari sekarang".
+mock-card-delay:
+	@curl -sX POST 'http://localhost:9090/mock/card-read-delay?seconds=$(or $(SECONDS),3)' \
+		-H "Content-Type: application/json" \
+		-d '{"nik":"3271234567890001","nama":"Budi Santoso","no_kartu":"0001234567890012"}' \
+		| echo "✅ Card read scheduled"
 
 mock-fp-fail:
 	@curl -sX POST http://localhost:9090/mock/fp-fail

@@ -3,6 +3,8 @@ package frista
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -28,27 +30,46 @@ type MockReader struct {
 	started   bool
 	available bool
 
-	// serverPort menyimpan port HTTP mock yang dipakai P-031 (saat
-	// MockReader di-wrap dengan endpoint /mock/card-read). Belum
-	// dipakai di P-030 — disiapkan supaya signature New stabil.
+	// serverPort menentukan apakah HTTP mock server akan di-spawn:
+	//   port == 0  → tidak ada HTTP server (channel-only mock,
+	//                pattern P-030 untuk unit test ringan)
+	//   port  > 0  → bind HTTP server di port tsb saat Start()
 	serverPort int
+	server     *http.Server
+	serverAddr string // diisi setelah Start kalau ada server
+
+	logger *slog.Logger
 }
 
 var _ CardReader = (*MockReader)(nil)
 
-// NewMock membuat reader baru. serverPort di-store untuk dipakai
-// HTTP wrapper P-031 (saat ini tidak start server apapun).
+// NewMock membuat reader baru.
+//
+//	port == 0 : tidak ada HTTP server (channel-only — pattern P-030)
+//	port  > 0 : Start() akan bind HTTP server di "127.0.0.1:port"
+//	            dengan endpoint mock POST /mock/card-read & GET /
 func NewMock(serverPort int) *MockReader {
 	return &MockReader{
 		ch:         make(chan CardData, 5),
 		available:  true,
 		serverPort: serverPort,
+		logger:     slog.Default(),
+	}
+}
+
+// SetLogger mengganti logger (dipakai test atau caller dengan PHIMaskingHandler).
+func (m *MockReader) SetLogger(l *slog.Logger) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if l != nil {
+		m.logger = l
 	}
 }
 
 // Start menandai reader aktif. Channel sudah ter-buffer dari
-// constructor sehingga EmitCard sebelum Start juga aman (event akan
-// di-buffer sampai 5 item).
+// constructor. Jika serverPort > 0, juga bind HTTP server di
+// 127.0.0.1:port — terikat-localhost untuk safety (kiosk dev,
+// JANGAN expose ke network supaya tidak bisa di-trigger orang lain).
 func (m *MockReader) Start(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -56,20 +77,36 @@ func (m *MockReader) Start(ctx context.Context) error {
 		return nil
 	}
 	m.started = true
+
+	if m.serverPort > 0 {
+		if err := m.startHTTPLocked(ctx); err != nil {
+			m.started = false
+			return err
+		}
+	}
 	return nil
 }
 
-// Stop menutup channel — pembaca via CardRead akan keluar dari
-// for-range loop. Idempotent.
+// Stop menutup channel + graceful shutdown HTTP server (jika ada).
+// Idempotent — boleh dipanggil berkali-kali.
 func (m *MockReader) Stop() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	srv := m.server
+	m.server = nil
 	if !m.started {
+		m.mu.Unlock()
 		return nil
 	}
 	close(m.ch)
 	m.started = false
 	m.available = false
+	m.mu.Unlock()
+
+	if srv != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+	}
 	return nil
 }
 
@@ -112,7 +149,16 @@ func (m *MockReader) SetAvailable(v bool) {
 	m.available = v
 }
 
-// ServerPort accessor — dipakai HTTP wrapper P-031.
+// ServerPort accessor — port yang diminta saat NewMock (configured port).
 func (m *MockReader) ServerPort() int {
 	return m.serverPort
+}
+
+// HTTPAddr mengembalikan address HTTP server yang aktif (mis.
+// "127.0.0.1:9090") atau "" jika server tidak running. Dipakai test
+// & log info untuk tahu URL yang bisa di-curl.
+func (m *MockReader) HTTPAddr() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.serverAddr
 }
