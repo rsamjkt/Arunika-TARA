@@ -2,16 +2,34 @@ package khanza
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/arunika/apm-go/internal/domain"
 )
 
 // MockKhanzaClient adalah implementasi KhanzaClient untuk testing.
+//
+// Dua API setting:
+//
+//  1. Per-method Func field — kontrol penuh per method, dipakai
+//     detector test (P-011/P-012).
+//  2. SetResponse(method, response, err) — sesuai spec P-020,
+//     single-call setter dengan type-assert otomatis.
+//
+// Keduanya bisa dipakai bareng — Func selalu menang kalau di-set
+// langsung. SetResponse internal-nya overwrite Func sesuai method.
 type MockKhanzaClient struct {
+	CariPasienFunc        func(ctx context.Context, q string) (*domain.Pasien, error)
 	GetSuratKontrolFunc   func(ctx context.Context, noRM string) ([]domain.SuratKontrol, error)
 	GetRiwayatRANAPFunc   func(ctx context.Context, noRM string) ([]domain.RiwayatRANAP, error)
 	GetKunjunganAktifFunc func(ctx context.Context, noRM string) ([]domain.Kunjungan, error)
+	GetJadwalDokterFunc   func(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error)
+	BuatPendaftaranFunc   func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
+	BuatAntrianFunc       func(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error)
+	SimpanSEPFunc         func(ctx context.Context, sep domain.SEP) error
+	UpdateSatuSehatIDFunc func(ctx context.Context, noRM, ihsNumber string) error
 
 	mu        sync.Mutex
 	callCount map[string]int
@@ -33,6 +51,81 @@ func (m *MockKhanzaClient) recordCall(name string) {
 	m.mu.Lock()
 	m.callCount[name]++
 	m.mu.Unlock()
+}
+
+// SetResponse mengkonfigurasi response (atau error) untuk method
+// dengan nama tertentu. Type-assert otomatis berdasarkan signature
+// method. Panic jika tipe response tidak cocok — kesalahan test setup
+// harus loud.
+//
+// Method names yang didukung (case-sensitive, sesuai nama method
+// di interface KhanzaClient):
+//
+//	"CariPasien"        → *domain.Pasien
+//	"GetSuratKontrol"   → []domain.SuratKontrol
+//	"GetRiwayatRANAP"   → []domain.RiwayatRANAP
+//	"GetKunjunganAktif" → []domain.Kunjungan
+//	"GetJadwalDokter"   → []domain.JadwalDokter
+//	"BuatPendaftaran"   → *domain.Pendaftaran
+//	"BuatAntrian"       → *domain.Ticket
+//	"SimpanSEP"         → nil (response diabaikan)
+//	"UpdateSatuSehatID" → nil (response diabaikan)
+func (m *MockKhanzaClient) SetResponse(method string, response any, err error) {
+	switch method {
+	case "CariPasien":
+		p, _ := response.(*domain.Pasien)
+		m.CariPasienFunc = func(ctx context.Context, q string) (*domain.Pasien, error) {
+			return p, err
+		}
+	case "GetSuratKontrol":
+		list, _ := response.([]domain.SuratKontrol)
+		m.GetSuratKontrolFunc = func(ctx context.Context, noRM string) ([]domain.SuratKontrol, error) {
+			return list, err
+		}
+	case "GetRiwayatRANAP":
+		list, _ := response.([]domain.RiwayatRANAP)
+		m.GetRiwayatRANAPFunc = func(ctx context.Context, noRM string) ([]domain.RiwayatRANAP, error) {
+			return list, err
+		}
+	case "GetKunjunganAktif":
+		list, _ := response.([]domain.Kunjungan)
+		m.GetKunjunganAktifFunc = func(ctx context.Context, noRM string) ([]domain.Kunjungan, error) {
+			return list, err
+		}
+	case "GetJadwalDokter":
+		list, _ := response.([]domain.JadwalDokter)
+		m.GetJadwalDokterFunc = func(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error) {
+			return list, err
+		}
+	case "BuatPendaftaran":
+		p, _ := response.(*domain.Pendaftaran)
+		m.BuatPendaftaranFunc = func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error) {
+			return p, err
+		}
+	case "BuatAntrian":
+		t, _ := response.(*domain.Ticket)
+		m.BuatAntrianFunc = func(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error) {
+			return t, err
+		}
+	case "SimpanSEP":
+		m.SimpanSEPFunc = func(ctx context.Context, sep domain.SEP) error {
+			return err
+		}
+	case "UpdateSatuSehatID":
+		m.UpdateSatuSehatIDFunc = func(ctx context.Context, noRM, ihsNumber string) error {
+			return err
+		}
+	default:
+		panic(fmt.Sprintf("MockKhanzaClient.SetResponse: unknown method %q", method))
+	}
+}
+
+func (m *MockKhanzaClient) CariPasien(ctx context.Context, q string) (*domain.Pasien, error) {
+	m.recordCall("CariPasien")
+	if m.CariPasienFunc != nil {
+		return m.CariPasienFunc(ctx, q)
+	}
+	return nil, nil
 }
 
 func (m *MockKhanzaClient) GetSuratKontrol(ctx context.Context, noRM string) ([]domain.SuratKontrol, error) {
@@ -57,4 +150,44 @@ func (m *MockKhanzaClient) GetKunjunganAktif(ctx context.Context, noRM string) (
 		return m.GetKunjunganAktifFunc(ctx, noRM)
 	}
 	return nil, nil
+}
+
+func (m *MockKhanzaClient) GetJadwalDokter(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error) {
+	m.recordCall("GetJadwalDokter")
+	if m.GetJadwalDokterFunc != nil {
+		return m.GetJadwalDokterFunc(ctx, kdPoli, tgl)
+	}
+	return nil, nil
+}
+
+func (m *MockKhanzaClient) BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error) {
+	m.recordCall("BuatPendaftaran")
+	if m.BuatPendaftaranFunc != nil {
+		return m.BuatPendaftaranFunc(ctx, req)
+	}
+	return nil, nil
+}
+
+func (m *MockKhanzaClient) BuatAntrian(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error) {
+	m.recordCall("BuatAntrian")
+	if m.BuatAntrianFunc != nil {
+		return m.BuatAntrianFunc(ctx, req)
+	}
+	return nil, nil
+}
+
+func (m *MockKhanzaClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
+	m.recordCall("SimpanSEP")
+	if m.SimpanSEPFunc != nil {
+		return m.SimpanSEPFunc(ctx, sep)
+	}
+	return nil
+}
+
+func (m *MockKhanzaClient) UpdateSatuSehatID(ctx context.Context, noRM, ihsNumber string) error {
+	m.recordCall("UpdateSatuSehatID")
+	if m.UpdateSatuSehatIDFunc != nil {
+		return m.UpdateSatuSehatIDFunc(ctx, noRM, ihsNumber)
+	}
+	return nil
 }
