@@ -1,0 +1,71 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Sensitive — JANGAN PERNAH commit
+config.toml
+*.env
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+credentials.json
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work.sum
+vendor/
+
+# Wails build output
+build/bin/
+dist/
+frontend/dist/
+frontend/wailsjs/
+
+# Frontend
+node_modules/
+.npm
+.pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# Logs
+logs/
+*.log
+
+# Database (local dev)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Coverage
+coverage.txt
+coverage.html
+*.cover
+
+# OS thumbs
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Claude Code local
+.claude/
