@@ -1,1217 +1,1508 @@
-# Prompt Library — APM-Go Claude Code
+# PROMPTS LENGKAP — APM-Go Claude Code
 
-> Cara pakai: buka Claude Code di folder proyek (`claude`), paste prompt sesuai task.
-> Claude Code otomatis baca `CLAUDE.md` di root folder — jadi konteks selalu ada.
-
----
-
-## FASE 0 — SETUP PROYEK
-
-### P-000 · Install & verifikasi toolchain (jalankan di terminal dulu, bukan Claude Code)
-
-```bash
-# Install semua yang dibutuhkan di Mac
-brew install go mingw-w64 node
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-# Verifikasi
-go version        # minimal go1.22
-wails version     # minimal v2.8
-node --version    # minimal v18
-x86_64-w64-mingw32-gcc --version  # cross-compiler Windows
-```
+> Cara pakai: buka Claude Code di folder proyek, lalu copy-paste prompt yang sesuai task.
+> Claude Code otomatis baca CLAUDE.md di root folder setiap sesi.
 
 ---
 
-### P-001 · Inisialisasi struktur proyek
+## URUTAN EKSEKUSI YANG BENAR
 
 ```
-Baca CLAUDE.md terlebih dahulu, lalu kerjakan:
-
-Inisialisasi proyek APM-Go dengan struktur lengkap sesuai CLAUDE.md.
-
-Langkah yang harus dikerjakan:
-1. Jalankan: wails init -n apm-go -t vue
-2. Buat struktur folder di dalam proyek:
-   - internal/config/
-   - internal/domain/
-   - internal/service/detector/
-   - internal/service/antrian/
-   - internal/service/sep/
-   - internal/service/pendaftaran/
-   - internal/service/satusehat/
-   - internal/integration/vclaim/
-   - internal/integration/antrol/
-   - internal/integration/mjkn/
-   - internal/integration/khanza/
-   - internal/hardware/frista/
-   - internal/hardware/fingerprint/
-   - internal/hardware/printer/
-   - internal/store/
-   - internal/reconcile/
-   - migrations/
-   - templates/
-3. Buat go.mod dengan module: github.com/arunika/apm-go
-4. Install Go dependencies:
-   - github.com/spf13/viper (config)
-   - github.com/mattn/go-sqlite3 (SQLite)
-   - github.com/go-resty/resty/v2 (HTTP client)
-   - github.com/robfig/cron/v3 (scheduler reset antrian)
-   - github.com/stretchr/testify (testing)
-5. Setup Tailwind CSS v3 di folder frontend/
-6. Buat config.example.toml dengan semua key dari CLAUDE.md bagian "Referensi Cepat"
-   — gunakan nilai placeholder, BUKAN credential nyata
-7. Buat .gitignore yang exclude: config.toml, *.exe, dist/, node_modules/
-8. Buat Makefile dengan target: dev, build-mac, build-windows, test, test-coverage, lint
-
-Pastikan `wails dev` bisa jalan tanpa error setelah setup selesai.
+P-000  Setup Mac (SEKALI)
+P-001  Init proyek
+P-002  Domain layer
+P-003  Config & SQLite
+         ↓
+P-010  VClaim client
+P-011  Smart Detector
+P-012  Test Detector
+         ↓
+P-020  Khanza client
+P-021  Antrian service
+P-022  SEP service
+         ↓
+P-030  Hardware provider
+P-031  Frista mock (Mac)
+P-032  Fingerprint mock (Mac)
+P-033  Printer (console Mac / ESC-POS Windows)
+         ↓
+P-040  Wails setup + IPC bindings
+P-041  Home screen
+P-042  Input + Detect screen
+P-043  Result screens (4 tipe)
+P-044  Antrian screen
+P-045  Tiket screen
+P-046  Admin panel
+         ↓
+P-050  Offline & rekonsiliasi
+P-051  Security (enkripsi credential + PHI masking)
+         ↓
+P-060  Build Mac testing
+P-061  Cross-compile Windows
+P-062  Windows Service installer
 ```
 
 ---
 
-### P-002 · Buat domain layer
+## P-000 — SETUP MAC (jalankan SEKALI sebelum apapun)
 
 ```
-Baca CLAUDE.md dan BPJS_INTEGRATION.md terlebih dahulu, lalu kerjakan:
+Saya mau mulai proyek APM-Go di Mac M4. Bantu saya setup semua prerequisites.
 
-Buat domain layer di internal/domain/ — ini adalah inti bisnis, TIDAK boleh ada
-import package eksternal (hanya Go stdlib).
+Jalankan langkah-langkah ini secara berurutan dan konfirmasi tiap langkah berhasil:
+
+1. Cek apakah Go 1.22+ sudah terinstal: go version
+   Jika belum: brew install go
+
+2. Cek apakah Wails v2 sudah terinstal: wails version
+   Jika belum: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+3. Cek Node.js 18+: node --version
+   Jika belum: brew install node
+
+4. Install cross-compile toolchain untuk Windows: brew install mingw-w64
+
+5. Install golangci-lint untuk linting: brew install golangci-lint
+
+6. Verifikasi semua:
+   go version        → harus 1.22+
+   wails version     → harus v2.x
+   node --version    → harus v18+
+   x86_64-w64-mingw32-gcc --version  → harus ada output
+
+7. Tampilkan semua hasil verifikasi dalam tabel yang jelas.
+
+Jika ada yang gagal, diagnosa masalahnya dan perbaiki.
+```
+
+---
+
+## P-001 — INISIALISASI PROYEK
+
+```
+Read CLAUDE.md first.
+
+Buat struktur proyek APM-Go dari nol. Ini adalah aplikasi kiosk rumah sakit 
+berbasis Go + Wails v2 + Vue 3.
+
+LANGKAH 1 — Init Wails project:
+  wails init -n apm-go -t vue
+  cd apm-go
+
+LANGKAH 2 — Buat struktur folder internal sesuai CLAUDE.md:
+  mkdir -p internal/{config,domain,service/{detector,antrian,sep,pendaftaran,satusehat}}
+  mkdir -p internal/{integration/{vclaim,antrol,mjkn,khanza},hardware/{frista,fingerprint,printer}}
+  mkdir -p internal/{store,reconcile,log}
+  mkdir -p {migrations,templates}
+
+LANGKAH 3 — Buat go.mod dengan dependencies:
+  - github.com/wailsapp/wails/v2
+  - github.com/spf13/viper
+  - github.com/mattn/go-sqlite3
+  - github.com/jmoiron/sqlx
+  - github.com/go-resty/resty/v2
+  - github.com/robfig/cron/v3
+  - github.com/stretchr/testify
+  - github.com/stretchr/mockery/v2 (dev)
+  Jalankan: go mod tidy
+
+LANGKAH 4 — Buat config.example.toml dengan SEMUA section dari CLAUDE.md.
+  PENTING: Jangan taruh credential nyata. Gunakan placeholder.
+
+LANGKAH 5 — Buat Makefile dengan targets:
+  dev              → wails dev
+  build-mac        → wails build
+  build-windows    → GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc wails build -platform windows/amd64
+  test             → go test ./... -v -cover
+  test-integration → go test ./... -tags integration -v
+  lint             → golangci-lint run ./...
+  mock-card-read   → curl -X POST http://localhost:9090/mock/card-read -H "Content-Type: application/json" -d '{"nik":"3271234567890001","nama":"Test Pasien","tgl_lahir":"1990-01-15","alamat":"Jl. Test No.1"}'
+  mock-fp-fail     → curl -X POST http://localhost:9090/mock/fp-fail
+
+LANGKAH 6 — Buat .gitignore:
+  config.toml (ada credential)
+  *.exe
+  dist/
+  build/bin/
+  frontend/node_modules/
+  frontend/dist/
+
+Setelah selesai, jalankan: make dev
+Pastikan window Wails muncul dengan Vue template default.
+Tampilkan output terminal yang membuktikan berhasil.
+```
+
+---
+
+## P-002 — DOMAIN LAYER (pure structs, no deps)
+
+```
+Read CLAUDE.md and BPJS_INTEGRATION.md first.
+
+Buat domain layer di internal/domain/. 
+ATURAN KERAS: tidak boleh ada import package eksternal di folder ini. 
+Hanya Go stdlib yang boleh.
 
 Buat file-file berikut:
 
-1. internal/domain/patient.go
-   Struct yang dibutuhkan:
-   - Peserta: NoKartu, Nama, TglLahir, JK, Status, KdKantor, KdPPKPelayanan,
-     NoRM, Poli, Kelas, JnsPeserta, Asuransi, TglTMT, TglTAT
-   - PatientInput: Identifier string (bisa NoKartu/NIK/NoRM)
-   - CardData: NIK, Nama, TglLahir, Alamat, NoKartu (dari Frista)
-   Method: func (p *Peserta) IsAktif() bool { return p.Status == "1" }
+━━━ internal/domain/patient.go ━━━
+Structs:
+- PatientInput { Identifier string } 
+  (bisa NIK 16 digit, No Kartu JKN 16 digit, atau No RM alphanumeric)
+- Peserta {
+    NoKartu, NoRM, NIK, Nama, TglLahir string
+    StatusAktif string  // "1" = aktif
+    KelasHak string     // "1", "2", "3"
+    JenisPeserta string // "PBI", "PPU", "PBPU", dll
+  }
+  Method: IsAktif() bool
+- SuratKontrol { NoSurat, NoRM, TglRencana, KdPoli, NmPoli, KdDokter string }
+  Method: IsTodayOrPast() bool — bandingkan TglRencana dengan time.Now() WIB
+- Rujukan { NoSurat, TglRujukan, TglBerlaku, KdPoli, KdDokter, NmFaskes string }
+  Method: IsValid() bool — cek TglBerlaku > today
 
-2. internal/domain/detection.go
-   - PatientType sebagai int enum dengan iota:
-     PatientTypeUnknown, PatientTypeMJKN, PatientTypeKontrol,
-     PatientTypePostRANAP, PatientTypePostRAJAL, PatientTypeRujukanBaru,
-     PatientTypeTidakAktif, PatientTypeError
-   - func (t PatientType) Label() string — return label bahasa Indonesia
-   - DetectionResult: Type PatientType, Peserta *Peserta, Data any, Err error, DetectedAt time.Time
-   - DetectStep: ID string, Label string, State string (done/active/wait/error)
+━━━ internal/domain/detection.go ━━━
+- PatientType enum (int) dengan 8 nilai:
+  Unknown, MJKN, Kontrol, PostRANAP, PostRAJAL, RujukanBaru, TidakAktif, Error
+  Tambahkan method String() string untuk setiap nilai (dalam Bahasa Indonesia)
+- DetectionResult {
+    Type PatientType
+    Peserta *Peserta
+    Data any       // SuratKontrol, booking MJKN, dll tergantung Type
+    Err error
+    DetectedAt time.Time
+  }
+  Method: IsSuccess() bool, UserMessage() string (pesan ramah untuk pasien)
 
-3. internal/domain/antrian.go
-   - AntrianJenis: LOKET, POLI, UMUM sebagai string const
-   - AntrianSubJenis: APPOINTMENT, WALKIN, RANAP_IGD, FARMASI, CS, KASIR
-   - Ticket: ID, Jenis, SubJenis, Nomor, Prefix, NoRM, CreatedAt, Synced bool
-   - AntrianRequest: Jenis, SubJenis, NoRM string
-   - Format nomor: LOKET="A-001", POLI="B-POLI_DALAM-015", UMUM="C-FAR-022"
+━━━ internal/domain/antrian.go ━━━
+- AntrianJenis string enum: "LOKET", "POLI", "UMUM"
+- AntrianSubJenis string: "APPOINTMENT", "WALKIN", "RANAP_IGD", "FARMASI", "CS", "KASIR"
+- Ticket {
+    ID, Nomor, Jenis, SubJenis string
+    Prefix string   // "A", "B", "C"
+    NoUrut int
+    NoRM, NoPoli string  // jika terkait pasien
+    CreatedAt time.Time
+    PrintedAt *time.Time
+  }
+  Method: FormatNomor() string → "A-035", "B-DALAM-015", "C-FAR-022"
 
-4. internal/domain/sep.go
-   - SEPRequest: NoKartu, TglSEP, JnsPelayanan, Poli, DPJP, NoRujukan,
-     NoSuratKontrol, KelasRawat, AsalRujukan, Diagnosa, CatatanSEP
-   - SEP: NoSEP, NoKartu, TglSEP, Poli, DPJP, NoRM, JnsPelayanan
-   - SuratKontrol: NoSurat, NoSEP, TglRencana, Poli, DPJP, NoRM
-   - Rujukan: NoSurat, FKTP, TglRujukan, TglExpiry, Poli, Diagnosa, IsValid bool
-   - VClaimErrorMap: map[string]string semua kode error VClaim → pesan Indonesia
-     (dari BPJS_INTEGRATION.md bagian "Business Rules VClaim")
+━━━ internal/domain/sep.go ━━━
+- SEPRequest {
+    NoKartu, TglSEP, KdPoli, KdDokter string
+    JnsPelayanan string  // "1"=RawatJalan, "2"=RawatInap
+    KelasRawat string
+    NoRujukan string
+    CatatanPelayanan string
+    FPToken string  // dari fingerprint verification
+  }
+- SEP {
+    NoSEP, NoKartu, TglSEP, KdPoli, NmPoli string
+    KdDokter, NmDokter string
+    CreatedAt time.Time
+  }
 
-5. internal/domain/errors.go
-   - ErrPesertaTidakAktif, ErrRujukanExpired, ErrJadwalKontrolBelumTiba,
-     ErrDuplikasiPendaftaran, ErrDokterCuti, ErrBiometrikDiperlukan,
-     ErrHardwareUnavailable, ErrOfflineMode
-   - Semua implementasi interface error dengan pesan bahasa Indonesia
+━━━ internal/domain/errors.go ━━━
+Buat error types spesifik dengan pesan Bahasa Indonesia:
+- ErrPesertaTidakAktif
+- ErrRujukanExpired  
+- ErrDuplikasiSEP
+- ErrBiometrikDiperlukan
+- ErrJadwalKontrolBelumTiba (sertakan TglRencana di error message)
+- ErrSuratKontrolTidakDitemukan
+- ErrDokterCuti
+- ErrKuotaPenuH
+- ErrOffline
 
-Aturan keras:
-- Zero import eksternal di domain/
-- Semua struct harus punya JSON tag
-- Enum PatientType harus persis sama dengan BPJS_INTEGRATION.md
+Tulis unit test untuk semua method (IsAktif, IsTodayOrPast, IsValid, FormatNomor, dll).
+Jalankan: go test ./internal/domain/... -v
+Semua harus hijau.
 ```
 
 ---
 
-## FASE 1 — HARDWARE LAYER
-
-### P-010 · Hardware provider pattern (Mac mock + Windows real)
+## P-003 — CONFIG & SQLITE
 
 ```
-Baca CLAUDE.md dan HARDWARE_PLATFORM.md terlebih dahulu, lalu kerjakan:
+Read CLAUDE.md and HARDWARE_PLATFORM.md first.
 
-Buat hardware provider dengan pattern dual-platform sesuai HARDWARE_PLATFORM.md.
+Buat dua hal: config loader dan SQLite store.
 
-1. Buat interface di masing-masing subfolder:
+━━━ BAGIAN 1: internal/config/config.go ━━━
 
-   internal/hardware/frista/interface.go
-   type CardReader interface {
-       Start(ctx context.Context) error
-       Stop() error
-       IsAvailable() bool
-       CardRead() <-chan domain.CardData
-   }
+Struct Config dengan semua field dari config.example.toml:
+  AppConfig { IdleTimeoutSec, LogLevel, LogDir, Timezone, Version string }
+  ServerConfig { KhanzaURL, KhanzaAPIKey string; TimeoutMs, Retry int }
+  BPJSConfig { VClaimURL, ConsID, ConsumerSecret string; AntrolURL string; DetectorTimeoutMs int }
+  FingerprintConfig { ExePath, RestURL, UsernameEnc, PasswordEnc string; ScanTimeoutSec, PollIntervalMs int }
+  FristaConfig { ExePath, UsernameEnc, PasswordEnc string; ReadTimeoutMs int; RestartOnCrash bool }
+  PrinterConfig { Mode, Port string; WidthMm int }
+  AntrianConfig { LoketPrefix, PoliPrefix, UmumPrefix, ResetTime string }
+  DevConfig { MockHardware bool; MockServerPort int }
 
-   internal/hardware/fingerprint/interface.go
-   type FingerprintVerifier interface {
-       Verify(ctx context.Context, noPeserta string) (FPResult, error)
-       IsAvailable() bool
-   }
-   type FPResult struct {
-       Success   bool
-       Token     string
-       Message   string
-       Timestamp time.Time
-   }
+Fungsi:
+  Load(path string) (*Config, error)  → pakai Viper, TOML
+  (c *Config) Validate() error        → cek field wajib tidak kosong
 
-   internal/hardware/printer/interface.go
-   type ThermalPrinter interface {
-       Print(docType string, data PrintData) error
-       IsAvailable() bool
-       Reprint(historyID int64) error
-   }
+━━━ BAGIAN 2: migrations/001_initial.sql ━━━
 
-2. Buat internal/hardware/provider.go:
-   - Fungsi NewProvider(cfg config.Config) *Provider
-   - Gunakan runtime.GOOS == "windows" untuk switch implementasi
-   - Di non-Windows: return mock implementations
-   - Di Windows: return real implementations (stub dulu, isi nanti)
+Buat 5 tabel SQLite:
 
-3. Implementasi MOCK (untuk Mac development):
+antrian_lokal:
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  jenis TEXT NOT NULL,
+  sub_jenis TEXT,
+  nomor TEXT NOT NULL,
+  prefix TEXT NOT NULL,
+  no_urut INTEGER NOT NULL,
+  no_rm TEXT,
+  no_poli TEXT,
+  created_at DATETIME DEFAULT (datetime('now','localtime')),
+  synced_at DATETIME,
+  sync_status TEXT DEFAULT 'pending'
 
-   internal/hardware/frista/mock.go
-   - Start() spawn goroutine HTTP server di cfg.Dev.MockPort (default 9090)
-   - Expose endpoint: POST /mock/card-read — terima JSON CardData, kirim ke channel
-   - Expose endpoint: GET / — halaman HTML sederhana listing semua endpoint
-   - CardRead() return channel yang di-feed dari HTTP endpoint
+pending_sep:
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  no_kartu TEXT NOT NULL,
+  kategori TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  vclaim_response TEXT,
+  status TEXT DEFAULT 'pending',
+  retry_count INTEGER DEFAULT 0,
+  last_error TEXT,
+  created_at DATETIME DEFAULT (datetime('now','localtime')),
+  confirmed_by TEXT,
+  confirmed_at DATETIME
 
-   internal/hardware/fingerprint/mock.go
-   - Verify() tunggu 2 detik (simulasi scan), lalu return FPResult{Success: true}
-   - Jika ada flag mock-fail aktif: return error
-   - Expose POST /mock/fp-fail di HTTP server yang sama dengan Frista mock
+print_history:
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  doc_type TEXT NOT NULL,
+  ref_id TEXT,
+  escpos_bytes BLOB NOT NULL,
+  printed_at DATETIME DEFAULT (datetime('now','localtime')),
+  reprint_count INTEGER DEFAULT 0
 
-   internal/hardware/printer/console.go
-   - Print() format dokumen ke stdout dengan border ASCII yang readable
-   - Simpan ke SQLite print_history
-   - Reprint() baca dari print_history dan print ulang ke stdout
+reconcile_log:
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  table_name TEXT NOT NULL,
+  record_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  operator_id TEXT,
+  result TEXT,
+  timestamp DATETIME DEFAULT (datetime('now','localtime'))
 
-4. Tambahkan ke Makefile:
-   mock-card-read:
-     curl -s -X POST http://localhost:9090/mock/card-read \
-       -H "Content-Type: application/json" \
-       -d '{"nik":"$(NIK)","nama":"$(NAMA)","tgl_lahir":"1980-01-15","alamat":"Jl. Test No.1","no_kartu":"$(NO_KARTU)"}'
+config_cache:
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at DATETIME DEFAULT (datetime('now','localtime'))
 
-   mock-fp-fail:
-     curl -s -X POST http://localhost:9090/mock/fp-fail
+━━━ BAGIAN 3: internal/store/ ━━━
 
-Pastikan di Mac, `wails dev` + `make mock-card-read NIK=3271234 NAMA="Budi"` bisa jalan.
-```
+Buat query.sql dengan semua query yang dibutuhkan, lalu generate dengan sqlc.
+Jika sqlc belum ada: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
----
+Query yang dibutuhkan:
+  InsertAntrian, GetPendingAntrian, MarkAntrianSynced
+  InsertPendingSEP, GetPendingSEPs, ConfirmSEP, MarkSEPSynced
+  InsertPrintHistory, GetPrintHistory, IncrementReprintCount
+  InsertReconcileLog, GetRecentLogs
 
-### P-011 · Windows implementations (stub untuk compile, isi saat di Windows)
-
-```
-Baca HARDWARE_PLATFORM.md terlebih dahulu, lalu kerjakan:
-
-Buat stub implementasi Windows agar cross-compile tidak error.
-Ini BUKAN implementasi nyata — hanya agar binary Windows bisa di-build dari Mac.
-
-1. internal/hardware/frista/windows.go
-   Build tag: //go:build windows
-   - Struct WindowsFristaReader yang implement CardReader interface
-   - Start() return nil (stub)
-   - Stop() return nil
-   - IsAvailable() return true
-   - CardRead() return channel kosong (tidak pernah ada data)
-   - TODO comment: "Implementasi nyata: spawn frista.exe HIDDEN + Windows UI Automation"
-
-2. internal/hardware/fingerprint/windows.go
-   Build tag: //go:build windows
-   - Struct WindowsFPVerifier yang implement FingerprintVerifier
-   - Verify() return FPResult{Success: true, Token: "STUB"} (stub)
-   - TODO comment: "Implementasi nyata: spawn After.exe HIDDEN + REST polling"
-
-3. internal/hardware/printer/escpos.go
-   Build tag: //go:build windows
-   - Struct ESCPOSPrinter yang implement ThermalPrinter
-   - Print() return nil (stub)
-   - TODO comment: "Implementasi nyata: USB write ESC/POS commands"
-
-Verifikasi: `make build-windows` harus sukses tanpa error setelah ini.
+Jalankan: go test ./internal/config/... ./internal/store/... -v
 ```
 
 ---
 
-## FASE 2 — INTEGRASI BPJS
-
-### P-020 · VClaim client
+## P-010 — VCLAIM CLIENT
 
 ```
-Baca BPJS_INTEGRATION.md dengan teliti terlebih dahulu, lalu kerjakan:
+Read BPJS_INTEGRATION.md section "VClaim API v2.0" secara lengkap dulu.
 
-Implementasi BPJS VClaim API v2.0 client di internal/integration/vclaim/.
+Buat BPJS VClaim v2.0 client di internal/integration/vclaim/.
 
-File yang harus dibuat:
+━━━ interface.go ━━━
+type VClaimClient interface {
+  GetPeserta(ctx context.Context, identifier string, tgl time.Time) (*domain.Peserta, error)
+  GetRencanaKontrol(ctx context.Context, noKartu string, tgl time.Time) ([]domain.SuratKontrol, error)
+  GetRiwayatPelayanan(ctx context.Context, noKartu string, tglAwal, tglAkhir time.Time) ([]domain.RiwayatPelayanan, error)
+  ValidasiRujukan(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error)
+  CreateSEP(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error)
+  CreateSEPKontrol(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
+}
 
-1. internal/integration/vclaim/client.go
-   Struct Client dengan field: consID, secretKey, baseURL, httpClient *resty.Client
-   Constructor: NewClient(cfg config.BPJSConfig) *Client
+━━━ client.go ━━━
+Struct Client dengan:
+  consID, secretKey, baseURL string
+  httpClient *resty.Client
 
-2. internal/integration/vclaim/auth.go
-   func (c *Client) sign(timestamp int64) string
-   - Formula: HMAC-SHA256(consID + "&" + timestamp, secretKey)
-   - Return: base64 standard encoding
-   
-   func (c *Client) headers() map[string]string
-   - Return header map: X-cons-id, X-timestamp (epoch sekarang), X-signature
+Fungsi New(cfg config.BPJSConfig) *Client
 
-3. internal/integration/vclaim/decrypt.go
-   func (c *Client) decrypt(ciphertext string) ([]byte, error)
-   - Key = SHA256(secretKey + consID) → 32 bytes
-   - IV = first 16 bytes of key
-   - Algorithm: AES-256-CBC + PKCS7 unpadding
-   - Input ciphertext: base64 encoded
+━━━ auth.go ━━━
+func (c *Client) sign(timestamp int64) string
+  → HMAC-SHA256(consID + "&" + timestamp, secretKey) → base64
+func (c *Client) headers() map[string]string
+  → X-cons-id, X-timestamp, X-signature
 
-4. internal/integration/vclaim/peserta.go
-   func (c *Client) GetPeserta(ctx context.Context, identifier string, tgl time.Time) (*domain.Peserta, error)
-   - GET /Peserta/noKartu/{identifier}/{tgl format 2006-01-02}
-   - Decrypt response
-   - Parse JSON ke domain.Peserta
-   - Jika status != "1": return domain.ErrPesertaTidakAktif
+━━━ decrypt.go ━━━
+func (c *Client) decrypt(ciphertext string) ([]byte, error)
+  → AES-256-CBC
+  → key = SHA256(secretKey + consID)  [32 bytes]
+  → IV  = key[:16]
+  → Ciphertext adalah base64 → decode dulu → decrypt → PKCS7 unpad
 
-5. internal/integration/vclaim/rencana_kontrol.go
-   func (c *Client) GetRencanaKontrol(ctx context.Context, noKartu string, tgl time.Time) ([]domain.SuratKontrol, error)
-   - GET /RencanaKontrol/List/{noKartu}/{tglAwal}/{tglAkhir}
-   - tglAwal = tgl, tglAkhir = tgl (same day check)
+━━━ peserta.go ━━━
+GetPeserta() dengan lookup cascade:
+  1. Coba sebagai noKartu: GET /Peserta/noKartu/{identifier}/{tgl}
+  2. Jika gagal, coba sebagai NIK: GET /Peserta/nik/{identifier}/{tgl}  
+  (No RM tidak dicari ke VClaim, cari ke Khanza dulu)
+  Parse response JSON, decrypt dulu, return *domain.Peserta
 
-6. internal/integration/vclaim/sep.go
-   func (c *Client) CreateSEP(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error)
-   func (c *Client) CreateSEPKontrol(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
+━━━ error_codes.go ━━━
+Map semua VClaim error code ke domain error dan pesan Indonesia
+(lihat BPJS_INTEGRATION.md bagian "Business Rules VClaim")
 
-7. internal/integration/vclaim/rujukan.go
-   func (c *Client) ValidasiRujukan(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error)
+━━━ mock.go ━━━
+MockVClaimClient yang implementasi VClaimClient interface.
+Gunakan untuk testing. Bisa di-configure response per test case.
 
-8. internal/integration/vclaim/interface.go
-   Interface VClaimClient dengan semua method di atas
-   — dipakai oleh detector dan sep service
+━━━ client_test.go ━━━
+Test dengan httptest.NewServer sebagai mock BPJS server:
+- Test sign() menghasilkan HMAC yang benar
+- Test decrypt() dengan test vector yang diketahui
+- Test GetPeserta() success path
+- Test GetPeserta() ketika peserta tidak aktif → return ErrPesertaTidakAktif
+- Test retry behavior saat 500 error
+- Test timeout handling
 
-Implementasi detail:
-- Semua request harus punya context timeout
-- Retry: 2x untuk HTTP 5xx, delay 500ms
-- Rate limit: token bucket, max 100 req/menit (golang.org/x/time/rate)
-- Error mapping: gunakan VClaimErrorMap dari domain/sep.go
-- PHI di log: NoKartu dan NIK harus di-mask
-
-Test: buat vclaim_test.go dengan httptest.NewServer sebagai mock server BPJS.
-Test semua endpoint + test decrypt + test HMAC signing.
-```
-
----
-
-### P-021 · Antrol & MJKN client
-
-```
-Baca BPJS_INTEGRATION.md terlebih dahulu, lalu kerjakan:
-
-Buat dua client tambahan:
-
-1. internal/integration/antrol/client.go
-   Interface AntrolClient:
-   - CheckBookingMJKN(ctx, noKartu, tgl) ([]BookingMJKN, error)
-   - CheckinMJKN(ctx, noKartu, kodebooking) error
-   - PushAntrianPoli(ctx, req AntrianPoliRequest) error  ← fire-and-forget
-
-   Implementasi:
-   - Auth sama dengan VClaim (HMAC-SHA256) TAPI pakai credential antrol terpisah
-   - BaseURL: dari config.BPJS.AntrolURL
-   - PushAntrianPoli: error tidak boleh panic atau return ke user
-     → log error saja, lanjut
-
-2. internal/integration/mjkn/client.go  
-   Untuk sekarang: cukup wrapper tipis di atas Antrol client
-   MJKNClient interface sama dengan subset AntrolClient
-
-Buat mock untuk keduanya menggunakan interface,
-dipakai di detector tests.
+Jalankan: go test ./internal/integration/vclaim/... -v -run TestVClaim
 ```
 
 ---
 
-### P-022 · Khanza REST client
+## P-011 — SMART BPJS DETECTOR
 
 ```
-Baca CLAUDE.md bagian "Endpoint Penting" terlebih dahulu, lalu kerjakan:
+Read BPJS_INTEGRATION.md section "Smart BPJS Detector Engine" secara lengkap.
+Read juga internal/domain/detection.go yang sudah dibuat.
+
+Ini adalah komponen terpenting APM. Implement dengan sangat teliti.
+
+━━━ internal/service/detector/detector.go ━━━
+
+Struct Detector {
+  vclaim  vclaim.VClaimClient
+  antrol  antrol.AntrolClient  
+  khanza  khanza.KhanzaClient
+}
+
+func New(vclaim, antrol, khanza) *Detector
+
+func (d *Detector) Detect(ctx context.Context, input domain.PatientInput) domain.DetectionResult:
+  
+  STEP 1 — Serial, wajib dulu:
+    peserta, err := d.vclaim.GetPeserta(ctx, input.Identifier, today)
+    jika err → return DetectionResult{Type: Error}
+    jika !peserta.IsAktif() → return DetectionResult{Type: TidakAktif}
+  
+  STEP 2 — 4 goroutine paralel, timeout 5 detik:
+    Buat context dengan timeout 5 detik
+    Jalankan 4 goroutine: checkMJKN, checkKontrol, checkPostRANAP, checkPostRAJAL
+    Kumpulkan hasilnya via channel
+  
+  STEP 3 — Priority resolution:
+    MJKN > Kontrol > PostRANAP > PostRAJAL > RujukanBaru
+
+━━━ mjkn_check.go ━━━
+func (d *Detector) checkMJKN(ctx, noKartu string, ch chan<- checkResult)
+  → call antrol.GetBookingHariIni(ctx, noKartu, today)
+  → jika ada booking aktif → kirim hit=true ke channel
+
+━━━ kontrol_check.go ━━━
+func (d *Detector) checkKontrol(ctx, noRM string, ch chan<- checkResult)
+  → call khanza.GetSuratKontrol(ctx, noRM)
+  → filter: hanya yang TglRencana == today atau sudah lewat (tidak futuro)
+  → jika ada → hit=true
+
+━━━ ranap_check.go ━━━
+func (d *Detector) checkPostRANAP(ctx, noRM string, ch chan<- checkResult)
+  → call khanza.GetRiwayatRANAP(ctx, noRM)
+  → filter: TglKeluar == yesterday atau today
+  → jika ada → hit=true
+
+━━━ rajal_check.go ━━━
+func (d *Detector) checkPostRAJAL(ctx, noRM string, ch chan<- checkResult)
+  → call khanza.GetKunjunganAktif(ctx, noRM)
+  → filter: ada kunjungan RAJAL aktif yang punya SKDP beda poli
+  → jika ada → hit=true
+
+━━━ PENTING — Edge cases yang HARUS dihandle: ━━━
+- Jika salah satu goroutine panic → recover, treat as miss (bukan error total)
+- Jika semua goroutine timeout → return RujukanBaru (bukan Error)
+- Jika 2 check return hit → ambil yang prioritasnya lebih tinggi
+- Context dari caller sudah di-cancel → stop semua goroutine segera
+- Log setiap check result dengan slog (tanpa PHI — mask noKartu)
+
+Jalankan: go test ./internal/service/detector/... -v
+```
+
+---
+
+## P-012 — TEST DETECTOR LENGKAP
+
+```
+Read BPJS_INTEGRATION.md dan internal/service/detector/ yang sudah dibuat.
+
+Tulis test suite LENGKAP untuk Smart Detector.
+Gunakan table-driven tests.
+
+Test cases yang WAJIB ada:
+
+━━━ Happy paths ━━━
+| Nama                  | MJKN | Kontrol | RANAP | RAJAL | Expected      |
+|-----------------------|------|---------|-------|-------|---------------|
+| only_mjkn             |  ✓   |   ✗     |   ✗   |   ✗   | MJKN          |
+| only_kontrol          |  ✗   |   ✓     |   ✗   |   ✗   | Kontrol       |
+| only_ranap            |  ✗   |   ✗     |   ✓   |   ✗   | PostRANAP     |
+| only_rajal            |  ✗   |   ✗     |   ✗   |   ✓   | PostRAJAL     |
+| none_hit              |  ✗   |   ✗     |   ✗   |   ✗   | RujukanBaru   |
+
+━━━ Priority tests ━━━
+| Nama                  | MJKN | Kontrol | RANAP | RAJAL | Expected      |
+|-----------------------|------|---------|-------|-------|---------------|
+| mjkn_beats_all        |  ✓   |   ✓     |   ✓   |   ✓   | MJKN          |
+| kontrol_beats_ranap   |  ✗   |   ✓     |   ✓   |   ✓   | Kontrol       |
+| ranap_beats_rajal     |  ✗   |   ✗     |   ✓   |   ✓   | PostRANAP     |
+
+━━━ Error paths ━━━
+- peserta_tidak_aktif: VClaim return status "0" → TidakAktif (tidak jalankan parallel checks)
+- vclaim_network_error: VClaim timeout → Error
+- all_checks_timeout: semua goroutine timeout 5 detik → RujukanBaru (bukan Error!)
+- partial_failure: 2 dari 4 check error, 2 lainnya miss → RujukanBaru
+- partial_failure_with_hit: 2 error, 1 miss, 1 hit → gunakan yang hit
+
+━━━ Concurrency tests ━━━
+- concurrent_detect: jalankan 10 Detect() bersamaan, semua harus return hasil benar
+- no_goroutine_leak: setelah Detect() selesai, semua goroutine harus sudah berhenti
+  (gunakan goleak atau runtime.NumGoroutine() sebelum dan sesudah)
+
+━━━ Business rule tests ━━━
+- kontrol_futuro: surat kontrol ada tapi TglRencana besok → miss (bukan hit!)
+- ranap_lama: pasien keluar RANAP 7 hari lalu → miss (bukan post-RANAP)
+
+Untuk setiap test: setup mock, jalankan Detect(), assert Type dan Data.
+Jalankan: go test ./internal/service/detector/... -v -race -count=3
+Harus hijau semua, tidak ada race condition.
+```
+
+---
+
+## P-020 — KHANZA CLIENT
+
+```
+Read CLAUDE.md section "SIMRS Khanza (Laravel REST API)".
 
 Buat Khanza API client di internal/integration/khanza/.
 
-Interface KhanzaClient:
-- CariPasien(ctx, query string) ([]domain.Pasien, error)
-- BuatAntrian(ctx, req domain.AntrianRequest) (*domain.Ticket, error)  ← atomic
-- BuatPendaftaran(ctx, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
-- SimpanSEP(ctx, sep domain.SEP) error
-- GetJadwalDokter(ctx, poliID string, tgl time.Time) ([]domain.Dokter, error)
-- GetSuratKontrol(ctx, noSurat string) (*domain.SuratKontrol, error)
-- GetRiwayatRANAP(ctx, noRM string) (*domain.RiwayatRANAP, error)
-- UpdateSatuSehatID(ctx, noRM, ihsNumber string) error
+━━━ interface.go ━━━
+type KhanzaClient interface {
+  CariPasien(ctx context.Context, q string) (*domain.Pasien, error)
+  GetSuratKontrol(ctx context.Context, noRM string) ([]domain.SuratKontrol, error)
+  GetRiwayatRANAP(ctx context.Context, noRM string) ([]domain.RiwayatRANAP, error)
+  GetKunjunganAktif(ctx context.Context, noRM string) ([]domain.Kunjungan, error)
+  GetJadwalDokter(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error)
+  BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
+  BuatAntrian(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error)
+  SimpanSEP(ctx context.Context, sep domain.SEP) error
+  UpdateSatuSehatID(ctx context.Context, noRM, ihsNumber string) error
+}
 
-Implementasi:
-- BaseURL dari config.Server.KhanzaURL
-- Auth: Bearer token dari config.Server.KhanzaAPIKey
+━━━ client.go ━━━
+- Bearer token auth (X-API-Key header)
 - Timeout: 10 detik per request
-- Retry: 2x untuk 5xx atau network error
-- Jika Khanza unreachable: return ErrOfflineMode
-- BuatAntrian HARUS atomic di server-side → Khanza yang handle increment
+- Retry: 2x dengan 500ms backoff hanya untuk 5xx
+- Jika 401: log warning "Khanza API key expired atau salah"
+- Jika connection refused: return domain.ErrOffline (bukan panic)
 
-Buat OfflineKhanzaClient yang implement KhanzaClient:
-- Semua write operation: simpan ke SQLite pending queue
-- Semua read operation: coba dari cache lokal dulu, fallback error
-- Dipakai otomatis saat ErrOfflineMode terdeteksi
+━━━ mock.go ━━━
+MockKhanzaClient yang bisa dikonfigurasi per test.
+Method: SetResponse(method string, response any, err error)
 
-Test: httptest.NewServer untuk mock semua endpoint.
+━━━ client_test.go ━━━
+Test dengan httptest.NewServer.
+Wajib test skenario offline (server mati → return ErrOffline).
 ```
 
 ---
 
-## FASE 3 — SMART DETECTOR
-
-### P-030 · Implementasi Smart BPJS Detector Engine
+## P-021 — ANTRIAN SERVICE
 
 ```
-Baca BPJS_INTEGRATION.md bagian "Smart BPJS Detector Engine" dengan sangat teliti,
-lalu kerjakan:
+Read CLAUDE.md section "Sistem Antrian 3 Jalur".
+Read internal/domain/antrian.go yang sudah dibuat.
 
-Implementasi detector di internal/service/detector/.
+Buat antrian service di internal/service/antrian/.
 
-1. internal/service/detector/interface.go
-   type Detector interface {
-       Detect(ctx context.Context, input domain.PatientInput) domain.DetectionResult
-   }
+━━━ service.go ━━━
 
-2. internal/service/detector/detector.go
-   Struct DetectorService dengan dependencies:
-   - vclaim    vclaim.VClaimClient
-   - antrol    antrol.AntrolClient
-   - khanza    khanza.KhanzaClient
-   - steps     chan domain.DetectStep  ← untuk live update ke UI via Wails
+Struct AntrianService { khanza KhanzaClient; store *store.Queries; antrol AntrolClient }
 
-   Implement Detect() dengan alur PERSIS seperti di BPJS_INTEGRATION.md:
-   - Step 1 SERIAL: GetPeserta dari VClaim
-   - Emit step "Verifikasi status BPJS" = done ke channel
-   - Jika tidak aktif: return PatientTypeTidakAktif LANGSUNG
-   - Step 2 PARALEL dengan context 5 detik:
-     4 goroutine: checkMJKN, checkKontrol, checkPostRANAP, checkPostRAJAL
-   - Collect 4 results dari channel
-   - Priority resolution: MJKN > KONTROL > POST_RANAP > POST_RAJAL
-   - Jika tidak ada hit: return PatientTypeRujukanBaru
+func (s *AntrianService) Create(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error):
+  1. Call khanza.BuatAntrian() untuk get nomor (atomic, anti-duplikasi multi-kiosk)
+  2. Jika khanza offline:
+     - Generate nomor dari SQLite lokal (counter per jenis)
+     - Simpan ke antrian_lokal dengan status="pending"
+     - Return ticket dengan flag IsOffline=true
+  3. Simpan ke print_history
+  4. Push ke Antrol API (fire-and-forget — error tidak blokir return)
+  5. Return ticket
 
-3. internal/service/detector/mjkn_check.go
-   func (d *DetectorService) checkMJKN(ctx context.Context, noKartu string, ch chan<- typedResult)
-   - Panggil antrol.CheckBookingMJKN(ctx, noKartu, today)
-   - Jika ada booking aktif: kirim result{hit: true, type: MJKN, data: booking}
-   - Emit step update ke d.steps channel
+func (s *AntrianService) GetCounter(ctx, jenis string) (int, error)
+  → ambil nomor antrian terakhir hari ini per jenis
 
-4. internal/service/detector/kontrol_check.go
-   func (d *DetectorService) checkKontrol(ctx context.Context, noRM string, ch chan<- typedResult)
-   - Panggil khanza.GetSuratKontrol dengan filter tgl = today
-   - Jika ditemukan DAN tgl rencana = today: kirim result{hit: true, type: KONTROL}
-   - Jika tgl rencana > today: kirim result dengan ErrJadwalKontrolBelumTiba
+func (s *AntrianService) ResetAll(ctx context.Context) error
+  → reset semua counter (panggil dari admin panel atau cron job)
 
-5. internal/service/detector/ranap_check.go
-   func (d *DetectorService) checkPostRANAP(ctx context.Context, noRM string, ch chan<- typedResult)
-   - Panggil khanza.GetRiwayatRANAP
-   - Jika tgl keluar = yesterday atau today: hit = true, type = POST_RANAP
+━━━ cron.go ━━━
+Setup cron job reset harian:
+  - Gunakan robfig/cron/v3
+  - Schedule: "1 0 * * *" (00:01 setiap hari)
+  - Timezone: Asia/Jakarta (WIB)
+  - Panggil ResetAll()
+  - Log hasil reset
 
-6. internal/service/detector/rajal_check.go
-   func (d *DetectorService) checkPostRAJAL(ctx context.Context, noRM string, ch chan<- typedResult)
-   - Cek riwayat kunjungan RAJAL aktif via VClaim RiwayatPelayanan
-   - Jika ada kunjungan dalam 30 hari terakhir dengan surat kontrol beda poli: hit = true
-
-7. internal/service/detector/detector_test.go
-   Table-driven test WAJIB untuk SEMUA skenario:
-
-   | Nama Test                    | MJKN | Kontrol | RANAP | RAJAL | Expected       |
-   |------------------------------|------|---------|-------|-------|----------------|
-   | only_mjkn                    | hit  | -       | -     | -     | MJKN           |
-   | only_kontrol                 | -    | hit     | -     | -     | KONTROL        |
-   | only_ranap                   | -    | -       | hit   | -     | POST_RANAP     |
-   | only_rajal                   | -    | -       | -     | hit   | POST_RAJAL     |
-   | no_hit                       | -    | -       | -     | -     | RUJUKAN_BARU   |
-   | mjkn_priority_over_kontrol   | hit  | hit     | -     | -     | MJKN           |
-   | all_hit                      | hit  | hit     | hit   | hit   | MJKN           |
-   | peserta_tidak_aktif          | -    | -       | -     | -     | TIDAK_AKTIF    |
-   | vclaim_network_error         | -    | -       | -     | -     | ERROR          |
-   | all_checks_timeout           | -    | -       | -     | -     | RUJUKAN_BARU   |
-   | kontrol_tgl_futuro           | -    | futuro  | -     | -     | ERROR+msg      |
-
-   Mock semua dependencies via interface.
-   Test timeout: gunakan context dengan deadline 100ms, semua goroutine harus stop.
+━━━ service_test.go ━━━
+Test Create() dalam 3 skenario:
+  1. Online: Khanza tersedia → nomor dari server
+  2. Offline: Khanza down → nomor dari SQLite lokal
+  3. Concurrent: 5 goroutine Create() bersamaan → tidak ada nomor duplikat
 ```
 
 ---
 
-## FASE 4 — ANTRIAN & SEP SERVICE
-
-### P-040 · Antrian service (3 jalur)
+## P-022 — SEP SERVICE
 
 ```
-Baca CLAUDE.md terlebih dahulu, lalu kerjakan:
+Read BPJS_INTEGRATION.md section "VClaim API" dan domain/sep.go.
 
-Implementasi antrian service di internal/service/antrian/.
+Buat SEP service di internal/service/sep/.
 
-1. internal/service/antrian/service.go
-   Interface AntrianService:
-   - Create(ctx, req domain.AntrianRequest) (*domain.Ticket, error)
-   - GetCurrent(ctx, jenis, subJenis string) (int, error)
-   - ResetAll(ctx) error  ← dipanggil cron 00:01
+━━━ service.go ━━━
 
-   Implementasi:
-   - Panggil khanza.BuatAntrian untuk counter server-side (anti-duplikat multi-kiosk)
-   - Jika offline: generate nomor lokal dari SQLite counter, simpan pending
-   - Format nomor:
-     LOKET+APPOINTMENT → "A-001"
-     LOKET+WALKIN      → "A-002" (counter LOKET shared)
-     POLI              → "B-{KODE_POLI}-015"
-     UMUM+FARMASI      → "C-FAR-022"
-   - Simpan ke print_history via printer.Print()
-   - Fire-and-forget: push ke Antrol API setelah simpan lokal
+func (s *SEPService) BuatSEPRujukan(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error):
+  1. Validasi biometrik jika diperlukan (usia ≥17 th + non-IGD)
+     → call fingerprint.Verify() jika wajib
+     → jika gagal → return ErrBiometrikDiperlukan
+  2. Validasi rujukan masih berlaku: vclaim.ValidasiRujukan()
+  3. Call vclaim.CreateSEP()
+  4. Simpan ke SQLite lokal (print_history + backup)
+  5. Post ke Khanza: khanza.SimpanSEP()
+     → jika Khanza offline: simpan ke pending_sep dengan status="pending"
+  6. Return SEP
 
-2. internal/service/antrian/scheduler.go
-   - Setup cron job: setiap hari 00:01 WIB panggil ResetAll()
-   - Gunakan robfig/cron/v3
-   - Log setiap reset
+func (s *SEPService) BuatSEPKontrol(ctx, noSuratKontrol string) (*domain.SEP, error):
+  1. Cari surat kontrol dari Khanza
+  2. Validasi tanggal: !suratKontrol.IsTodayOrPast() → return ErrJadwalKontrolBelumTiba
+  3. Call vclaim.CreateSEPKontrol()
+  4. Simpan dan return
 
-3. internal/service/antrian/service_test.go
-   - Test Create() dengan mock Khanza online
-   - Test Create() dengan Khanza offline → harus masuk SQLite pending
-   - Test concurrent Create() dari 2 goroutine → nomor tidak duplikat
-   - Test ResetAll() → semua counter kembali ke 0
+func (s *SEPService) BuatSEPPostRANAP(ctx, noRM, kdPoliKontrol string) (*domain.SEP, error)
+func (s *SEPService) BuatSEPPostRAJAL(ctx, noRM, kdPoliTujuan string) (*domain.SEP, error)
+
+━━━ fingerprint_check.go ━━━
+func perluBiometrik(peserta domain.Peserta, kdPoli string) bool:
+  - Usia < 17 tahun → false
+  - kdPoli adalah IGD → false  
+  - Semua lainnya → true
 ```
 
 ---
 
-### P-041 · SEP builder service
+## P-030 — HARDWARE PROVIDER
 
 ```
-Baca BPJS_INTEGRATION.md dan CLAUDE.md, lalu kerjakan:
+Read HARDWARE_PLATFORM.md section "Platform Detection Pattern" secara lengkap.
 
-Implementasi SEP service di internal/service/sep/.
+Buat hardware provider layer di internal/hardware/.
 
-1. internal/service/sep/service.go
-   Interface SEPService:
-   - BuatSEPRujukanBaru(ctx, req SEPRujukanRequest) (*domain.SEP, error)
-   - BuatSEPKontrol(ctx, req SEPKontrolRequest) (*domain.SEP, error)
-   - BuatSEPPostRANAP(ctx, req SEPPostRANAPRequest) (*domain.SEP, error)
-   - BuatSEPPostRAJAL(ctx, req SEPPostRAJALRequest) (*domain.SEP, error)
-   - BuatSEPMJKN(ctx, req SEPMJKNRequest) (*domain.SEP, error)
+━━━ provider.go ━━━
+Ini adalah SATU-SATUNYA tempat runtime.GOOS check dilakukan.
 
-2. Alur untuk setiap jenis SEP:
-   a. Validasi biometrik jika diperlukan:
-      - Wajib untuk: RUJUKAN_BARU, KONTROL
-      - Usia ≥ 17 tahun, layanan non-IGD
-      - Panggil fp.Verify() — blocking
-      - Jika gagal 3x: return ErrBiometrikDiperlukan
-   b. Validasi business rules (BR-01 s/d BR-13 dari PRD)
-   c. Simpan ke SQLite DULU (audit trail)
-   d. Kirim ke VClaim API
-   e. Jika sukses: update status di SQLite + simpan ke Khanza
-   f. Jika VClaim gagal: simpan ke pending_sep dengan status = failed
-   g. Trigger print: printer.Print("SEP", sepData)
-
-3. Business rules yang WAJIB di-enforce di layer ini:
-   - BR-06: Jadwal kontrol futuro → return error dengan tanggal rencana
-   - BR-09: Laka Lantas → wajib ada CatatanSEP berisi keterangan kecelakaan
-   - BR-10: Hak kelas tidak sesuai → map VClaim error -7 ke pesan user-friendly
-   - BR-11: Batas SEP harian → map VClaim error -8
-   - BR-13: Simpan ke SQLite sebelum Khanza
-
-4. Test:
-   - Test setiap jenis SEP dengan mock VClaim
-   - Test biometrik wajib/tidak wajib berdasarkan usia dan jenis layanan
-   - Test Laka Lantas tanpa keterangan → harus error
-   - Test VClaim error -7 dan -8 → pesan Indonesia yang benar
-   - Test offline: VClaim gagal → masuk pending_sep
-```
-
----
-
-## FASE 5 — OFFLINE & REKONSILIASI
-
-### P-050 · SQLite schema & store
-
-```
-Baca BPJS_INTEGRATION.md bagian "Mode Offline" lalu kerjakan:
-
-1. Buat file migrations/001_initial.sql:
-
-CREATE TABLE antrian_lokal (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    jenis       TEXT NOT NULL,
-    sub_jenis   TEXT,
-    nomor       TEXT NOT NULL,
-    prefix      TEXT NOT NULL,
-    no_rm       TEXT,
-    created_at  DATETIME DEFAULT (datetime('now','localtime')),
-    synced_at   DATETIME,
-    sync_status TEXT NOT NULL DEFAULT 'pending'
-);
-
-CREATE TABLE pending_sep (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    no_kartu        TEXT NOT NULL,
-    jenis_sep       TEXT NOT NULL,
-    payload_json    TEXT NOT NULL,
-    vclaim_response TEXT,
-    status          TEXT NOT NULL DEFAULT 'pending',
-    retry_count     INTEGER NOT NULL DEFAULT 0,
-    last_error      TEXT,
-    created_at      DATETIME DEFAULT (datetime('now','localtime')),
-    confirmed_by    TEXT,
-    confirmed_at    DATETIME
-);
-
-CREATE TABLE print_history (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    doc_type      TEXT NOT NULL,
-    ref_id        TEXT,
-    escpos_bytes  BLOB,
-    printed_at    DATETIME DEFAULT (datetime('now','localtime')),
-    reprint_count INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE reconcile_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    table_name  TEXT NOT NULL,
-    record_id   INTEGER NOT NULL,
-    action      TEXT NOT NULL,
-    operator_id TEXT,
-    result      TEXT,
-    ts          DATETIME DEFAULT (datetime('now','localtime'))
-);
-
-CREATE TABLE config_cache (
-    key        TEXT PRIMARY KEY,
-    value      TEXT NOT NULL,
-    updated_at DATETIME DEFAULT (datetime('now','localtime'))
-);
-
-2. Buat internal/store/ dengan sqlc:
-   - Buat sqlc.yaml
-   - Tulis SQL queries di internal/store/queries/
-   - Generate Go code: sqlc generate
-
-3. Buat internal/store/db.go:
-   - Fungsi NewDB(path string) (*sql.DB, error)
-   - Auto-run migrations saat start
-   - Enable WAL mode: PRAGMA journal_mode=WAL
-   - Set busy_timeout: 5000
-
-4. Buat Makefile target:
-   db-generate:
-     sqlc generate
-   db-reset:
-     rm -f apm.db && go run ./cmd/apm --migrate
-```
-
----
-
-### P-051 · Reconcile worker
-
-```
-Lanjutkan dari P-050, lalu kerjakan:
-
-Buat internal/reconcile/worker.go:
-
-type Worker struct {
-    db     *store.Queries
-    khanza khanza.KhanzaClient
-    vclaim vclaim.VClaimClient
-    log    *slog.Logger
+type Provider struct {
+  Frista      frista.CardReader
+  Fingerprint fingerprint.FingerprintVerifier
+  Printer     printer.ThermalPrinter
 }
 
-func (w *Worker) Start(ctx context.Context)
-- Ticker 30 detik
-- Loop:
-  1. Cek apakah Khanza reachable (GET /api/apm/ping dengan timeout 3 detik)
-  2. Jika tidak: log "offline, skip reconcile", continue
-  3. Jika ya:
-     a. SyncAntrian: ambil semua antrian_lokal status=pending, POST ke Khanza,
-        update status=synced atau status=failed (jika gagal 3x)
-     b. SyncPendaftaran: sama seperti antrian
-     c. SyncSEP: ambil pending_sep status=awaiting_confirm SAJA
-        (TIDAK auto-sync — harus ada confirmed_by dulu)
-  4. Catat semua hasil ke reconcile_log
-- Graceful shutdown saat ctx.Done()
+func NewProvider(cfg config.Config) *Provider {
+  switch runtime.GOOS {
+  case "windows":
+    return &Provider{
+      Frista:      frista.NewWindowsReader(cfg.Frista),
+      Fingerprint: fingerprint.NewWindowsHeadless(cfg.Fingerprint),
+      Printer:     printer.NewESCPOS(cfg.Printer),
+    }
+  default: // darwin (Mac), linux
+    return &Provider{
+      Frista:      frista.NewMock(cfg.Dev.MockServerPort),
+      Fingerprint: fingerprint.NewMock(),
+      Printer:     printer.NewConsolePrinter(),
+    }
+  }
+}
 
-Expose ke Wails:
-- GetOfflineStatus() bool
-- GetPendingCounts() PendingCounts{Antrian, Pendaftaran, SEP int}
-- ConfirmSEPSync(id int64) error  ← hanya untuk operator
+━━━ frista/interface.go ━━━
+type CardReader interface {
+  Start(ctx context.Context) error
+  Stop() error
+  IsAvailable() bool
+  CardRead() <-chan CardData
+}
+type CardData struct { NIK, Nama, TglLahir, Alamat, NoKartu string }
 
-Kirim Wails event "offline:status_changed" setiap kali status berubah
-sehingga Vue bisa tampilkan/sembunyi banner "OFFLINE MODE".
+━━━ fingerprint/interface.go ━━━  
+type FingerprintVerifier interface {
+  Verify(ctx context.Context, noPeserta string) (FPResult, error)
+  IsAvailable() bool
+}
+type FPResult struct { Success bool; Token string; Timestamp time.Time }
+
+━━━ printer/interface.go ━━━
+type ThermalPrinter interface {
+  Print(docType string, data any) error
+  IsAvailable() bool
+  Reprint(printHistoryID int64) error
+}
 ```
 
 ---
 
-## FASE 6 — WAILS APP & IPC
-
-### P-060 · App struct & Wails bindings
+## P-031 — FRISTA MOCK + HTTP SERVER (Mac)
 
 ```
-Baca DESIGN_SYSTEM.md bagian "Wails IPC Binding Conventions", lalu kerjakan:
+Read HARDWARE_PLATFORM.md section "Mac Development".
 
-Buat cmd/apm/app.go — ini yang di-expose ke Vue frontend:
+Buat Frista mock untuk development di Mac.
 
-type App struct {
-    ctx         context.Context
-    cfg         config.Config
-    hardware    *hardware.Provider
-    detector    service.Detector
-    antrianSvc  service.AntrianService
-    sepSvc      service.SEPService
-    reconcile   *reconcile.Worker
-    db          *store.Queries
+━━━ internal/hardware/frista/mock.go ━━━
+
+type MockFristaReader struct {
+  ch         chan CardData
+  serverPort int
+  server     *http.Server
 }
 
-Semua method public di App otomatis ter-expose ke Vue via Wails.
+func NewMock(port int) *MockFristaReader
 
-Method yang harus ada (return selalu (data, error)):
+func (m *MockFristaReader) Start(ctx context.Context) error:
+  - Buat channel CardData dengan buffer 5
+  - Start HTTP server di port yang dikonfigurasi (default 9090)
+  - Routes:
+    POST /mock/card-read        → inject CardData ke channel langsung
+    POST /mock/card-read-delay  → inject setelah delay (query param: seconds=3)
+    GET  /                      → HTML halaman info endpoint (untuk developer)
+  - Log: "🔌 Frista mock aktif di http://localhost:{port}"
+
+func (m *MockFristaReader) CardRead() <-chan CardData:
+  return m.ch
+
+━━━ Halaman info (GET /) ━━━
+Tampilkan HTML sederhana dengan instruksi curl:
+  curl -X POST http://localhost:9090/mock/card-read \
+    -H "Content-Type: application/json" \
+    -d '{"nik":"3271234567890001","nama":"Budi Santoso","tgl_lahir":"1990-01-15","alamat":"Jl. Merdeka No.1","no_kartu":"0001234567890012"}'
+
+━━━ internal/hardware/frista/mock_test.go ━━━
+Test:
+  - Start mock, POST ke endpoint, cek data muncul di CardRead() channel
+  - Test delay endpoint
+  - Test server cleanup saat Stop() dipanggil
+
+━━━ Makefile targets (tambahkan) ━━━
+mock-card-read:
+  @curl -s -X POST http://localhost:9090/mock/card-read \
+    -H "Content-Type: application/json" \
+    -d '{"nik":"$(NIK)","nama":"$(NAMA)","tgl_lahir":"1990-01-15","alamat":"Jl. Test No.1","no_kartu":"$(KARTU)"}' \
+    | echo "✅ Card read injected"
+
+mock-card-default:
+  @$(MAKE) mock-card-read NIK=3271234567890001 NAMA="Budi Santoso" KARTU=0001234567890012
+```
+
+---
+
+## P-032 — FINGERPRINT MOCK + WINDOWS HEADLESS
+
+```
+Read HARDWARE_PLATFORM.md section "Fingerprint BPJS — Headless Auto-Submit".
+
+━━━ internal/hardware/fingerprint/mock.go ━━━
+
+type MockVerifier struct {
+  forceFailNext bool
+  mu            sync.Mutex
+}
+
+func NewMock() *MockVerifier
+
+func (m *MockVerifier) Verify(ctx context.Context, noPeserta string) (FPResult, error):
+  m.mu.Lock()
+  fail := m.forceFailNext
+  m.forceFailNext = false
+  m.mu.Unlock()
+  
+  if fail {
+    return FPResult{}, errors.New("simulasi: verifikasi sidik jari gagal")
+  }
+  
+  // Simulasi delay scan (2 detik)
+  select {
+  case <-time.After(2 * time.Second):
+    return FPResult{
+      Success: true,
+      Token: "MOCK_FP_" + noPeserta + "_" + time.Now().Format("150405"),
+    }, nil
+  case <-ctx.Done():
+    return FPResult{}, ctx.Err()
+  }
+
+Method SetNextFail() → set forceFailNext = true
+  (dipanggil dari HTTP endpoint /mock/fp-fail)
+
+━━━ Tambahkan ke mock server Frista ━━━
+Tambahkan route POST /mock/fp-fail di HTTP server Frista mock
+(karena mereka satu server di port 9090):
+  → panggil fingerprintMock.SetNextFail()
+
+━━━ internal/hardware/fingerprint/windows.go ━━━
+// +build windows
+
+Struct WindowsHeadlessVerifier dengan:
+  cfg    config.FingerprintConfig
+  cmd    *exec.Cmd
+  client *resty.Client
+
+func (w *WindowsHeadlessVerifier) ensureRunning() error:
+  - Spawn After.exe dengan CREATE_NO_WINDOW flag
+  - Wait 3 detik untuk app load
+  - Inject login via Windows UI Automation (lihat catatan di bawah)
+
+func (w *WindowsHeadlessVerifier) Verify(ctx context.Context, noPeserta string) (FPResult, error):
+  - ensureRunning() jika belum
+  - POST ke fp.bpjs-kesehatan.go.id/finger-rest/ dengan credential
+  - Poll GET /api/fingerprint/status setiap 500ms sampai sukses atau timeout
+  - Return FPResult
+
+CATATAN Windows UI Automation:
+  Untuk inject login ke After.exe, gunakan user32.dll via syscall:
+  FindWindowW → FindWindowExW → SendMessageW(WM_SETTEXT)
+  Ini CGO — taruh di file terpisah windows_ui.go dengan build tag windows.
+  Buat stub kosong di windows_ui_stub.go untuk non-Windows agar compile.
+```
+
+---
+
+## P-033 — PRINTER (Console Mac + ESC-POS Windows)
+
+```
+Read HARDWARE_PLATFORM.md section "Thermal Printer".
+Read templates/ folder.
+
+━━━ internal/hardware/printer/console.go ━━━
+ConsolePrinter untuk development Mac.
+Print ke stdout dalam format yang mudah dibaca:
+
+func (p *ConsolePrinter) Print(docType string, data any) error:
+  fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  fmt.Printf("  [CETAK] %s\n", docType)
+  // render template jadi teks, print baris per baris
+  fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  
+  // Simpan ke print_history (raw bytes = template output)
+  return nil
+
+━━━ templates/ ━━━
+Buat Go text/template untuk setiap dokumen:
+
+templates/tiket_antrian.tmpl:
+  Rumah Sakit: {{.RSName}}
+  Tanggal: {{.Tanggal}}
+  ─────────────────
+  {{.JenisAntrian}}
+  No. Antrian:
+  {{.Nomor}}
+  ─────────────────
+  Harap tunggu panggilan
+
+templates/sep.tmpl:
+  SURAT ELIGIBILITAS PESERTA
+  No. SEP: {{.NoSEP}}
+  Nama: {{.Nama}}
+  No. Kartu: {{.NoKartu}}
+  Poli: {{.NmPoli}}
+  Dokter: {{.NmDokter}}
+  Tgl: {{.TglSEP}}
+  Kelas: {{.KelasRawat}}
+
+templates/registrasi.tmpl:
+  BUKTI PENDAFTARAN
+  No. Rawat: {{.NoRawat}}
+  Nama: {{.Nama}}
+  Poli: {{.NmPoli}}
+  Dokter: {{.NmDokter}}
+  Tgl: {{.TglKunjungan}}
+  Antrian: {{.NoAntrian}}
+
+━━━ internal/hardware/printer/escpos.go ━━━
+ESCPOSPrinter untuk Windows production.
+Gunakan library: github.com/kenshaw/escpos atau direct USB write via gousb.
+
+Fungsi utama:
+  connect() error    → buka koneksi USB/Serial/Network
+  Print(docType, data) error → render template → convert ke ESC/POS bytes → write
+  
+ESC/POS commands yang dipakai:
+  ESC @ → reset printer
+  ESC E 1 → bold on
+  ESC E 0 → bold off  
+  ESC a 1 → center align
+  ESC a 0 → left align
+  GS ! n  → font size (double height untuk nomor antrian)
+  LF      → line feed
+  GS V 0  → cut paper
+```
+
+---
+
+## P-040 — WAILS SETUP + IPC BINDINGS
+
+```
+Read CLAUDE.md section "Wails IPC Binding Conventions".
+Read DESIGN_SYSTEM.md section "Pinia Stores".
+
+Buat Wails app bindings di cmd/apm/.
+
+━━━ cmd/apm/main.go ━━━
+Setup Wails app dengan:
+  - Window title: "Anjungan Pasien Mandiri"
+  - Window size: 1024x768 minimum, resizable true
+  - Fullscreen: baca dari config (default true untuk production)
+  - Background: #F5F6F8 (warna bg kiosk)
+
+━━━ cmd/apm/app.go ━━━
+Struct App dengan semua service dan hardware provider.
+
+Expose method-method ini ke Vue (SEMUA exported, return (data, error)):
 
 // Detection
-func (a *App) DetectPatient(input string) (*domain.DetectionResult, error)
-func (a *App) GetDetectSteps() []domain.DetectStep
+func (a *App) DetectPatient(identifier string) (*domain.DetectionResult, error)
 
-// Antrian
+// Antrian  
 func (a *App) CreateAntrian(jenis, subJenis string) (*domain.Ticket, error)
-func (a *App) GetAntrianCurrent(jenis, subJenis string) (int, error)
-func (a *App) ReprintTicket(historyID int64) error
+func (a *App) GetCounters() (map[string]int, error)
 
 // SEP
-func (a *App) CreateSEPMJKN(req domain.SEPMJKNRequest) (*domain.SEP, error)
-func (a *App) CreateSEPKontrol(req domain.SEPKontrolRequest) (*domain.SEP, error)
-func (a *App) CreateSEPRujukanBaru(req domain.SEPRujukanRequest) (*domain.SEP, error)
-func (a *App) CreateSEPPostRANAP(req domain.SEPPostRANAPRequest) (*domain.SEP, error)
+func (a *App) BuatSEPRujukan(req SEPRequest) (*domain.SEP, error)
+func (a *App) BuatSEPKontrol(noSuratKontrol string) (*domain.SEP, error)
+func (a *App) BuatSEPPostRANAP(noRM, kdPoli string) (*domain.SEP, error)
+
+// Pendaftaran umum
+func (a *App) CariPasien(q string) (*domain.Pasien, error)
+func (a *App) BuatPendaftaran(req PendaftaranRequest) (*domain.Pendaftaran, error)
 
 // Hardware status
 func (a *App) GetHardwareStatus() HardwareStatus
-func (a *App) TriggerMockCardRead(data domain.CardData) error  // hanya non-Windows
+func (a *App) GetSystemStatus() SystemStatus
+
+// Reprint
+func (a *App) Reprint(printHistoryID int64) error
 
 // Admin
-func (a *App) GetDashboardStats() DashboardStats
-func (a *App) GetPendingSEPs() ([]domain.PendingSEP, error)
+func (a *App) GetPendingSEPs() ([]store.PendingSEP, error)
 func (a *App) ConfirmSEPSync(id int64) error
-func (a *App) GetComponentStatus() []ComponentStatus
-func (a *App) ResetAntrianCounter() error
-func (a *App) GetReconcileLog(limit int) ([]domain.ReconcileLog, error)
+func (a *App) ResetCounters() error
 
-// Frista events dikirim via:
-// runtime.EventsEmit(a.ctx, "frista:card_read", cardData)
-// Dipanggil dari hardware.Provider saat ada card read
+━━━ Wails Events (Go → Vue) ━━━
+Emit events ini dari Go ke Vue menggunakan runtime.EventsEmit():
 
-// Offline events:
-// runtime.EventsEmit(a.ctx, "offline:status_changed", isOffline)
-// runtime.EventsEmit(a.ctx, "detect:step_update", step)
+  "frista:card_read"    → CardData (saat kartu ditempel)
+  "detect:step_update"  → {step: string, state: "done"|"active"|"wait"}
+  "system:offline"      → bool (true=offline, false=online kembali)
+  "printer:error"       → string (pesan error printer)
+  "hardware:status"     → HardwareStatus
 
-Buat cmd/apm/main.go yang setup Wails dengan App sebagai backend.
+━━━ frontend/src/wailsjs/ ━━━
+Generate TypeScript types:
+  wails generate module
+Output: wailsjs/go/main/App.d.ts dengan semua binding
+
+━━━ frontend/src/services/apm.ts ━━━
+Wrapper TypeScript untuk semua Wails calls:
+import { DetectPatient, CreateAntrian, ... } from '../wailsjs/go/main/App'
+import { EventsOn } from '../wailsjs/runtime/runtime'
+
+export const apmService = {
+  detect: (id: string) => DetectPatient(id),
+  createAntrian: (jenis: string, subJenis: string) => CreateAntrian(jenis, subJenis),
+  // dll
+}
+
+export const useWailsEvents = () => {
+  const onCardRead = (handler: (data: CardData) => void) => 
+    EventsOn('frista:card_read', handler)
+  // dll
+}
 ```
 
 ---
 
-## FASE 7 — FRONTEND VUE 3
-
-### P-070 · Setup frontend & Pinia stores
+## P-041 — HOME SCREEN (Vue)
 
 ```
-Baca DESIGN_SYSTEM.md seluruhnya, lalu kerjakan:
+Read DESIGN_SYSTEM.md LENGKAP sebelum menulis satu baris Vue.
 
-Setup Vue 3 frontend di folder frontend/.
+Buat frontend/src/screens/HomeScreen.vue.
 
-1. Install dependencies:
-   npm install pinia @vueuse/core
-   npm install -D tailwindcss postcss autoprefixer
+DESIGN SPEC (WAJIB diikuti persis):
+- Background: #F5F6F8
+- Header: putih, border-bottom 0.5px #E4E6EA
+  - Kiri: logo mark biru 30x30px (border-radius 8px) + nama RS + tagline
+  - Kanan: status dots (BPJS + Sistem) + jam digital live
+- Body: 4 button area dengan padding clamp(12px, 2.5vw, 20px)
+  - Hero button BPJS: full width, background #1B4FD8, icon kartu + text + tag "otomatis mendeteksi"
+  - Grid 2 kolom: Pasien Umum (icon biru) + Ambil Antrian (icon abu)
+  - Full width: Aktivasi Satu Sehat
+- Footer: border-top, text "Butuh bantuan?" + tombol "Panggil petugas"
 
-2. Setup Tailwind dengan konfigurasi dari DESIGN_SYSTEM.md bagian "Design Tokens":
-   Buat tailwind.config.js dengan semua custom tokens:
-   - colors: blue, success, warning, danger, surface, bg, border, text
-   - fontSize dengan clamp() untuk semua ukuran
-   - borderRadius: kiosk, card, btn, tag
+SEMUA ukuran WAJIB pakai clamp():
+  font-size: clamp(14px, 2.2vw, 18px)  → teks hero
+  font-size: clamp(11px, 1.6vw, 14px)  → teks card
+  padding: clamp(12px, 2.5vw, 20px)
+  min-height: clamp(52px, 7vw, 72px)   → touch target
 
-3. Buat Pinia stores di frontend/src/stores/:
+Idle timeout:
+  - 60 detik tidak ada interaksi → reset ke home
+  - 10 detik terakhir → overlay countdown "Kembali ke awal dalam X detik"
+  - Reset timer setiap ada mousemove, touchstart, keydown
+  - Baca idleTimeoutSec dari AppConfig via Wails
 
-   patient.ts — usePatientStore
-   State: input, peserta, detectionResult, isDetecting, detectSteps, error
-   Actions:
-   - detect(input: string): panggil window.go.main.App.DetectPatient()
-   - reset(): $reset() semua state
-   - listenSteps(): subscribe ke Wails event "detect:step_update"
+Frista event listener:
+  onMounted: EventsOn('frista:card_read', (data) => router.push('/detect?from=frista&id='+data.noKartu))
 
-   antrian.ts — useAntrianStore
-   State: lastTicket, counters, isCreating
-   Actions:
-   - create(jenis, subJenis): panggil CreateAntrian()
-   - loadCounters(): panggil GetAntrianCurrent untuk semua jenis
-
-   app.ts — useAppStore
-   State: isOffline, hardwareStatus, idleCountdown, showIdleWarning
-   Actions:
-   - init(): subscribe ke "offline:status_changed" event
-   - startIdleTimer(seconds): countdown, emit reset saat habis
-   - resetIdle(): clear countdown
-
-4. Buat frontend/src/router/index.ts dengan routes:
-   / → HomeScreen
-   /detect → DetectScreen
-   /result/:type → ResultScreen
-   /antrian → AntrianScreen
-   /ticket → TicketScreen
-   /admin → AdminScreen (protected, butuh PIN)
-
-5. Semua navigation harus reset idle timer.
-
-Verifikasi: `wails dev` tampilkan Vue app tanpa error console.
+Gunakan Pinia usePatientStore untuk state.
+Gunakan Vue Router untuk navigasi.
+Jangan ada hardcoded string — semua dari i18n atau constants.
 ```
 
 ---
 
-### P-071 · HomeScreen
+## P-042 — INPUT SCREEN + DETECT SCREEN (Vue)
 
 ```
-Baca DESIGN_SYSTEM.md bagian komponen dan mockup yang sudah disetujui, lalu kerjakan:
+Read DESIGN_SYSTEM.md section "Komponen Wajib".
+Read BPJS_INTEGRATION.md section "Cara Kerja" untuk memahami step detection.
 
-Buat frontend/src/screens/HomeScreen.vue sesuai desain yang sudah disetujui.
+━━━ frontend/src/screens/InputScreen.vue ━━━
 
-Layout (WAJIB persis seperti ini):
-- Header: logo RS (kiri) + status dots BPJS & Sistem + jam live (kanan)
-- Hero button BPJS: full width, background biru, icon kartu, judul, subtitle, tag
-- Grid 2 kolom: Pasien Umum (icon tinted biru) + Ambil Antrian (icon neutral)  
-- Row penuh: Aktivasi Satu Sehat Mobile
-- Footer sticky: "Butuh bantuan?" + tombol "Panggil petugas"
+Input area:
+  - Display nomor yang diketik: font monospace, clamp(18px, 3.5vw, 26px)
+  - Format otomatis: setiap 4 digit → spasi (1234 5678 9012 3456)
+  - Placeholder: "_ _ _ _  _ _ _ _  _ _ _ _  _ _ _ _" (abu muted)
+  - Cursor blink animation
 
-Aturan responsivitas (SEMUA WAJIB pakai clamp):
-- Header padding: clamp(10px, 2vw, 16px)
-- Hero button padding: clamp(14px, 2.5vw, 20px)
-- Hero title font: clamp(14px, 2.2vw, 18px)
-- Icon container: clamp(40px, 6vw, 52px) x clamp(40px, 6vw, 52px)
-- Card button padding: clamp(12px, 2vw, 16px)
-- Touch target min-height: clamp(52px, 7vw, 72px) untuk SEMUA tombol
+NumPad:
+  - Grid 3 kolom
+  - Tombol 1-9, 0, hapus, cari
+  - min-height: clamp(52px, 7vw, 72px) WAJIB
+  - Tombol "cari": background #1B4FD8, color putih
+  - Tombol "hapus": background #F5F6F8
 
-Warna:
-- Hero BPJS: background #1B4FD8
-- Pasien Umum icon bg: #EEF2FF (blue-light)
-- Antrian icon bg: #F5F6F8 (bg neutral)
-- Footer: border-top 0.5px #E4E6EA
+Frista bar (selalu tampil):
+  - Background #ECFDF5, border #6EE7B7
+  - Dot hijau animasi pulse
+  - Teks: "Frista aktif — tempel kartu atau KTP untuk isi otomatis"
+  - Jika Frista tidak available: dot abu, teks "Frista tidak terhubung"
 
-Interaksi:
-- Klik BPJS → router.push('/detect')
-- Klik Antrian → router.push('/antrian')  
-- Idle timeout dari useAppStore.startIdleTimer(60)
-  → setelah 50 detik tampilkan overlay countdown 10 detik
-  → setelah 60 detik router.push('/') dan reset semua state
+Chip hints di bawah input:
+  "16 digit no. JKN" | "16 digit NIK KTP" | "No. rekam medis"
 
-Jam live: update setiap menit via setInterval.
-Status dots: hijau (#065F46) jika hardware tersedia, merah jika tidak.
-Fetch status via useAppStore.hardwareStatus.
+On submit (tombol cari atau Enter):
+  - Validasi: minimal 6 karakter
+  - router.push('/detecting') + trigger detect di background
 
-DILARANG hardcode ukuran dalam px di luar clamp(). Tidak ada media query.
-```
+━━━ frontend/src/screens/DetectScreen.vue ━━━
 
----
+Progress ring (SVG, BUKAN CSS gradient):
+  <svg><circle track/><circle arc class="animate-spin-arc"/></svg>
+  
+Step list (5 steps, update realtime dari Wails event):
+  step 1: "Verifikasi status BPJS"
+  step 2: "Cek booking Mobile JKN"
+  step 3: "Cek jadwal kontrol"
+  step 4: "Cek riwayat rawat inap"
+  step 5: "Menentukan jenis kunjungan"
+  
+State setiap step: "wait" | "active" | "done"
+  done  → dot hijau + teks hijau + ✓ di kanan
+  active → dot biru, animasi pulse
+  wait  → dot abu
 
-### P-072 · Input & Detection screens
-
-```
-Baca DESIGN_SYSTEM.md, lalu kerjakan dua screen sekaligus:
-
-1. frontend/src/screens/InputScreen.vue
-
-   Komponen yang dipakai:
-   - NumPad: grid 3 kolom, tombol 1-9, 0, hapus, cari
-   - Display input: border biru saat aktif, monospace, letter-spacing
-   - FristaBar: dot hijau + teks "Frista aktif — tempel kartu untuk isi otomatis"
-   - Chips: label format yang diterima (JKN/NIK/NoRM)
-
-   Touch target semua tombol NumPad: min-height clamp(52px, 7vw, 72px)
-   Font angka: clamp(17px, 3vw, 22px)
-
-   Logic:
-   - Saat mount: subscribe ke Wails event "frista:card_read"
-     → auto-fill input.value dari event.noKartu atau event.nik
-   - Validasi: max 16 karakter untuk angka, alphanumeric untuk NoRM
-   - Tombol "cari": panggil usePatientStore.detect(input)
-     → loading state saat detecting
-     → saat selesai: router.push('/result/' + detectionResult.type)
-   - Tombol hapus: hapus satu karakter dari belakang
-   - FristaBar: sembunyikan jika !hardwareStatus.frista
-
-2. frontend/src/screens/DetectScreen.vue
-
-   Tampilkan progress deteksi real-time:
-   - SpinRing: animasi SVG ring (tidak pakai CSS gradient!)
-   - StepList: 5 baris, masing-masing punya state: done/active/wait
-   
-   State steps (dari usePatientStore.detectSteps):
-   - "Verifikasi status BPJS"
-   - "Cek booking Mobile JKN"
-   - "Cek jadwal kontrol"
-   - "Cek riwayat rawat inap"
-   - "Menentukan jenis kunjungan"
-
-   Subscribe ke Wails event "detect:step_update":
-   - Update state step yang sesuai di store
-   - "done" → dot hijau + centang
-   - "active" → dot biru pulse
-   - "wait" → dot abu
-
-   Auto-navigate ke ResultScreen saat detectionResult berubah.
-   Timeout 8 detik: jika belum selesai tampilkan pesan error.
+Subscribe ke event: EventsOn('detect:step_update', ...)
+Timeout guard: jika 7 detik belum selesai → tampilkan "Sedang memproses, mohon tunggu..."
+Auto-navigate ke ResultScreen saat detection selesai.
 ```
 
 ---
 
-### P-073 · Result screens (semua 6 variant)
+## P-043 — RESULT SCREENS (4 tipe)
 
 ```
-Baca DESIGN_SYSTEM.md dan BPJS_INTEGRATION.md, lalu kerjakan:
+Read DESIGN_SYSTEM.md.
+Read BPJS_INTEGRATION.md section "Hasil Tampilan UI per Kategori".
 
-Buat frontend/src/screens/ResultScreen.vue yang handle semua 6 PatientType.
-Gunakan dynamic component atau v-if berdasarkan $route.params.type.
+Buat satu file: frontend/src/screens/ResultScreen.vue
+yang render berbeda berdasarkan detectionResult.type dari Pinia store.
 
-Komponen bersama untuk semua variant:
-- PatientCard: nama (font hero clamp), nomor kartu (monospace muted), pill status, divider, kv-rows
-- StatusPill: 4 variant (ok/info/warn/danger), dot kecil + label
-- CTA button: full width, biru, clamp padding
-- Ghost button: border tipis, warna muted
+━━━ KOMPONEN BERSAMA ━━━
 
-Spec per variant:
+PatientCard (tampil di semua result):
+  - Pill status (kiri): "Booking Mobile JKN" | "Jadwal kontrol" | "Kunjungan baru" | "Tidak aktif"
+  - Warna pill:
+    MJKN       → background #ECFDF5, color #065F46, dot hijau
+    Kontrol    → background #EEF2FF, color #1E40AF, dot biru
+    RujukanBaru → background #FFFBEB, color #92400E, dot kuning
+    TidakAktif → background #FEF2F2, color #991B1B, dot merah
+  - Nama pasien: clamp(15px, 2.5vw, 19px), font-weight 500
+  - No kartu: monospace, clamp(10px, 1.4vw, 12px), color muted
+  - Divider: border-top 0.5px
+  - Key-value rows: label kiri (muted) + value kanan (bold)
 
-MJKN (PatientTypeMJKN):
-  Pill: hijau "Booking Mobile JKN"
-  KV rows: Poli, Dokter, Estimasi jam (warna biru), No antrian booking
-  Info bar: hijau — "Booking dari Mobile JKN sudah terkonfirmasi."
-  CTA: "Konfirmasi kedatangan dan cetak tiket"
-  Action: CreateSEPMJKN() → print → TicketScreen
+━━━ MJKN RESULT ━━━
+Tampilkan: Poli, Dokter, Estimasi jam (warna biru), No antrian booking
+Info bar hijau: "Booking dari Mobile JKN terkonfirmasi. Cetak tiket untuk konfirmasi kedatangan."
+CTA: "Konfirmasi kedatangan dan cetak tiket" → call BuatCheckinMJKN() → navigate ke TicketScreen
+Ghost: "Bukan saya — masukkan ulang" → back ke InputScreen
 
-KONTROL (PatientTypeKontrol):
-  Pill: biru "Jadwal kontrol"
-  KV rows: No surat kontrol, Poli, Dokter sebelumnya
-  Dokter picker: list dokter aktif dari GetJadwalDokter()
-    → item terpilih: border biru, background biru muda, checkmark icon
-  CTA: "Buat surat layanan kontrol dan cetak"
-  Action: CreateSEPKontrol() → print → TicketScreen
+━━━ KONTROL RESULT ━━━
+Tampilkan: No surat kontrol, Poli, Dokter sebelumnya
+Dokter picker: list dokter yang bertugas hari ini di poli tersebut
+  → call GetJadwalDokter() saat screen mount
+  → highlight pilihan pertama sebagai default (selected)
+CTA: "Buat surat layanan kontrol dan cetak" → BuatSEPKontrol()
 
-POST_RANAP (PatientTypePostRANAP):
-  Pill: teal "Pasca rawat inap"
-  KV rows: Tgl keluar, Ruangan, DPJP
-  Info bar: kuning — "Pilih poli kontrol untuk kunjungan hari ini."
-  Poli picker: grid tombol poli dari GetJadwalDokter semua poli
-  CTA: "Buat surat layanan kontrol pasca rawat inap"
+━━━ RUJUKAN BARU RESULT ━━━  
+Tampilkan: Kelas hak, No rujukan FKTP, Poli rujukan, Berlaku sampai
+Info bar kuning: "Verifikasi sidik jari diperlukan setelah pilih dokter."
+  (hanya tampil jika perluBiometrik() = true)
+CTA: "Pilih dokter dan lanjutkan" → navigate ke DokterPickerScreen
 
-POST_RAJAL (PatientTypePostRAJAL):
-  Pill: abu "Kontrol beda poli"
-  Riwayat SEP: kunjungan terakhir (poli, tanggal)
-  CTA: "Pilih poli tujuan dan buat surat layanan"
+━━━ TIDAK AKTIF RESULT ━━━
+Info bar merah: full message tentang cara aktivasi BPJS
+CTA primary: "Daftar sebagai pasien umum"
+CTA ghost: "Hubungi petugas untuk bantuan"
 
-RUJUKAN_BARU (PatientTypeRujukanBaru):
-  Pill: kuning "Kunjungan baru"
-  KV rows: Kelas hak, No rujukan (biru), Poli rujukan, Berlaku sampai (hijau)
-  Info bar: kuning — "Verifikasi sidik jari diperlukan setelah pilih dokter."
-  CTA: "Pilih dokter dan lanjutkan"
-  → FingerprintWidget muncul sebelum submit jika wajib
-
-TIDAK_AKTIF (PatientTypeTidakAktif):
-  Pill: merah "Kepesertaan tidak aktif"
-  KV rows: Status (merah), Penyebab, Tunggak sejak
-  Info bar: merah — cara mengaktifkan BPJS
-  CTA primer: "Daftar sebagai pasien umum"
-  Ghost: "Hubungi petugas"
-
-Untuk semua variant: tombol "Bukan saya — masukkan ulang" di bawah.
+━━━ STATE LOADING & ERROR ━━━
+Saat API call berjalan: CTA button disabled + spinner
+Jika error: AlertModal dengan pesan error dari domain.UserMessage()
 ```
 
 ---
 
-### P-074 · Antrian & Ticket screens
+## P-044 — ANTRIAN SCREEN (Vue)
 
 ```
-Baca DESIGN_SYSTEM.md, lalu kerjakan:
+Read DESIGN_SYSTEM.md section "Komponen Wajib".
 
-1. frontend/src/screens/AntrianScreen.vue
+Buat frontend/src/screens/AntrianScreen.vue.
 
-   Layout persis seperti desain yang disetujui:
-   
-   Section label "Antrian loket (A)" — uppercase, muted, letter-spacing
-   Grid 2 kolom:
-   - Card "Admisi appointment" — icon biru
-   - Card "Admisi walk-in" — icon biru
-   Card full width:
-   - "Rawat inap & IGD" — icon biru, flex row
-   
-   Section label "Antrian layanan umum (C)"
-   Grid 2 kolom:
-   - "Farmasi / apotek" — icon hijau
-   - "Customer service" — icon neutral
-   
-   Setiap card tampilkan: ikon, judul, "Sekarang: {nomor}"
-   Counter "Sekarang" di-fetch dari GetAntrianCurrent() saat mount.
-   
-   Saat tap card:
-   - Set loading state pada card yang di-tap
-   - Panggil useAntrianStore.create(jenis, subJenis)
-   - Sukses → router.push('/ticket')
-   - Gagal → tampilkan error toast
+Layout WAJIB (sesuai approved design):
+  Section label "Antrian loket (A)" — uppercase 11px, color muted, letter-spacing 0.5px
+  Grid 2 kolom:
+    Card: Admisi appointment + counter "Sekarang: A-012"
+    Card: Admisi walk-in + counter "Sekarang: A-034"
+  Card full width: Rawat inap & IGD + counter
 
-   Konfigurasi jenis antrian harus dari config (tidak hardcode label),
-   agar RS bisa custom via admin panel.
+  Section label "Antrian layanan umum (C)"
+  Grid 2 kolom:
+    Card: Farmasi / apotek + counter "Sekarang: C-022"
+    Card: Customer service + counter "Sekarang: C-008"
 
-2. frontend/src/screens/TicketScreen.vue
+Setiap AntrianCard:
+  - background putih, border 0.5px #E4E6EA
+  - border-radius 12px
+  - padding clamp(12px, 2vw, 16px)
+  - icon dalam container tinted (biru atau hijau)
+  - icon SVG (bukan emoji) 16-18px
+  - judul: clamp(11px, 1.6vw, 13px) font-weight 500
+  - counter "Sekarang: X-XXX": clamp(10px, 1.3vw, 12px) color muted
+  - hover: border-color #CDD1D9
+  - active: background #FAFBFC
+  - loading state: disabled + spinner overlay pada card yang diklik
 
-   Layout:
-   - Check circle icon (hijau, border tipis)
-   - Teks "Surat layanan berhasil dibuat" (hijau)
-   - Ticket paper: label poli (uppercase muted), nomor besar (clamp 44-60px), dokter+tanggal
-   - Dashed divider
-   - SEP nomor (monospace, biru)
-   - Instruksi area: background bg-color, rounded, teks arah ke poli
-   - Countdown: "Kembali ke awal dalam {N} detik"
-   - Tombol "Cetak ulang tiket"
+On tap card:
+  1. Set card state = loading
+  2. Call CreateAntrian(jenis, subJenis)
+  3. Jika sukses → navigate ke TicketScreen dengan ticket data
+  4. Jika error → AlertModal "Gagal mengambil nomor antrian. Coba lagi."
 
-   Nomor tiket font: clamp(44px, 8vw, 60px) — harus terbaca dari 1.5 meter
-   
-   Countdown logic:
-   - Mulai dari 10 detik saat screen mount
-   - Setiap detik decrement via setInterval
-   - Saat 0: router.push('/') dan usePatientStore.reset()
-   
-   Cetak ulang: panggil ReprintTicket(lastTicket.historyID)
+Counter update:
+  - Fetch GetCounters() saat screen mount
+  - Refresh setiap 30 detik (setInterval)
+
+Konfigurasi label & prefix dari AppConfig (bisa beda tiap RS):
+  antrianConfig.loketPrefix, antrianConfig.umumPrefix, dll
+  Label jenis antrian dari config juga (bukan hardcoded)
 ```
 
 ---
 
-### P-075 · Admin screen
+## P-045 — TIKET SCREEN (Vue)
 
 ```
-Baca DESIGN_SYSTEM.md, lalu kerjakan:
+Buat frontend/src/screens/TicketScreen.vue.
 
+Tampilan setelah SEP/pendaftaran/antrian berhasil.
+
+Layout (center aligned, max-width 380px, margin auto):
+
+  Check circle (44-50px) → background #ECFDF5, border #6EE7B7
+    SVG checkmark stroke #065F46
+
+  Teks sukses: "Surat layanan berhasil dibuat"
+    font-size clamp(12px, 1.8vw, 14px), color #065F46
+
+  Tiket paper (card putih, border 0.5px):
+    Label uppercase kecil: "ANTRIAN POLI PENYAKIT DALAM"
+    Nomor besar: clamp(44px, 8vw, 60px), font-weight 500, color #0E1117
+    Info dokter + tanggal: clamp(11px, 1.5vw, 13px) muted
+    Dashed divider (border-top 1px dashed)
+    No SEP: monospace, muted + nilai biru
+
+  Info box (background #F5F6F8, border-radius 9px):
+    "Silakan menuju area tunggu"
+    nama poli + lantai (bold)
+    "Nomor Anda akan dipanggil di layar display"
+    font-size clamp(10px, 1.4vw, 12px), line-height 1.7
+
+  Countdown: "Kembali ke awal dalam X detik"
+    X mulai dari 10, countdown setiap detik
+    Saat 0 → navigate ke HomeScreen + reset semua store
+
+  Tombol "Cetak ulang tiket":
+    background putih, border 0.5px
+    call Reprint(ticket.printHistoryID)
+
+Data tiket dari useAntrianStore atau dari route params (jika dari SEP).
+Auto-print dipanggil di onMounted: Print("TIKET", ticketData)
+```
+
+---
+
+## P-046 — ADMIN PANEL (Vue)
+
+```
 Buat frontend/src/screens/AdminScreen.vue.
 
-Akses: dilindungi PIN (4 digit). PIN disimpan terenkripsi di config.toml.
-Saat masuk AdminScreen: tampilkan modal PIN dulu.
+Akses: PIN 4-6 digit (dikonfigurasi di config.toml)
+Tampilkan PIN pad saat pertama masuk, validasi, baru tampilkan panel.
 
-Setelah login:
+Layout admin (tidak perlu touchscreen-friendly, ini untuk operator IT):
 
-Layout dalam satu halaman scroll:
+Header: "Panel admin" kiri + tombol "Keluar" merah kanan
 
-1. Stats grid 2x2:
-   - "Antrian hari ini" — angka besar
-   - "SEP berhasil" — angka besar
-   - "Pending rekonsiliasi" — angka besar KUNING jika > 0
-   - "Uptime" — format "7j 12m"
-   Fetch dari GetDashboardStats() saat mount, auto-refresh setiap 30 detik.
+Stat grid (2x2):
+  Antrian hari ini: angka besar + "Reset pukul 00:01"
+  SEP berhasil: angka + "Hari ini"
+  Pending rekonsiliasi: angka (warna warn jika > 0) + "Butuh konfirmasi"
+  Uptime: "7j 12m" + "Sejak HH:MM WIB"
 
-2. Status komponen (card):
-   List semua komponen dengan pill status:
-   - BPJS VClaim API
-   - BPJS Antrol
-   - SIMRS Khanza
-   - Frista card reader
-   - Fingerprint BPJS
-   - Printer thermal
-   Fetch dari GetComponentStatus().
-   Pill: hijau=Online/Terhubung, kuning=Degraded, merah=Offline/Error.
+Status komponen (card):
+  Daftar komponen dengan pill status:
+    BPJS VClaim API     → Online/Offline
+    BPJS Antrol         → Online/Offline
+    SIMRS Khanza        → Online/Offline
+    Frista card reader  → Terhubung/Tidak terhubung
+    Fingerprint BPJS    → Headless aktif/Tidak aktif
+    Printer thermal     → OK/Kertas hampir habis/Tidak terhubung
+  Refresh status setiap 10 detik via GetSystemStatus()
 
-3. SEP pending confirmation (card, hanya tampil jika ada):
-   List pending SEP dengan: nama pasien, no kartu, jenis SEP, waktu buat
-   Tombol "Konfirmasi" per item → ConfirmSEPSync(id)
-   Setelah konfirmasi: hilang dari list.
+Tabel pending SEP (jika ada):
+  Kolom: No Kartu (masked), Kategori, Waktu, Status
+  Tombol "Konfirmasi" per row → ConfirmSEPSync(id)
+  Konfirmasi modal: "SEP ini akan dikirim ke Khanza. Lanjutkan?"
 
-4. Quick actions grid 2x2:
-   - "Reset counter antrian" → konfirmasi dulu via dialog
-   - "Log rekonsiliasi" → modal dengan list terbaru
-   - "Test cetak printer" → print test page
-   - "Keluar admin" → kembali ke HomeScreen
-
-Tombol "Keluar" di header: background danger-bg, text danger.
+Action buttons (2x2 grid):
+  Reset counter antrian → konfirmasi modal dulu
+  Lihat log rekonsiliasi → modal dengan tabel log 50 entry terakhir
+  Test cetak printer → Print("TEST", {}) 
+  Buka mock server info → hanya tampil di non-Windows (dev mode)
 ```
 
 ---
 
-## FASE 8 — SECURITY & POLISH
-
-### P-080 · PHI log masking & credential encryption
+## P-050 — OFFLINE MODE + REKONSILIASI
 
 ```
-Baca CLAUDE.md bagian "Aturan Coding", lalu kerjakan:
+Read CLAUDE.md section "Mode Offline & Rekonsiliasi".
+Read internal/store/ yang sudah dibuat.
 
-1. internal/log/masker.go
-   Buat custom slog.Handler yang wrap handler asli.
-   Sebelum setiap log record ditulis:
-   - Scan semua Attr (string values)
-   - Pattern NIK/NoKartu: 16 digit berurutan → ganti dengan "****-****-****-****"
-   - Field name sensitif: "nik", "no_kartu", "no_rm", "password", "username", 
-     "secret", "token" → ganti value dengan "***"
-   - Regex untuk NoRM: [A-Z0-9]{6,10} di konteks field nama "no_rm"
-   
-   Pasang masker sebagai default slog handler di main.go.
+Buat offline + reconcile system di internal/reconcile/.
 
-2. internal/config/encrypt.go
-   CLI flag: --encrypt-config
-   
-   Alur:
-   a. Baca config.toml yang sudah ada
-   b. Untuk setiap field yang perlu dienkripsi (list dari konstanta):
-      frista.username, frista.password, fingerprint.username, fingerprint.password
-   c. Prompt di terminal: "Enter Frista username:"
-   d. Baca dari stdin (no echo untuk password)
-   e. Enkripsi dengan AES-256-GCM:
-      - Di Mac/Linux: key dari env APM_MASTER_KEY atau random + simpan ke ~/.apm/master.key
-      - Di Windows: key dari Windows DPAPI (CryptProtectData)
-   f. Simpan ke config.toml sebagai "ENC:base64..."
-   
-   Saat startup normal:
-   - Baca semua field "ENC:..."
-   - Dekripsi menggunakan master key
-   - Inject ke config struct (tidak ke file)
+━━━ worker.go ━━━
 
-3. Tambahkan ke Makefile:
-   encrypt-config:
-     go run ./cmd/apm --encrypt-config
-```
+type ReconcileWorker struct {
+  db     *store.Queries
+  khanza khanza.KhanzaClient
+  ticker *time.Ticker
+  done   chan struct{}
+}
 
----
+func New(db, khanza) *ReconcileWorker
+func (w *ReconcileWorker) Start(ctx context.Context)
+func (w *ReconcileWorker) Stop()
 
-### P-081 · Idle timeout & fullscreen kiosk mode
+Background goroutine (setiap 30 detik):
+  1. Cek koneksi: w.khanza.HealthCheck(ctx)
+  2. Jika offline: continue (skip)
+  3. Jika baru online kembali:
+     - Emit Wails event "system:offline" dengan false
+     - Log: "Koneksi Khanza pulih, mulai rekonsiliasi"
+  4. SyncPendingAntrian(ctx)
+  5. SyncConfirmedSEP(ctx)  ← HANYA yang sudah dikonfirmasi operator
 
-```
-Kerjakan fitur kiosk mode:
+func SyncPendingAntrian:
+  - Ambil semua antrian_lokal WHERE sync_status = 'pending'
+  - Untuk setiap record: POST ke Khanza API
+  - Jika sukses: update sync_status = 'synced', synced_at = now()
+  - Jika gagal: increment retry_count, set last_error
+  - Setelah 5x gagal: set status = 'failed', log warning
+  - Insert ke reconcile_log tiap attempt
 
-1. frontend/src/composables/useIdleTimer.ts
-   - Parameter: timeoutSeconds (dari config, default 60)
-   - Track last interaction: mousemove, touchstart, keydown, click
-   - Setelah (timeout - 10) detik idle: emit "idle:warning" event
-   - Setelah timeout detik idle: emit "idle:reset" event
-   - Warning overlay: countdown dari 10 ke 0 dengan progress bar
-   - Saat user interaksi saat warning: cancel, reset timer
-   
-   Pasang di App.vue level root.
-   Saat "idle:reset": router.push('/') + semua store.$reset()
+func SyncConfirmedSEP:
+  - Ambil pending_sep WHERE status = 'awaiting_sync'
+    (status ini diset setelah operator konfirmasi via admin panel)
+  - POST ke Khanza API SimpanSEP()
+  - Update status sesuai hasil
 
-2. cmd/apm/main.go — Wails window options:
-   - Fullscreen: true (untuk kiosk production)
-   - Frameless: true (tidak ada title bar Windows)
-   - DisableResize: true
-   - AlwaysOnTop: true (opsional, bisa diconfig)
-   
-   Tambahkan config:
-   [app]
-   kiosk_mode = true   # fullscreen + frameless
-   # kiosk_mode = false  # untuk development: window normal
+━━━ offline_detector.go ━━━
+Deteksi offline/online dengan ping ke Khanza health endpoint.
+Cache status terakhir. Hanya emit event jika status BERUBAH.
+Jangan spam event setiap 30 detik kalau statusnya sama.
 
-3. Escape key admin shortcut (hanya jika bukan kiosk_mode):
-   Ctrl+Shift+A → buka AdminScreen
+━━━ Vue: OfflineBanner.vue ━━━
+Komponen banner yang muncul di atas semua screen saat offline:
+  background #FFFBEB (warn)
+  teks: "Mode offline — antrian disimpan sementara"
+  dot kuning pulse
+
+Subscribe ke EventsOn('system:offline') di App.vue.
+Tambahkan banner di App.vue secara conditional.
 ```
 
 ---
 
-## FASE 9 — BUILD & DEPLOYMENT
-
-### P-090 · Cross-compile & packaging
+## P-051 — SECURITY (Enkripsi + PHI Masking)
 
 ```
-Kerjakan build & deployment tooling:
+Read CLAUDE.md section "Aturan Coding — Go".
 
-1. Update Makefile dengan targets lengkap:
+Buat dua security features.
 
-dev:
-	wails dev
+━━━ FITUR 1: Credential Encryption ━━━
 
-build-mac:
-	wails build -platform darwin/arm64
-	@echo "Output: build/bin/apm.app"
+internal/config/encrypt.go:
 
-build-windows:
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 \
-	CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
-	wails build -platform windows/amd64
-	@echo "Output: build/bin/apm.exe"
+func EncryptConfig(configPath string) error:
+  - Baca config.toml
+  - Prompt username & password Frista via stdin (tanpa echo)
+  - Prompt username & password Fingerprint BPJS via stdin
+  - Encrypt setiap nilai dengan AES-256-GCM
+  - Master key:
+    → macOS: ambil dari Keychain (security find-generic-password -s apm-go)
+    → Windows: gunakan Windows DPAPI (machine-bound)
+    → Fallback: env var APM_MASTER_KEY (untuk CI/dev)
+  - Update config.toml: ganti nilai plaintext dengan "ENC:base64..."
+  - Print: "✅ Credential berhasil dienkripsi"
 
-package-windows:
-	mkdir -p dist/apm-windows
-	cp build/bin/apm.exe dist/apm-windows/
-	cp config.example.toml dist/apm-windows/config.toml
-	cp -r migrations/ dist/apm-windows/migrations/
-	cp INSTALL_WINDOWS.md dist/apm-windows/
-	zip -r dist/apm-windows-$(VERSION).zip dist/apm-windows/
-	@echo "Package: dist/apm-windows-$(VERSION).zip"
+func DecryptValue(encryptedB64 string, masterKey []byte) (string, error):
+  - Parse "ENC:" prefix
+  - Base64 decode
+  - AES-256-GCM decrypt
+  - Return plaintext
 
-test:
-	go test ./... -v -count=1
+Panggil DecryptValue di config loader untuk semua field "ENC:...".
 
-test-coverage:
-	go test ./... -coverprofile=coverage.out
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Buka coverage.html di browser"
+CLI entry point di cmd/apm/main.go:
+  flag --encrypt-config → panggil EncryptConfig()
 
-lint:
-	golangci-lint run ./...
+━━━ FITUR 2: PHI Log Masking ━━━
 
-2. Buat INSTALL_WINDOWS.md (dalam Bahasa Indonesia):
-   
-   # Panduan Instalasi APM-Go di Windows
-   
-   ## Prasyarat
-   - Windows 10 Pro/Enterprise x64 atau Windows 11
-   - RAM minimum 4GB
-   - Microsoft Edge WebView2 Runtime (biasanya sudah ada)
-     Download: https://developer.microsoft.com/webview2
-   - Frista.exe dari vendor Frista
-   - Aplikasi Sidik Jari BPJS Kesehatan v2.0+ (After.exe)
-   - Printer thermal USB atau Serial
-   
-   ## Langkah Instalasi
-   1. Ekstrak file zip ke C:\apm\
-   2. Edit config.toml sesuai environment RS Anda
-   3. Enkripsi credential: double-click apm.exe --encrypt-config
-   4. Test koneksi: apm.exe --check-all
-   5. Install service: buka PowerShell as Administrator, jalankan:
-      C:\apm\apm.exe --install-service
-   6. Start service: net start APMService
-   
-   ## Troubleshooting
-   [isi dengan masalah umum dari HARDWARE_PLATFORM.md]
+internal/log/phi_handler.go:
 
-3. Tambahkan CLI flags di main.go:
-   --migrate         : jalankan SQLite migrations
-   --encrypt-config  : enkripsi credential interaktif  
-   --check-all       : test semua koneksi, print tabel status
-   --install-service : install Windows Service (hanya Windows)
-   --version         : print versi
+type PHIMaskingHandler struct {
+  inner slog.Handler
+}
 
-4. Implementasi --check-all:
-   Print tabel ke stdout:
-   ┌─────────────────────┬─────────────┬────────────────────┐
-   │ Komponen            │ Status      │ Detail             │
-   ├─────────────────────┼─────────────┼────────────────────┤
-   │ BPJS VClaim API     │ ✓ OK        │ Latency: 245ms     │
-   │ BPJS Antrol         │ ✓ OK        │ Latency: 312ms     │
-   │ SIMRS Khanza        │ ✗ GAGAL     │ Connection refused │
-   │ Frista card reader  │ ✓ Tersedia  │ /dev/tty.usb... (Mac) / COM3 (Win) │
-   │ Fingerprint BPJS    │ ✓ Tersedia  │ After.exe ditemukan│
-   │ Printer thermal     │ ✓ Tersedia  │ USB, 80mm          │
-   │ SQLite database     │ ✓ OK        │ WAL mode aktif     │
-   └─────────────────────┴─────────────┴────────────────────┘
+func NewPHIMaskingHandler(inner slog.Handler) *PHIMaskingHandler
+
+func (h *PHIMaskingHandler) Handle(ctx context.Context, r slog.Record) error:
+  // Buat record baru dengan attr yang sudah di-mask
+  var maskedAttrs []slog.Attr
+  r.Attrs(func(a slog.Attr) bool {
+    maskedAttrs = append(maskedAttrs, maskAttr(a))
+    return true
+  })
+  // Build masked record dan forward ke inner handler
+
+func maskAttr(a slog.Attr) slog.Attr:
+  // Field names yang selalu di-mask:
+  sensitiveFields := []string{"nik", "no_kartu", "no_rm", "username", "password", "token"}
+  if contains(sensitiveFields, strings.ToLower(a.Key)) {
+    return slog.String(a.Key, "***")
+  }
+  // Pattern: 16 digit angka berurutan → mask jadi "****1234" (4 digit terakhir saja)
+  if isLikelyPHI(a.Value.String()) {
+    return slog.String(a.Key, maskPHI(a.Value.String()))
+  }
+  return a
+
+Setup di main.go:
+  baseHandler := slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: logLevel})
+  logger := slog.New(NewPHIMaskingHandler(baseHandler))
+  slog.SetDefault(logger)
+
+Test: tulis log dengan NIK dan no kartu → verifikasi output file tidak punya nilai asli.
 ```
 
 ---
 
-## QUICK REFERENCE — Urutan Eksekusi Prompt
+## P-060 — BUILD & TEST DI MAC
 
 ```
-Fase 0 Setup:    P-001 → P-002
-Fase 1 Hardware: P-010 → P-011
-Fase 2 BPJS:     P-020 → P-021 → P-022
-Fase 3 Detector: P-030
-Fase 4 Services: P-040 → P-041
-Fase 5 Offline:  P-050 → P-051
-Fase 6 Wails:    P-060
-Fase 7 Frontend: P-070 → P-071 → P-072 → P-073 → P-074 → P-075
-Fase 8 Security: P-080 → P-081
-Fase 9 Deploy:   P-090
+Ini adalah prompt untuk test akhir sebelum kirim ke Windows.
 
-Testing per fase: setiap prompt sudah include instruksi test-nya.
-Setelah setiap fase: jalankan `make test` untuk verifikasi.
+LANGKAH 1 — Pastikan semua test hijau:
+  make test
+  Tampilkan coverage report. Minimum 70% untuk service/detector dan service/sep.
+
+LANGKAH 2 — Build macOS:
+  make build-mac
+  Output harus ada di: build/bin/APM.app (atau build/bin/apm-go)
+
+LANGKAH 3 — Jalankan aplikasi:
+  open build/bin/APM.app
+  ATAU: ./build/bin/apm-go (jika binary, bukan .app)
+
+LANGKAH 4 — Test checklist manual:
+  □ Window muncul dengan HomeScreen
+  □ Ukuran window bisa di-resize — semua elemen scale dengan benar
+  □ Klik "Pasien BPJS" → navigate ke InputScreen
+  □ Ketik angka di numpad → muncul di display
+  □ Buka terminal baru: make mock-card-default
+    → form terisi otomatis
+  □ Klik "cari" → DetectScreen muncul dengan animasi
+  □ Navigate ke berbagai result screen
+  □ Klik "Ambil Antrian" → AntrianScreen
+  □ Klik salah satu card → TicketScreen dengan countdown
+  □ Tunggu 60 detik tanpa interaksi → overlay countdown → reset ke Home
+
+LANGKAH 5 — Test offline mode:
+  Matikan koneksi Mac dari wifi/ethernet
+  Coba ambil antrian → harus tetap berhasil (offline mode)
+  Nyalakan koneksi kembali → banner offline menghilang
+
+LANGKAH 6 — Lint:
+  make lint
+  Perbaiki semua warning sebelum build Windows.
+
+Jika semua langkah berhasil, lanjutkan ke P-061.
+```
+
+---
+
+## P-061 — CROSS-COMPILE WINDOWS
+
+```
+LANGKAH 1 — Verifikasi toolchain:
+  which x86_64-w64-mingw32-gcc
+  → harus ada output path (jika belum: brew install mingw-w64)
+
+LANGKAH 2 — Build Windows binary:
+  make build-windows
+  → Ini jalankan: GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc wails build -platform windows/amd64
+
+  Output yang diharapkan:
+  build/bin/apm-go.exe  (atau nama sesuai wails.json)
+
+LANGKAH 3 — Buat deployment package:
+  mkdir -p dist/apm-windows-amd64
+  cp build/bin/apm-go.exe dist/apm-windows-amd64/apm.exe
+  cp config.example.toml dist/apm-windows-amd64/
+  cp -r migrations/ dist/apm-windows-amd64/
+  cp -r templates/ dist/apm-windows-amd64/
+
+LANGKAH 4 — Buat INSTALL.md dalam Bahasa Indonesia:
+  Taruh di dist/apm-windows-amd64/INSTALL.md
+  Isi:
+    1. Prasyarat (OS, RAM, WebView2, Frista.exe, After.exe)
+    2. Copy folder ini ke C:\apm\
+    3. Edit config.toml — isi IP Khanza, credential BPJS
+    4. Enkripsi credential: apm.exe --encrypt-config
+    5. Test koneksi: apm.exe --check-connections
+    6. Install Windows Service: apm.exe --install-service
+    7. Start: net start APMService
+    8. Troubleshooting umum
+
+LANGKAH 5 — Zip dan siap kirim:
+  cd dist && zip -r apm-windows-v1.0.0.zip apm-windows-amd64/
+
+Tampilkan ukuran file .exe dan .zip akhir.
+```
+
+---
+
+## P-062 — WINDOWS SERVICE INSTALLER
+
+```
+Read HARDWARE_PLATFORM.md section "Install sebagai Windows Service".
+
+Tambahkan CLI flags ke cmd/apm/main.go untuk Windows deployment.
+
+━━━ CLI Flags ━━━
+Gunakan flag package stdlib:
+
+--encrypt-config      → jalankan EncryptConfig() lalu exit
+--check-connections   → test semua koneksi, print tabel status, exit
+--migrate             → jalankan SQL migrations, exit
+--install-service     → install sebagai Windows Service (Windows only)
+--uninstall-service   → hapus Windows Service
+--version             → print versi dari build info
+
+━━━ --check-connections ━━━
+Print tabel seperti ini:
+  ┌─────────────────────┬──────────┬─────────────────┐
+  │ Komponen            │ Status   │ Detail          │
+  ├─────────────────────┼──────────┼─────────────────┤
+  │ BPJS VClaim API     │ ✅ OK    │ 245ms           │
+  │ BPJS Antrol         │ ✅ OK    │ 312ms           │
+  │ SIMRS Khanza        │ ✅ OK    │ 45ms            │
+  │ SQLite              │ ✅ OK    │ local           │
+  │ Frista.exe          │ ❌ GAGAL │ File not found  │
+  │ After.exe (FP BPJS) │ ⚠️ SKIP  │ Dev mode (Mac)  │
+  └─────────────────────┴──────────┴─────────────────┘
+Exit code 0 jika semua critical OK, 1 jika ada yang critical gagal.
+
+━━━ --install-service (Windows only) ━━━
+// +build windows
+
+Gunakan golang.org/x/sys/windows/svc/mgr untuk install service:
+  mgr.Connect() → mgr.CreateService("APMService", exePath, ...)
+  Service config: StartType=mgr.StartAutomatic, Description="Anjungan Pasien Mandiri"
+  Set recovery actions: restart setelah 5 detik jika crash (3x)
+
+━━━ Windows Service wrapper ━━━
+Gunakan golang.org/x/sys/windows/svc untuk run sebagai service:
+  Implement svc.Handler interface
+  Method Execute(): start normal app, listen untuk Stop/Shutdown signal
+
+Test: build Windows binary, jalankan --check-connections dari terminal.
 ```
 

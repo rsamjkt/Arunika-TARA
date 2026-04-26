@@ -1,4 +1,4 @@
-.PHONY: help dev build-mac build-windows test test-coverage lint clean setup-cross-compile mock-card-read mock-fp-fail
+.PHONY: help dev build-mac build-windows test test-integration test-coverage lint clean setup-cross-compile mock-card-read mock-card-default mock-fp-fail mocks
 
 # Default — list semua target
 help:
@@ -7,8 +7,10 @@ help:
 	@echo "  make dev               Hot reload Vue + Go (wails dev)"
 	@echo "  make build-mac         Build aplikasi untuk macOS (native)"
 	@echo "  make build-windows     Cross-compile ke Windows dari Mac (butuh mingw-w64)"
-	@echo "  make test              Jalankan unit tests semua package"
-	@echo "  make test-coverage     Tests dengan coverage report (target ≥80%)"
+	@echo "  make test              Jalankan unit tests semua package (-cover)"
+	@echo "  make test-integration  Jalankan integration tests (build tag: integration)"
+	@echo "  make test-coverage     Tests dengan coverage HTML report (target ≥80%)"
+	@echo "  make mocks             Generate mocks (mockery v2)"
 	@echo "  make lint              golangci-lint"
 	@echo "  make clean             Hapus build artifacts"
 	@echo ""
@@ -33,12 +35,19 @@ setup-cross-compile:
 	brew install mingw-w64
 
 test:
-	go test ./... -v
+	go test ./... -v -cover
+
+test-integration:
+	go test ./... -tags integration -v
 
 test-coverage:
 	go test ./... -v -coverprofile=coverage.txt -covermode=atomic
 	go tool cover -html=coverage.txt -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+mocks:
+	@which mockery >/dev/null || (echo "mockery belum ada — install: go install github.com/vektra/mockery/v2@latest"; exit 1)
+	mockery --all --keeptree --output internal/mocks --outpkg mocks
 
 lint:
 	@which golangci-lint >/dev/null || (echo "Install: brew install golangci-lint atau go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; exit 1)
@@ -53,6 +62,9 @@ mock-card-read:
 		-H "Content-Type: application/json" \
 		-d '{"nik":"$(NIK)","nama":"$(NAMA)","tgl_lahir":"1980-05-15","alamat":"Jl. Merdeka No. 1, Jakarta","no_kartu":"0001234567890012"}'
 	@echo ""
+
+mock-card-default:
+	@$(MAKE) mock-card-read NIK=3271234567890001 NAMA="Test Pasien"
 
 mock-fp-fail:
 	@curl -sX POST http://localhost:9090/mock/fp-fail
