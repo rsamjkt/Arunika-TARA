@@ -46,6 +46,11 @@ type Ticket struct {
 	// menampilkan badge "OFFLINE" + reminder bahwa nomor akan di-sync
 	// kembali setelah koneksi pulih.
 	IsOffline bool
+
+	// PrintHistoryID di-populate oleh App.CreateAntrian setelah
+	// auto-print + InsertPrintHistory. UI pakai untuk Reprint button.
+	// 0 berarti belum/gagal di-print (Reprint button di-hide).
+	PrintHistoryID int64
 }
 
 // FormatNomor membentuk nomor antrian yang dicetak ke tiket dan ditampilkan

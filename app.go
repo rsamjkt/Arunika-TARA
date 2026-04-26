@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -257,14 +258,63 @@ func (a *App) ResetSession() error {
 // Antrian
 // ============================================================
 
-// CreateAntrian membuat satu nomor antrian.
+// CreateAntrian membuat satu nomor antrian + auto-print tiket +
+// simpan ke print_history supaya bisa di-Reprint dari TicketScreen.
+//
+// Print error TIDAK menggagalkan return — ticket tetap diberikan ke
+// pasien (mereka sudah dapat nomor). Error di-emit lewat event
+// "printer:error" supaya UI bisa show toast.
 func (a *App) CreateAntrian(jenis, subJenis string) (*domain.Ticket, error) {
 	if a.antrianSvc == nil {
 		return nil, errors.New("antrian service belum diinisialisasi")
 	}
-	return a.antrianSvc.Create(a.ctx, domain.AntrianRequest{
+	ticket, err := a.antrianSvc.Create(a.ctx, domain.AntrianRequest{
 		Jenis: jenis, SubJenis: subJenis,
 	})
+	if err != nil {
+		return nil, err
+	}
+	a.printAndPersistTicket(ticket)
+	return ticket, nil
+}
+
+// printAndPersistTicket non-blocking flow:
+//   - call hw.Printer.Print untuk physical/console output
+//   - InsertPrintHistory dengan ticket.ID sebagai ref_id supaya
+//     ticket.PrintHistoryID dapat dipopulate untuk Reprint
+//
+// Untuk error apapun: log + emit "printer:error" event, TIDAK
+// throw ke caller (pasien sudah dapat nomor — tidak boleh dibatalkan).
+func (a *App) printAndPersistTicket(ticket *domain.Ticket) {
+	if ticket == nil || a.hw == nil {
+		return
+	}
+
+	// Step 1: physical/console print
+	if a.hw.Printer != nil {
+		if err := a.hw.Printer.Print(a.ctx, "TIKET", ticket); err != nil {
+			a.logger.Warn("printer print tiket gagal", "err", err.Error())
+			a.emitEvent("printer:error", err.Error())
+		}
+	}
+
+	// Step 2: insert print_history untuk Reprint capability
+	if a.db != nil {
+		// Render bytes (placeholder JSON sampai P-050+ capture
+		// raw ESC/POS bytes via printer.Print return value).
+		bodyBytes, _ := json.Marshal(ticket)
+		ph, err := store.New(a.db).InsertPrintHistory(a.ctx, store.InsertPrintHistoryParams{
+			DocType:     "TIKET",
+			RefID:       sql.NullString{String: ticket.ID, Valid: ticket.ID != ""},
+			EscposBytes: bodyBytes,
+		})
+		if err != nil {
+			a.logger.Warn("insert print_history tiket gagal",
+				"err", err.Error(), "ticket_id", ticket.ID)
+			return
+		}
+		ticket.PrintHistoryID = ph.ID
+	}
 }
 
 // GetCounters return counter per jenis untuk display "Sekarang: A-035".
