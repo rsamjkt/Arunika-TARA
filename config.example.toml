@@ -1,0 +1,93 @@
+# APM (T.A.R.A) — config template
+#
+# Copy ke config.toml lalu isi nilai yang sesuai environment Anda.
+# JANGAN PERNAH commit config.toml (.gitignore sudah block).
+#
+# Di Windows production, jalankan `apm.exe --encrypt-config` setelah copy
+# untuk meng-enkripsi credential dengan Windows DPAPI + AES-256-GCM.
+
+[app]
+mode             = "development"           # development | production
+log_level        = "info"                  # debug | info | warn | error
+locale           = "id-ID"
+kiosk_id         = "KIOSK-01"              # identifier unik per mesin
+ppk_pelayanan    = "1234R001"              # kode PPK BPJS rumah sakit ini
+
+[server]
+# Khanza SIMRS REST API
+khanza_url       = "http://192.168.1.10:8080"
+khanza_token     = "REPLACE_WITH_BEARER_TOKEN"
+khanza_timeout   = "10s"
+
+[bpjs.vclaim]
+# Production: https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
+# Development: https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/
+base_url         = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
+cons_id          = "REPLACE_WITH_CONS_ID"
+consumer_secret  = "REPLACE_WITH_CONSUMER_SECRET"
+user_key         = "REPLACE_WITH_USER_KEY"
+timeout          = "15s"
+
+[bpjs.antrol]
+# Antrean Online — credential terpisah dari VClaim
+base_url         = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
+cons_id          = "REPLACE_WITH_ANTROL_CONS_ID"
+consumer_secret  = "REPLACE_WITH_ANTROL_SECRET"
+user_key         = "REPLACE_WITH_ANTROL_USER_KEY"
+timeout          = "10s"
+
+[bpjs.fingerprint]
+# After.exe REST endpoint (lokal di mesin Windows)
+base_url         = "https://fp.bpjs-kesehatan.go.id/finger-rest/"
+username         = "REPLACE_WITH_FP_USERNAME"
+password         = "REPLACE_WITH_FP_PASSWORD"
+scan_timeout     = "30s"
+
+[satusehat]
+# OAuth2 client credentials — aktivasi Satu Sehat Mobile
+base_url         = "https://api-satusehat.kemkes.go.id/"
+client_id        = "REPLACE_WITH_CLIENT_ID"
+client_secret    = "REPLACE_WITH_CLIENT_SECRET"
+organization_id  = "REPLACE_WITH_ORG_ID"
+
+[frista]
+# Path absolut frista.exe (Windows only — di Mac otomatis pakai mock)
+exe_path         = "C:\\Program Files\\Frista\\frista.exe"
+username         = "REPLACE_WITH_FRISTA_USERNAME"
+password         = "REPLACE_WITH_FRISTA_PASSWORD"
+auto_login_delay = "3s"
+
+[fingerprint]
+# Path After.exe (Windows only)
+exe_path         = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
+auto_login_delay = "3s"
+
+[printer]
+# ESC/POS thermal printer
+type             = "usb"                   # usb | serial | network
+device           = "POS-58"                # nama printer (USB) / COM port (serial) / IP:port (network)
+paper_width      = 58                      # mm — biasanya 58 atau 80
+encoding         = "cp437"
+
+[antrian]
+# Reset counter antrian harian
+reset_cron       = "0 0 * * *"             # jam 00:00 setiap hari
+prefix_loket     = "A"
+prefix_poli      = "P"
+prefix_umum      = "U"
+
+[storage]
+sqlite_path      = "./data/apm.db"
+backup_dir       = "./data/backup"
+backup_keep_days = 30
+
+[reconcile]
+# Background worker untuk antrian offline
+enabled          = true
+interval         = "30s"
+max_retry        = 5
+
+[dev]
+# Hanya berlaku saat mode = "development" atau platform != windows
+mock_hardware    = true
+mock_server_port = 9090

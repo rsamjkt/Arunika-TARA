@@ -25,12 +25,14 @@ credentials.json
 *.out
 go.work.sum
 vendor/
+# stray binary dari "go build ./..." di root (output sebenarnya ada di build/bin/)
+/apm-go
 
 # Wails build output
 build/bin/
 dist/
 frontend/dist/
-frontend/wailsjs/
+# frontend/wailsjs/  ← auto-generated, tapi di-commit agar first-clone bisa langsung build
 
 # Frontend
 node_modules/
