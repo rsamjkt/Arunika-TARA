@@ -22,6 +22,8 @@ export function CreateAntrian(arg1:string,arg2:string):Promise<domain.Ticket>;
 
 export function DetectPatient(arg1:string):Promise<domain.DetectionResult>;
 
+export function GetAdminStats():Promise<main.AdminStats>;
+
 export function GetCounters():Promise<Record<string, number>>;
 
 export function GetHardwareStatus():Promise<main.HardwareStatus>;
@@ -29,6 +31,8 @@ export function GetHardwareStatus():Promise<main.HardwareStatus>;
 export function GetJadwalDokter(arg1:string):Promise<Array<domain.JadwalDokter>>;
 
 export function GetPendingSEPs():Promise<Array<store.PendingSep>>;
+
+export function GetRecentLogs(arg1:number):Promise<Array<main.AdminLogEntry>>;
 
 export function GetSystemStatus():Promise<main.SystemStatus>;
 
@@ -39,3 +43,7 @@ export function Reprint(arg1:number):Promise<void>;
 export function ResetCounters():Promise<void>;
 
 export function ResetSession():Promise<void>;
+
+export function TestPrint():Promise<void>;
+
+export function VerifyAdminPIN(arg1:string):Promise<boolean>;

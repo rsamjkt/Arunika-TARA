@@ -525,6 +525,132 @@ func (a *App) ResetCounters() error {
 	return a.antrianSvc.ResetAll(a.ctx)
 }
 
+// VerifyAdminPIN cocokkan input dengan cfg.Admin.PIN.
+// Kalau cfg.Admin.PIN kosong, panel terbuka (return true) — untuk
+// kemudahan dev. Production WAJIB set PIN di config.toml.
+func (a *App) VerifyAdminPIN(pin string) bool {
+	if a.cfg == nil {
+		return false
+	}
+	configured := a.cfg.Admin.PIN
+	if configured == "" {
+		return true // panel tidak dilindungi
+	}
+	return pin == configured
+}
+
+// AdminLogEntry — wire format ReconcileLog untuk Vue.
+type AdminLogEntry struct {
+	ID         int64  `json:"id"`
+	TableName  string `json:"table_name"`
+	RecordID   int64  `json:"record_id"`
+	Action     string `json:"action"`
+	OperatorID string `json:"operator_id"`
+	Result     string `json:"result"`
+	Timestamp  string `json:"timestamp"`
+}
+
+// GetRecentLogs — 50 log rekonsiliasi terakhir untuk admin viewer.
+func (a *App) GetRecentLogs(limit int64) ([]AdminLogEntry, error) {
+	if a.db == nil {
+		return nil, errors.New("db belum diinisialisasi")
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := store.New(a.db).GetRecentLogs(a.ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get recent logs: %w", err)
+	}
+	out := make([]AdminLogEntry, 0, len(rows))
+	for _, r := range rows {
+		ts := ""
+		if r.Timestamp.Valid {
+			ts = r.Timestamp.Time.Format(time.RFC3339)
+		}
+		out = append(out, AdminLogEntry{
+			ID: r.ID, TableName: r.TableName, RecordID: r.RecordID,
+			Action:     r.Action,
+			OperatorID: r.OperatorID.String,
+			Result:     r.Result.String,
+			Timestamp:  ts,
+		})
+	}
+	return out, nil
+}
+
+// AdminStats — angka untuk stat grid di admin panel.
+type AdminStats struct {
+	AntrianHariIni int    `json:"antrian_hari_ini"`     // total nomor antrian today
+	SEPHariIni     int    `json:"sep_hari_ini"`         // jumlah SEP berhasil today
+	PendingSync    int    `json:"pending_sync"`         // pending_sep status=pending
+	UptimeSec      int64  `json:"uptime_sec"`
+	StartedAt      string `json:"started_at"`
+}
+
+// GetAdminStats — agregat 4 angka untuk stat grid admin.
+func (a *App) GetAdminStats() (*AdminStats, error) {
+	st := &AdminStats{
+		StartedAt: a.startedAt.Format(time.RFC3339),
+		UptimeSec: int64(time.Since(a.startedAt).Seconds()),
+	}
+
+	// Antrian hari ini = sum counter per jenis (LOKET+POLI+UMUM)
+	if a.antrianSvc != nil {
+		for _, j := range []string{
+			string(domain.AntrianJenisLoket),
+			string(domain.AntrianJenisPoli),
+			string(domain.AntrianJenisUmum),
+		} {
+			c, err := a.antrianSvc.GetCounter(a.ctx, j)
+			if err == nil {
+				st.AntrianHariIni += c
+			}
+		}
+	}
+
+	// Pending SEP = count yang status='pending'
+	if a.db != nil {
+		q := store.New(a.db)
+		pending, err := q.GetPendingSEPs(a.ctx, store.GetPendingSEPsParams{
+			Status: sql.NullString{String: "pending", Valid: true},
+			Limit:  1000,
+		})
+		if err == nil {
+			st.PendingSync = len(pending)
+		}
+
+		// SEP hari ini = count print_history doc_type='SEP'
+		// Approximation - tidak ada query khusus, sementara skip dengan 0.
+		// Iterasi P-050+ tambah query "count_sep_today".
+	}
+	return st, nil
+}
+
+// TestPrint cetak dokumen test untuk verifikasi printer fungsi.
+// Dipanggil dari admin panel "Test cetak printer" button.
+func (a *App) TestPrint() error {
+	if a.hw == nil || a.hw.Printer == nil {
+		return errors.New("printer belum diinisialisasi")
+	}
+	type testData struct {
+		Title     string
+		Timestamp string
+		Message   string
+	}
+	data := testData{
+		Title:     "TEST PRINT",
+		Timestamp: time.Now().Format("2006-01-02 15:04:05 WIB"),
+		Message:   "Jika Anda bisa membaca tulisan ini, printer berfungsi normal.",
+	}
+	if err := a.hw.Printer.Print(a.ctx, "TEST", data); err != nil {
+		a.emitEvent("printer:error", err.Error())
+		return fmt.Errorf("test print: %w", err)
+	}
+	a.logger.Info("admin: test print sukses")
+	return nil
+}
+
 // ============================================================
 // Diagnostik (test/dev only)
 // ============================================================

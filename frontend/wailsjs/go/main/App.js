@@ -38,6 +38,10 @@ export function DetectPatient(arg1) {
   return window['go']['main']['App']['DetectPatient'](arg1);
 }
 
+export function GetAdminStats() {
+  return window['go']['main']['App']['GetAdminStats']();
+}
+
 export function GetCounters() {
   return window['go']['main']['App']['GetCounters']();
 }
@@ -52,6 +56,10 @@ export function GetJadwalDokter(arg1) {
 
 export function GetPendingSEPs() {
   return window['go']['main']['App']['GetPendingSEPs']();
+}
+
+export function GetRecentLogs(arg1) {
+  return window['go']['main']['App']['GetRecentLogs'](arg1);
 }
 
 export function GetSystemStatus() {
@@ -72,4 +80,12 @@ export function ResetCounters() {
 
 export function ResetSession() {
   return window['go']['main']['App']['ResetSession']();
+}
+
+export function TestPrint() {
+  return window['go']['main']['App']['TestPrint']();
+}
+
+export function VerifyAdminPIN(arg1) {
+  return window['go']['main']['App']['VerifyAdminPIN'](arg1);
 }

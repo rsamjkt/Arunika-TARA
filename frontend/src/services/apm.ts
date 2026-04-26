@@ -29,6 +29,10 @@ import {
   GetPendingSEPs,
   ConfirmSEPSync,
   ResetCounters,
+  VerifyAdminPIN,
+  GetAdminStats,
+  GetRecentLogs,
+  TestPrint,
 } from '../../wailsjs/go/main/App'
 
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
@@ -51,6 +55,8 @@ export type JadwalDokter = domain.JadwalDokter
 export type HardwareStatus = main.HardwareStatus
 export type SystemStatus = main.SystemStatus
 export type PendingSep = store.PendingSep
+export type AdminStats = main.AdminStats
+export type AdminLogEntry = main.AdminLogEntry
 
 // CardData yang di-emit lewat event "frista:card_read".
 // Field nama mengikuti Go struct domain.CardData (snake_case → camelCase
@@ -120,6 +126,10 @@ export const apmService = {
   getPendingSEPs: (): Promise<PendingSep[]> => GetPendingSEPs(),
   confirmSEPSync: (id: number): Promise<void> => ConfirmSEPSync(id),
   resetCounters: (): Promise<void> => ResetCounters(),
+  verifyAdminPIN: (pin: string): Promise<boolean> => VerifyAdminPIN(pin),
+  getAdminStats: (): Promise<AdminStats> => GetAdminStats(),
+  getRecentLogs: (limit = 50): Promise<AdminLogEntry[]> => GetRecentLogs(limit),
+  testPrint: (): Promise<void> => TestPrint(),
 }
 
 // ============================================================

@@ -55,6 +55,9 @@ poli_prefix  = "B"
 umum_prefix  = "C"
 reset_time   = "00:01"
 
+[admin]
+pin = "1234"
+
 [dev]
 mock_hardware    = true
 mock_server_port = 9090

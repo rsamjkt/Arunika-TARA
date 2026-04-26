@@ -22,6 +22,7 @@ var docTypeToFile = map[string]string{
 	"TIKET":      "templates/tiket_antrian.tmpl",
 	"SEP":        "templates/sep.tmpl",
 	"REGISTRASI": "templates/registrasi.tmpl",
+	"TEST":       "templates/test.tmpl",
 }
 
 var (

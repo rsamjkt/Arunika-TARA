@@ -24,6 +24,7 @@ type Config struct {
 	Frista      FristaConfig      `mapstructure:"frista"`
 	Printer     PrinterConfig     `mapstructure:"printer"`
 	Antrian     AntrianConfig     `mapstructure:"antrian"`
+	Admin       AdminConfig       `mapstructure:"admin"`
 	Dev         DevConfig         `mapstructure:"dev"`
 }
 
@@ -88,6 +89,15 @@ type AntrianConfig struct {
 	PoliPrefix  string `mapstructure:"poli_prefix"`
 	UmumPrefix  string `mapstructure:"umum_prefix"`
 	ResetTime   string `mapstructure:"reset_time"` // "HH:MM" WIB
+}
+
+// AdminConfig — pengaturan akses admin panel.
+type AdminConfig struct {
+	// PIN 4-6 digit untuk akses admin panel. Plaintext saat ini —
+	// production-grade hashing (bcrypt) dapat ditambah saat P-051
+	// security hardening. Default kosong = admin panel terbuka
+	// tanpa PIN (untuk dev convenience).
+	PIN string `mapstructure:"pin"`
 }
 
 // DevConfig — flag pengembangan (hanya berlaku di non-Windows).

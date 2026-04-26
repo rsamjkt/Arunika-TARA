@@ -60,6 +60,12 @@ poli_prefix  = "B"
 umum_prefix  = "C"
 reset_time   = "00:01"             # HH:MM WIB — reset counter harian
 
+[admin]
+# PIN 4-6 digit untuk akses admin panel kiosk. Plaintext untuk
+# kemudahan dev — production hashing dapat ditambah di P-051.
+# Kosongkan kalau panel admin TIDAK dilindungi PIN.
+pin = "1234"
+
 [dev]
 # Hanya berlaku di non-Windows (Mac/Linux). Hardware otomatis di-mock.
 mock_hardware    = true

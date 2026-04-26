@@ -263,6 +263,7 @@ export namespace domain {
 	    // Go type: time
 	    PrintedAt?: any;
 	    IsOffline: boolean;
+	    PrintHistoryID: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Ticket(source);
@@ -281,6 +282,7 @@ export namespace domain {
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.PrintedAt = this.convertValues(source["PrintedAt"], null);
 	        this.IsOffline = source["IsOffline"];
+	        this.PrintHistoryID = source["PrintHistoryID"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -306,6 +308,50 @@ export namespace domain {
 
 export namespace main {
 	
+	export class AdminLogEntry {
+	    id: number;
+	    table_name: string;
+	    record_id: number;
+	    action: string;
+	    operator_id: string;
+	    result: string;
+	    timestamp: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AdminLogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.table_name = source["table_name"];
+	        this.record_id = source["record_id"];
+	        this.action = source["action"];
+	        this.operator_id = source["operator_id"];
+	        this.result = source["result"];
+	        this.timestamp = source["timestamp"];
+	    }
+	}
+	export class AdminStats {
+	    antrian_hari_ini: number;
+	    sep_hari_ini: number;
+	    pending_sync: number;
+	    uptime_sec: number;
+	    started_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AdminStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.antrian_hari_ini = source["antrian_hari_ini"];
+	        this.sep_hari_ini = source["sep_hari_ini"];
+	        this.pending_sync = source["pending_sync"];
+	        this.uptime_sec = source["uptime_sec"];
+	        this.started_at = source["started_at"];
+	    }
+	}
 	export class HardwareStatus {
 	    frista: boolean;
 	    fingerprint: boolean;
