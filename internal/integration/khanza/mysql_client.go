@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -925,22 +926,124 @@ func parseIntSafe(s string) (int, bool) {
 }
 
 // ============================================================
-// BuatAntrian — direct-DB tidak punya atomic counter cross-kiosk
+// BuatAntrian — direct-INSERT ke antrian_loket Khanza
 // ============================================================
 
-// BuatAntrian: dalam mode direct-DB, generator antrian dipindah ke
-// SQLite lokal (lihat antrian.Service) — Khanza Java tidak menyediakan
-// tabel atomic counter standar yang aman dari multi-kiosk race.
+// antrianMu serialize SELECT MAX + INSERT supaya nomor antrian tidak
+// duplikat dalam single kiosk instance. Multi-kiosk: pakai prefix
+// berbeda per kiosk (set di config) supaya counter terpisah.
+var antrianMu sync.Mutex
+
+// BuatAntrian INSERT ke `antrian_loket` Khanza mengikuti pattern
+// vendor V3 (KhanzaHMSAnjunganSEP_RSAMXIP/DlgAmbilAntrean.java:240).
 //
-// Mengembalikan error sentinel supaya antrian.Service fallback ke
-// nomor lokal. Tidak fatal — kiosk tetap bisa cetak tiket.
+// Schema:
+//
+//	type        — kategori antrian: "Loket", "CS", "Booking", "Ranap"
+//	noantrian   — string nomor (mis. "001", "A001")
+//	postdate    — DATE hari ini
+//	start_time  — TIME saat ambil
+//	end_time    — TIME saat dipanggil/selesai (default '00:00:00')
+//
+// Counter strategy: SELECT MAX(CAST(noantrian AS UNSIGNED)) + 1
+// per type per CURDATE() + app-level mutex. Reset harian otomatis
+// karena filter CURDATE().
+//
+// Map domain.AntrianRequest.Jenis → type Khanza:
+//
+//	"LOKET" → "Loket"  (default RS Anggrek Mas)
+//	"POLI"  → req.SubJenis (mis. nm_poli sudah string)
+//	"UMUM"  → "CS" (counter service)
+//
+// Kalau Khanza unreachable, return ErrOffline → caller fallback SQLite.
 func (c *MySQLClient) BuatAntrian(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error) {
-	return nil, ErrAntrianHandledLocally
+	if strings.TrimSpace(req.Jenis) == "" {
+		return nil, errors.New("antrian: jenis wajib")
+	}
+
+	tipe := mapJenisToType(req.Jenis, req.SubJenis)
+	prefix := prefixForType(tipe)
+
+	antrianMu.Lock()
+	defer antrianMu.Unlock()
+
+	// SELECT MAX next number
+	var maxNum sql.NullInt64
+	err := c.db.QueryRowContext(ctx, `
+		SELECT IFNULL(MAX(CAST(noantrian AS UNSIGNED)), 0)
+		FROM antrian_loket
+		WHERE type = ? AND postdate = CURDATE()
+	`, tipe).Scan(&maxNum)
+	if err != nil {
+		return nil, fmt.Errorf("get max antrian: %w", wrapOfflineMySQL(err))
+	}
+	next := int(maxNum.Int64) + 1
+	noAntrian := fmt.Sprintf("%03d", next) // 001, 002, ...
+	displayNomor := fmt.Sprintf("%s%03d", prefix, next) // A-001, B-001 untuk display
+
+	// INSERT row
+	now := time.Now()
+	_, err = c.db.ExecContext(ctx, `
+		INSERT INTO antrian_loket (type, noantrian, postdate, start_time, end_time)
+		VALUES (?, ?, CURDATE(), ?, '00:00:00')
+	`, tipe, noAntrian, now.Format("15:04:05"))
+	if err != nil {
+		return nil, fmt.Errorf("insert antrian_loket: %w", wrapOfflineMySQL(err))
+	}
+
+	return &domain.Ticket{
+		Nomor:     displayNomor,
+		Jenis:     req.Jenis,
+		SubJenis:  req.SubJenis,
+		Prefix:    prefix,
+		NoUrut:    next,
+		NoRM:      req.NoRM,
+		CreatedAt: now,
+	}, nil
 }
 
-// ErrAntrianHandledLocally menandakan Khanza tidak handle antrian di
-// direct-DB mode. Caller (antrian.Service) harus tangkap dan pakai
-// generator lokal.
+// mapJenisToType memetakan domain.AntrianRequest.Jenis ke value
+// kolom `type` di tabel antrian_loket Khanza.
+func mapJenisToType(jenis, subJenis string) string {
+	switch strings.ToUpper(strings.TrimSpace(jenis)) {
+	case "LOKET":
+		return "Loket"
+	case "UMUM":
+		return "CS"
+	case "POLI":
+		if subJenis != "" {
+			return "Poli " + subJenis
+		}
+		return "Poli"
+	case "RANAP", "IGD":
+		return "Ranap"
+	default:
+		// Pass-through (mis. langsung "Loket", "Booking" dari caller)
+		return jenis
+	}
+}
+
+// prefixForType return huruf prefix display untuk tipe antrian
+// (mengikuti convention KhanzaHMSAnjunganSEP V3).
+func prefixForType(tipe string) string {
+	switch tipe {
+	case "Loket":
+		return "A"
+	case "CS":
+		return "B"
+	case "Booking":
+		return "C"
+	case "Ranap":
+		return "D"
+	default:
+		return "A"
+	}
+}
+
+// ErrAntrianHandledLocally — backwards compat untuk service layer yang
+// punya special-case lama. Sekarang BuatAntrian return error nyata
+// (offline/db) bukan sentinel ini, tapi konstanta tetap exported supaya
+// caller existing tidak break.
 var ErrAntrianHandledLocally = errors.New("khanza-mysql: antrian di-handle local SQLite")
 
 // ============================================================
