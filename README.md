@@ -15,6 +15,7 @@
 ## Daftar Isi
 
 - [Tentang T.A.R.A](#tentang-tara)
+- [Scope — Apa yang Bisa & Tidak Lewat Kiosk](#scope--apa-yang-bisa--tidak-lewat-kiosk)
 - [Fitur Utama](#fitur-utama)
 - [Smart BPJS Detector](#smart-bpjs-detector)
 - [Quickstart — Pakai Aplikasi (Production)](#quickstart--pakai-aplikasi-production)
@@ -37,11 +38,49 @@ T.A.R.A adalah perangkat lunak Anjungan Pasien Mandiri yang berjalan sebagai **k
 | Atribut | Detail |
 |---|---|
 | **Pemilik** | PT. Arunika Komputasi Awan Integrasi |
-| **Codename rilis** | Mahatma (v1.0.0) |
+| **Codename rilis** | Mahatma (latest: v1.4.x) |
 | **Repo** | [github.com/rsamjkt/Arunika-TARA](https://github.com/rsamjkt/Arunika-TARA) |
 | **Stack** | Go 1.22+ · Wails v2 · Vue 3 · Tailwind CSS · SQLite |
 | **Target Deploy** | Windows 10/11 x64 (kiosk) |
 | **Development** | macOS / Linux (cross-compile ke Windows) |
+
+---
+
+## Scope — Apa yang Bisa & Tidak Lewat Kiosk
+
+T.A.R.A di-design untuk **kasus mainstream pasien yang stabil dan bisa mandiri**. Edge case medis / administrasi rumit tetap ditangani petugas di loket / aplikasi vendor desktop.
+
+### ✅ Yang DIDUKUNG kiosk (~85-90% kunjungan harian)
+
+| Skenario | Flow |
+|---|---|
+| Pasien BPJS dengan rujukan FKTP baru | Auto-classify "RujukanBaru" → SEP issued |
+| Pasien BPJS dengan jadwal kontrol (SKDP) | Auto-classify "Kontrol" → SEP kontrol |
+| Pasien BPJS dari booking Mobile JKN | Auto-classify "MJKN" → konfirmasi → SEP |
+| Pasien BPJS pasca rawat inap (≤7 hari) | Auto-classify "PostRANAP" → SEP follow-up |
+| Pasien BPJS lanjutan rawat jalan beda poli | Auto-classify "PostRAJAL" → SEP follow-up |
+| Pasien BPJS status tidak aktif | Auto-offer "Daftar sebagai Pasien Umum" |
+| Pasien Umum / Tunai (sudah punya No. RM) | Search → pilih poli → pilih dokter → cetak |
+| Antrian Loket admisi (single-tap) | Generate nomor lokal, cetak tiket |
+
+### 🚫 Yang TIDAK didukung kiosk (lewat petugas / aplikasi vendor)
+
+| Skenario | Alasan | Alternatif |
+|---|---|---|
+| **Pasien Laka Lantas** (kecelakaan) | Pasien sering luka berat, butuh IGD segera; penjamin Jasa Raharja primary, butuh assesmen petugas; dokumen polisi (BAP, SKBL) | Langsung IGD → petugas daftarkan via aplikasi vendor desktop |
+| **Pendaftaran pasien baru** (belum punya No. RM) | Butuh KTP scan, isi data demografi lengkap, foto profil, hubungan keluarga | Loket admisi pasien baru |
+| **Pasien dengan COB** (asuransi tambahan kompleks) | Butuh assesmen klaim primer/sekunder | Loket admisi |
+| **Kelas naik / Eksekutif** (upgrade kelas rawat) | Butuh konfirmasi pembiayaan tambahan | Loket admisi |
+| **Pasien Katarak** (operasi mata, butuh detail mata + stadium) | Klaim spesifik dengan field klinis detail | Petugas Poli MATA |
+| **Kasus emergency** | Tidak ada waktu antri | IGD langsung |
+| **Pasien dengan nomor rujukan ekspirasi/invalid** | Butuh re-issue rujukan dari FKTP | Pasien hubungi puskesmas FKTP dulu |
+| **Pasien usia <17 tahun + BPJS** | Belum bisa fingerprint biometrik (di bawah usia BPJS) | Petugas verifikasi manual + daftarkan |
+
+### Filosofi design
+
+Kiosk bukan pengganti loket — pelengkap untuk percepat antrian. **Tujuannya**: pasien stabil yang sudah biasa kontrol/datang ke RS bisa mandiri tanpa antri panjang di loket admisi, sehingga **petugas loket bisa fokus ke kasus rumit** (laka, pasien baru, edge case BPJS) tanpa terdistraksi pasien sederhana.
+
+Kalau pasien ragu-ragu pakai kiosk, footer ada tombol **"Panggil Petugas"** dan **"Bantu Saya"** wizard — pasien tidak akan terjebak.
 
 ---
 
