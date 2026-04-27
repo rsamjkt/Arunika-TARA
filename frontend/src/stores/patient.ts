@@ -9,6 +9,10 @@ import type {
   Peserta,
   Ticket,
   SEP,
+  Pasien,
+  Poliklinik,
+  JadwalDokter,
+  Pendaftaran,
 } from '../services/apm'
 
 export interface DetectStep {
@@ -26,6 +30,12 @@ interface PatientState {
   error: string | null
   lastTicket: Ticket | null
   lastSEP: SEP | null
+
+  // Flow Pasien Umum (direct-DB Khanza)
+  pasienUmum: Pasien | null
+  selectedPoli: Poliklinik | null
+  selectedDokter: JadwalDokter | null
+  lastPendaftaran: Pendaftaran | null
 }
 
 export const usePatientStore = defineStore('patient', {
@@ -38,6 +48,10 @@ export const usePatientStore = defineStore('patient', {
     error: null,
     lastTicket: null,
     lastSEP: null,
+    pasienUmum: null,
+    selectedPoli: null,
+    selectedDokter: null,
+    lastPendaftaran: null,
   }),
 
   getters: {
@@ -86,12 +100,30 @@ export const usePatientStore = defineStore('patient', {
       this.error = null
       this.lastTicket = null
       this.lastSEP = null
+      this.pasienUmum = null
+      this.selectedPoli = null
+      this.selectedDokter = null
+      this.lastPendaftaran = null
       try {
         await apmService.resetSession()
       } catch {
         // Backend mungkin belum siap atau session sudah clean -
         // tidak fatal, lanjut.
       }
+    },
+
+    setPasienUmum(p: Pasien) {
+      this.pasienUmum = p
+    },
+    setSelectedPoli(p: Poliklinik) {
+      this.selectedPoli = p
+      this.selectedDokter = null
+    },
+    setSelectedDokter(d: JadwalDokter) {
+      this.selectedDokter = d
+    },
+    setLastPendaftaran(p: Pendaftaran) {
+      this.lastPendaftaran = p
     },
 
     setLastTicket(t: Ticket) {

@@ -36,9 +36,10 @@ const patient = usePatientStore()
 
 const ticket = computed(() => patient.lastTicket)
 const sep = computed(() => patient.lastSEP)
+const pendaftaran = computed(() => patient.lastPendaftaran)
 
 // Kalau buka /tiket tanpa data → balik ke home
-if (!ticket.value && !sep.value) {
+if (!ticket.value && !sep.value && !pendaftaran.value) {
   router.replace({ name: 'home' })
 }
 
@@ -107,7 +108,12 @@ function formatDateTime(d) {
 // Compute label berdasarkan ticket jenis + sub
 const ticketLabel = computed(() => {
   const t = ticket.value
-  if (!t) return 'TIKET'
+  if (!t) {
+    if (pendaftaran.value) {
+      return `PENDAFTARAN ${(pendaftaran.value.NmPoli || '').toUpperCase()}`.trim()
+    }
+    return 'TIKET'
+  }
   switch (t.Jenis) {
     case 'POLI':
       return `ANTRIAN POLI ${t.NoPoli || ''}`.trim()
@@ -124,20 +130,34 @@ const ticketLabel = computed(() => {
   }
 })
 
-// Format nomor antrian (sudah Ticket.Nomor dari backend)
-const ticketNomor = computed(() => ticket.value?.Nomor ?? '—')
+// Format nomor antrian — dari ticket atau pendaftaran (no_urut / no_rawat suffix)
+const ticketNomor = computed(() => {
+  if (ticket.value?.Nomor) return ticket.value.Nomor
+  if (pendaftaran.value?.NoUrut) return String(pendaftaran.value.NoUrut).padStart(3, '0')
+  return '—'
+})
 
-// Info dokter + tanggal — ambil dari sep kalau ada, fallback waktu sekarang
-const dokterLabel = computed(() => sep.value?.NmDokter || '—')
-const tanggalLabel = computed(() => formatDateTime(ticket.value?.CreatedAt ?? new Date()))
+// Info dokter + tanggal — ambil dari sep / pendaftaran
+const dokterLabel = computed(() => {
+  return sep.value?.NmDokter || pendaftaran.value?.NmDokter || '—'
+})
+const tanggalLabel = computed(() => {
+  if (ticket.value?.CreatedAt) return formatDateTime(ticket.value.CreatedAt)
+  if (pendaftaran.value?.TglPeriksa) return formatDateTime(pendaftaran.value.TglPeriksa)
+  return formatDateTime(new Date())
+})
 
 // SEP info row
 const noSEP = computed(() => sep.value?.NoSEP || '')
 
-// Lokasi info — dari SEP poli atau ticket NoPoli
+// No Rawat (Pasien Umum tidak punya SEP, tampilkan no_rawat sebagai gantinya)
+const noRawat = computed(() => pendaftaran.value?.NoRawat || '')
+
+// Lokasi info — dari SEP poli, ticket NoPoli, atau pendaftaran nm_poli
 const lokasiPoli = computed(() => {
   if (sep.value?.NmPoli) return sep.value.NmPoli
   if (ticket.value?.NoPoli) return `Poli ${ticket.value.NoPoli}`
+  if (pendaftaran.value?.NmPoli) return pendaftaran.value.NmPoli
   return ''
 })
 
@@ -159,7 +179,11 @@ onUnmounted(() => {
       <CheckCircle :size="50" />
 
       <p class="text-[clamp(12px,1.8vw,14px)] font-medium text-success">
-        {{ sep ? 'Surat layanan berhasil dibuat' : 'Nomor antrian berhasil diambil' }}
+        {{
+          sep ? 'Surat layanan berhasil dibuat'
+            : pendaftaran ? 'Pendaftaran berhasil'
+            : 'Nomor antrian berhasil diambil'
+        }}
       </p>
 
       <!-- Tiket paper -->
@@ -214,6 +238,17 @@ onUnmounted(() => {
           </span>
           <span class="text-[clamp(11px,1.5vw,13px)] font-mono font-medium text-blue">
             {{ noSEP }}
+          </span>
+        </div>
+
+        <!-- No Rawat (untuk Pasien Umum, ganti SEP) -->
+        <hr v-else-if="noRawat" class="border-t border-dashed border-border my-1" />
+        <div v-if="!noSEP && noRawat" class="flex items-center justify-between gap-2">
+          <span class="text-[clamp(10px,1.3vw,12px)] text-text-muted font-mono">
+            No. Rawat
+          </span>
+          <span class="text-[clamp(11px,1.5vw,13px)] font-mono font-medium text-blue">
+            {{ noRawat }}
           </span>
         </div>
       </div>

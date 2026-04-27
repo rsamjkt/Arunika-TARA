@@ -58,6 +58,10 @@ export function GetPendingSEPs() {
   return window['go']['main']['App']['GetPendingSEPs']();
 }
 
+export function GetPoliklinikAktif() {
+  return window['go']['main']['App']['GetPoliklinikAktif']();
+}
+
 export function GetRecentLogs(arg1) {
   return window['go']['main']['App']['GetRecentLogs'](arg1);
 }

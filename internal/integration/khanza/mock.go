@@ -27,9 +27,13 @@ type MockKhanzaClient struct {
 	GetRiwayatRANAPFunc   func(ctx context.Context, noRM string) ([]domain.RiwayatRANAP, error)
 	GetKunjunganAktifFunc func(ctx context.Context, noRM string) ([]domain.Kunjungan, error)
 	GetJadwalDokterFunc   func(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error)
+	GetPoliklinikAktifFunc func(ctx context.Context) ([]domain.Poliklinik, error)
+	GetBookingMJKNFunc    func(ctx context.Context, noRM string, tgl time.Time) (*domain.BookingMJKN, error)
+	GetRujukanInternalAntarPoliFunc func(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error)
 	BuatPendaftaranFunc   func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
 	BuatAntrianFunc       func(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error)
 	SimpanSEPFunc         func(ctx context.Context, sep domain.SEP) error
+	SimpanRujukMasukFunc  func(ctx context.Context, r domain.RujukMasuk) error
 	UpdateSatuSehatIDFunc func(ctx context.Context, noRM, ihsNumber string) error
 
 	mu        sync.Mutex
@@ -100,6 +104,21 @@ func (m *MockKhanzaClient) SetResponse(method string, response any, err error) {
 		m.GetJadwalDokterFunc = func(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error) {
 			return list, err
 		}
+	case "GetPoliklinikAktif":
+		list, _ := response.([]domain.Poliklinik)
+		m.GetPoliklinikAktifFunc = func(ctx context.Context) ([]domain.Poliklinik, error) {
+			return list, err
+		}
+	case "GetBookingMJKN":
+		b, _ := response.(*domain.BookingMJKN)
+		m.GetBookingMJKNFunc = func(ctx context.Context, noRM string, tgl time.Time) (*domain.BookingMJKN, error) {
+			return b, err
+		}
+	case "GetRujukanInternalAntarPoli":
+		list, _ := response.([]domain.RujukanInternalPoli)
+		m.GetRujukanInternalAntarPoliFunc = func(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error) {
+			return list, err
+		}
 	case "BuatPendaftaran":
 		p, _ := response.(*domain.Pendaftaran)
 		m.BuatPendaftaranFunc = func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error) {
@@ -112,6 +131,10 @@ func (m *MockKhanzaClient) SetResponse(method string, response any, err error) {
 		}
 	case "SimpanSEP":
 		m.SimpanSEPFunc = func(ctx context.Context, sep domain.SEP) error {
+			return err
+		}
+	case "SimpanRujukMasuk":
+		m.SimpanRujukMasukFunc = func(ctx context.Context, r domain.RujukMasuk) error {
 			return err
 		}
 	case "UpdateSatuSehatID":
@@ -171,6 +194,30 @@ func (m *MockKhanzaClient) GetJadwalDokter(ctx context.Context, kdPoli string, t
 	return nil, nil
 }
 
+func (m *MockKhanzaClient) GetPoliklinikAktif(ctx context.Context) ([]domain.Poliklinik, error) {
+	m.recordCall("GetPoliklinikAktif")
+	if m.GetPoliklinikAktifFunc != nil {
+		return m.GetPoliklinikAktifFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockKhanzaClient) GetBookingMJKN(ctx context.Context, noRM string, tgl time.Time) (*domain.BookingMJKN, error) {
+	m.recordCall("GetBookingMJKN")
+	if m.GetBookingMJKNFunc != nil {
+		return m.GetBookingMJKNFunc(ctx, noRM, tgl)
+	}
+	return nil, nil
+}
+
+func (m *MockKhanzaClient) GetRujukanInternalAntarPoli(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error) {
+	m.recordCall("GetRujukanInternalAntarPoli")
+	if m.GetRujukanInternalAntarPoliFunc != nil {
+		return m.GetRujukanInternalAntarPoliFunc(ctx, noRM, daysBack)
+	}
+	return nil, nil
+}
+
 func (m *MockKhanzaClient) BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error) {
 	m.recordCall("BuatPendaftaran")
 	if m.BuatPendaftaranFunc != nil {
@@ -191,6 +238,14 @@ func (m *MockKhanzaClient) SimpanSEP(ctx context.Context, sep domain.SEP) error 
 	m.recordCall("SimpanSEP")
 	if m.SimpanSEPFunc != nil {
 		return m.SimpanSEPFunc(ctx, sep)
+	}
+	return nil
+}
+
+func (m *MockKhanzaClient) SimpanRujukMasuk(ctx context.Context, r domain.RujukMasuk) error {
+	m.recordCall("SimpanRujukMasuk")
+	if m.SimpanRujukMasukFunc != nil {
+		return m.SimpanRujukMasukFunc(ctx, r)
 	}
 	return nil
 }

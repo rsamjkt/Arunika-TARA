@@ -21,6 +21,16 @@ const routes = [
     component: () => import('./screens/DetectScreen.vue'),
   },
   {
+    path: '/cari-pasien',
+    name: 'cari-pasien',
+    component: () => import('./screens/SearchPasienScreen.vue'),
+  },
+  {
+    path: '/registrasi-umum',
+    name: 'registrasi-umum',
+    component: () => import('./screens/RegistrasiUmumScreen.vue'),
+  },
+  {
     path: '/result',
     name: 'result',
     component: () => import('./screens/ResultScreen.vue'),

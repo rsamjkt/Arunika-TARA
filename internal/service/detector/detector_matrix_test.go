@@ -181,19 +181,21 @@ func TestDetectorMatrix_PartialFailure_DenganHit_PakaiYangHit(t *testing.T) {
 }
 
 // ============================================================
-// Business rule: ranap lama (7 hari lalu) — tidak hit
+// Business rule: ranap lama (>7 hari lalu) — tidak hit
+// (Window deteksi PostRANAP = postRANAPWindowDays = 7 hari)
 // ============================================================
 
-func TestDetectorMatrix_RanapLama_7HariLalu_TidakHit(t *testing.T) {
+func TestDetectorMatrix_RanapLama_DiluarWindow_TidakHit(t *testing.T) {
 	v := vclaim.NewMock()
 	k := khanza.NewMock()
 	v.GetPesertaFunc = func(ctx context.Context, id string, tgl time.Time) (*domain.Peserta, error) {
 		return pesertaAktif, nil
 	}
 
-	weekAgo := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
+	// 8 hari lalu — di luar window 7 hari → harus MISS
+	beyondWindow := time.Now().AddDate(0, 0, -8).Format("2006-01-02")
 	k.GetRiwayatRANAPFunc = func(ctx context.Context, noRM string) ([]domain.RiwayatRANAP, error) {
-		return []domain.RiwayatRANAP{{NoRawat: "R-LAMA", TglKeluar: weekAgo}}, nil
+		return []domain.RiwayatRANAP{{NoRawat: "R-LAMA", TglKeluar: beyondWindow}}, nil
 	}
 
 	d := New(v, antrol.NewMock(), k)
@@ -201,7 +203,7 @@ func TestDetectorMatrix_RanapLama_7HariLalu_TidakHit(t *testing.T) {
 
 	r := d.Detect(context.Background(), domain.PatientInput{Identifier: "X"})
 	if r.Type != domain.PatientTypeRujukanBaru {
-		t.Errorf("ranap 7 hari lalu seharusnya MISS, got %v", r.Type)
+		t.Errorf("ranap 8 hari lalu (di luar window 7) seharusnya MISS, got %v", r.Type)
 	}
 }
 

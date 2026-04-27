@@ -121,7 +121,7 @@ func (d *Detector) Detect(ctx context.Context, input domain.PatientInput) domain
 	// kalau parent abandon collecting (saat ctx timeout).
 	ch := make(chan checkResult, 4)
 
-	go d.checkMJKN(parCtx, peserta.NoKartu, today, ch)
+	go d.checkMJKN(parCtx, peserta.NoKartu, peserta.NoRM, today, ch)
 	go d.checkKontrol(parCtx, peserta.NoRM, today, ch)
 	go d.checkPostRANAP(parCtx, peserta.NoRM, today, ch)
 	go d.checkPostRAJAL(parCtx, peserta.NoRM, today, ch)

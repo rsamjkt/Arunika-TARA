@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/go-resty/resty/v2 v2.17.2
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/robfig/cron/v3 v3.0.1
@@ -13,6 +14,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

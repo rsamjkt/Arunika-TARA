@@ -17,6 +17,12 @@ type JadwalDokter struct {
 
 // PendaftaranRequest adalah payload untuk daftar pasien ke poli (registrasi
 // rajal). Penjamin "BPJS" wajib menyertakan NoSEP yang sudah di-issue VClaim.
+//
+// Field PJawab/AlmtPJ/HubunganPJ bersifat OPSIONAL — kalau kosong,
+// MySQLClient akan derive dari master pasien (namakeluarga, alamat
+// + kel + kec + kab + prop, keluarga). Caller boleh override kalau
+// mendapat input manual dari operator (mis. pasien anak yang PJ-nya
+// bukan keluarga inti yang ter-record).
 type PendaftaranRequest struct {
 	NoRM       string
 	KdPoli     string
@@ -26,6 +32,11 @@ type PendaftaranRequest struct {
 	Penjamin   string // "BPJS" / "UMUM" / "ASURANSI"
 	NoSEP      string // wajib jika Penjamin == "BPJS"
 	Catatan    string
+
+	// Override fields — kosong = derive dari pasien master.
+	PJawab     string // override; kosong = derive dari pasien.namakeluarga
+	AlmtPJ     string // override; kosong = derive dari alamat+kel+kec+kab+prop
+	HubunganPJ string // override; kosong = derive dari pasien.keluarga
 }
 
 // Pendaftaran adalah hasil registrasi yang dibuat di Khanza.

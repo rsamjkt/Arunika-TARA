@@ -32,6 +32,8 @@ export function GetJadwalDokter(arg1:string):Promise<Array<domain.JadwalDokter>>
 
 export function GetPendingSEPs():Promise<Array<store.PendingSep>>;
 
+export function GetPoliklinikAktif():Promise<Array<domain.Poliklinik>>;
+
 export function GetRecentLogs(arg1:number):Promise<Array<main.AdminLogEntry>>;
 
 export function GetSystemStatus():Promise<main.SystemStatus>;

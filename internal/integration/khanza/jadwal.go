@@ -22,6 +22,54 @@ type jadwalDokterWire struct {
 	Aktif      bool   `json:"aktif"`
 }
 
+// poliklinikWire — GET /poliklinik?status=1
+type poliklinikWire struct {
+	KdPoli         string  `json:"kd_poli"`
+	NmPoli         string  `json:"nm_poli"`
+	Registrasi     float64 `json:"registrasi"`
+	RegistrasiLama float64 `json:"registrasi_lama"`
+	Status         string  `json:"status"`
+}
+
+// GetPoliklinikAktif — GET /poliklinik?status=1
+func (c *Client) GetPoliklinikAktif(ctx context.Context) ([]domain.Poliklinik, error) {
+	var list []poliklinikWire
+	if err := c.doGet(ctx, "/poliklinik?status=1", &list); err != nil {
+		return nil, fmt.Errorf("get poliklinik aktif: %w", err)
+	}
+	out := make([]domain.Poliklinik, 0, len(list))
+	for _, p := range list {
+		out = append(out, domain.Poliklinik{
+			KdPoli: p.KdPoli, NmPoli: p.NmPoli,
+			Registrasi: p.Registrasi, RegistrasiLama: p.RegistrasiLama,
+			Status: p.Status,
+		})
+	}
+	return out, nil
+}
+
+// GetBookingMJKN — REST endpoint hipotetis. Khanza Laravel umumnya
+// expose /pasien/{noRM}/booking?tgl=YYYY-MM-DD. Kalau RS tidak punya
+// endpoint, return nil — detector akan fallback / treat as miss.
+func (c *Client) GetBookingMJKN(ctx context.Context, noRM string, tgl time.Time) (*domain.BookingMJKN, error) {
+	if noRM == "" {
+		return nil, nil
+	}
+	// Tidak ada endpoint standar Khanza untuk ini di REST mode —
+	// MJKN biasanya di-handle Antrol API yang dipanggil terpisah.
+	// Return nil supaya detector treat sebagai miss & lanjut ke check lain.
+	return nil, nil
+}
+
+// GetRujukanInternalAntarPoli — REST stub. Khanza Laravel tidak punya
+// endpoint dedicated; return nil supaya detector treat sebagai miss.
+func (c *Client) GetRujukanInternalAntarPoli(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error) {
+	if noRM == "" {
+		return nil, nil
+	}
+	return nil, nil
+}
+
 // GetJadwalDokter — GET /poli/{kdPoli}/jadwal?tgl=YYYY-MM-DD
 func (c *Client) GetJadwalDokter(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error) {
 	if kdPoli == "" {

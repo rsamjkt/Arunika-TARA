@@ -165,7 +165,24 @@ func (a *App) initialize(ctx context.Context) error {
 	// Clients
 	a.vclaim = vclaim.New(cfg.BPJS)
 	a.antrol = antrol.NewMock() // TODO P-021+: real Antrol HTTP client
-	a.khanza = khanza.New(cfg.Server)
+
+	// Khanza: pilih implementasi berdasarkan config.
+	//   khanza_dsn diisi → direct MySQL (pola anjunganmandiriSEP).
+	//   else → Laravel REST (default).
+	if cfg.Server.KhanzaDSN != "" {
+		mysqlClient, mysqlErr := khanza.NewMySQL(cfg.Server)
+		if mysqlErr != nil {
+			a.logger.Error("khanza: gagal connect MySQL — fallback ke REST",
+				"err", mysqlErr.Error())
+			a.khanza = khanza.New(cfg.Server)
+		} else {
+			mysqlClient.SetLogger(a.logger)
+			a.khanza = mysqlClient
+			a.logger.Info("khanza: mode direct MySQL aktif")
+		}
+	} else {
+		a.khanza = khanza.New(cfg.Server)
+	}
 
 	// Hardware provider — Mac dev: mocks; Windows: real impl
 	a.hw = hardware.NewProvider(*cfg, db)
@@ -432,6 +449,14 @@ func (a *App) GetJadwalDokter(kdPoli string) ([]domain.JadwalDokter, error) {
 		return nil, errors.New("khanza client belum diinisialisasi")
 	}
 	return a.khanza.GetJadwalDokter(a.ctx, kdPoli, time.Now())
+}
+
+// GetPoliklinikAktif — list poli aktif untuk picker pasien umum.
+func (a *App) GetPoliklinikAktif() ([]domain.Poliklinik, error) {
+	if a.khanza == nil {
+		return nil, errors.New("khanza client belum diinisialisasi")
+	}
+	return a.khanza.GetPoliklinikAktif(a.ctx)
 }
 
 // ============================================================

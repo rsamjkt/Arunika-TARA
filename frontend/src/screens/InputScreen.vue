@@ -72,7 +72,14 @@ function deleteDigit() {
 function submit() {
   if (!canSubmit.value) return
   patient.input = input.value
-  router.push({ name: 'detect' })
+  // Mode-aware routing:
+  //   bpjs / satusehat → Smart Detector (VClaim)
+  //   umum            → Search pasien di Khanza langsung (no VClaim)
+  if (mode.value === 'umum') {
+    router.push({ name: 'cari-pasien' })
+  } else {
+    router.push({ name: 'detect' })
+  }
 }
 function back() {
   router.push({ name: 'home' })

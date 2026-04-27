@@ -1,18 +1,26 @@
 <!--
-  ResultScreen — render berbeda berdasarkan PatientType.
+  ResultScreen — render berbeda berdasarkan PatientType (Smart Detector).
 
-  Spec ketat P-043:
-    - PatientCard dengan 4 pill warna (per kategori)
-    - MJKN: detail booking + CTA Konfirmasi → /tiket
-    - Kontrol: surat kontrol detail + DokterPicker (panggil
-      GetJadwalDokter onMounted, default selected idx 0) +
-      CTA "Buat surat layanan" (await BuatSEPKontrol)
-    - RujukanBaru: detail rujukan + info bar biometrik
-      CONDITIONAL (hanya kalau perluBiometrik = umur>=17 + non-IGD)
-    - TidakAktif: info bar merah + CTA "Daftar pasien umum" +
-      ghost "Hubungi petugas"
-    - Loading state: CTA disabled + spinner saat API call
-    - Error: AlertModal dengan pesan dari domain.UserMessage()
+  Phase D refactor:
+    - Setiap PatientType punya path render dedicated (komponen Pathway*).
+    - Kontrol & RujukanBaru tetap inline supaya logic existing (load
+      jadwal dokter, BuatSEPKontrol, info bar biometrik) tidak ter-
+      regress.
+    - Pathway baru: MJKN, PostRANAP, PostRAJAL, TidakAktif. Backend
+      Smart Detector enhancement (Phase B) akan inject Data payload
+      sesuai shape yg di-doc di props masing-masing komponen.
+    - Render aman bila Data null — komponen anak punya empty state.
+
+  Spec ketat P-043 (legacy):
+    - PatientCard dengan 4 pill warna (per kategori).
+    - Kontrol: surat kontrol detail + DokterPicker (default idx 0) +
+      CTA "Buat surat layanan" (await BuatSEPKontrol).
+    - RujukanBaru: detail rujukan + info bar biometrik CONDITIONAL
+      (hanya kalau perluBiometrik = umur>=17 + non-IGD).
+    - TidakAktif: info bar merah + CTA "Daftar pasien umum" + ghost
+      "Hubungi petugas".
+    - Loading state: CTA disabled + spinner saat API call.
+    - Error: AlertModal dengan pesan dari domain.UserMessage().
 -->
 <script setup>
 import { computed, onMounted, ref } from 'vue'
@@ -22,6 +30,10 @@ import PatientCard from '../components/PatientCard.vue'
 import IdleOverlay from '../components/IdleOverlay.vue'
 import AlertModal from '../components/AlertModal.vue'
 import DokterPicker from '../components/DokterPicker.vue'
+import PathwayMJKN from '../components/PathwayMJKN.vue'
+import PathwayPostRANAP from '../components/PathwayPostRANAP.vue'
+import PathwayPostRAJAL from '../components/PathwayPostRAJAL.vue'
+import PathwayTidakAktif from '../components/PathwayTidakAktif.vue'
 
 import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
@@ -107,7 +119,8 @@ const perluBiometrik = computed(() => {
   return true
 })
 
-// Detail rows per kategori
+// Detail rows untuk PatientCard — base (selalu) + Kontrol/RujukanBaru
+// (yang masih inline). Pathway lain render detail di komponen mereka.
 const details = computed(() => {
   const p = peserta.value
   if (!p) return []
@@ -116,17 +129,6 @@ const details = computed(() => {
     { key: 'Tgl. lahir', value: p.TglLahir || '—' },
     { key: 'Kelas hak', value: p.KelasHak ? `Kelas ${p.KelasHak}` : '—' },
   ]
-  if (ptype.value === PatientType.MJKN) {
-    const b = result.value?.Data
-    if (b) {
-      base.push(
-        { key: 'Poli', value: b.NmPoli || b.KdPoli || '—', accent: true },
-        { key: 'Dokter', value: b.NmDokter || '—' },
-        { key: 'Estimasi jam', value: b.EstimasiDilayani || b.JamPraktik || '—', accent: true },
-        { key: 'No booking', value: b.NoBooking || b.NoAntrian || '—' },
-      )
-    }
-  }
   if (ptype.value === PatientType.Kontrol) {
     const list = result.value?.Data ?? []
     const sk = Array.isArray(list) ? list[0] : list
@@ -138,11 +140,8 @@ const details = computed(() => {
       )
     }
   }
-  if (ptype.value === PatientType.RujukanBaru) {
-    // Tidak ada detail rujukan FKTP di detection result —
-    // service layer akan fetch saat BuatSEPRujukan. Tampilkan
-    // placeholder yang akan update di iterasi mendatang.
-  }
+  // RujukanBaru: tidak ada detail rujukan FKTP di detection result.
+  // Service layer akan fetch saat BuatSEPRujukan; placeholder kosong.
   return base
 })
 
@@ -151,6 +150,22 @@ const kdPoliKontrol = computed(() => {
   const list = result.value?.Data ?? []
   const sk = Array.isArray(list) ? list[0] : list
   return sk?.KdPoli ?? ''
+})
+
+// Pathway-specific data accessors (gunakan optional chaining supaya
+// aman kalau Data null — komponen anak menampilkan empty state).
+const bookingMJKN = computed(() => result.value?.Data ?? null)
+const riwayatRANAP = computed(() => {
+  // Backend bisa kirim object langsung atau array (latest first) —
+  // normalize ke single object.
+  const d = result.value?.Data
+  if (Array.isArray(d)) return d[0] ?? null
+  return d ?? null
+})
+const kunjunganRAJAL = computed(() => {
+  const d = result.value?.Data
+  if (Array.isArray(d)) return d[0] ?? null
+  return d ?? null
 })
 
 // Load jadwal dokter saat screen mount kalau Kontrol
@@ -168,49 +183,102 @@ onMounted(async () => {
   }
 })
 
-// CTA actions
-async function goNext() {
+// =====================================================================
+// CTA actions per pathway
+// =====================================================================
+
+async function onConfirmMJKN() {
   if (ctaLoading.value) return
   ctaLoading.value = true
   try {
-    switch (ptype.value) {
-      case PatientType.MJKN:
-        // BuatCheckinMJKN belum ada di backend — sementara langsung ke tiket
-        router.push({ name: 'tiket', query: { from: 'mjkn' } })
-        break
-      case PatientType.Kontrol: {
-        if (!selectedDokter.value) {
-          throw new Error('Silakan pilih dokter terlebih dahulu')
-        }
-        const list = result.value?.Data ?? []
-        const sk = Array.isArray(list) ? list[0] : list
-        if (!sk?.NoSurat) {
-          throw new Error('Surat kontrol tidak ditemukan')
-        }
-        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value)
-        patient.setLastSEP(sep)
-        router.push({ name: 'tiket', query: { from: 'kontrol' } })
-        break
-      }
-      case PatientType.PostRANAP:
-      case PatientType.PostRAJAL:
-      case PatientType.RujukanBaru:
-        // P-046+ akan punya DokterPickerScreen tersendiri
-        router.push({ name: 'tiket', query: { from: 'rujukan' } })
-        break
-      case PatientType.TidakAktif:
-        await patient.reset()
-        router.push({ name: 'input', query: { mode: 'umum' } })
-        break
-      default:
-        router.push({ name: 'home' })
-    }
+    // BuatCheckinMJKN belum ada di backend (Phase B/E TBD).
+    // Sementara langsung navigate ke tiket — backend akan inject SEP/
+    // ticket data saat endpoint tersedia.
+    console.log('[PathwayMJKN] confirm → backend BuatCheckinMJKN belum siap, fallback ke tiket')
+    router.push({ name: 'tiket', query: { from: 'mjkn' } })
   } catch (e) {
     errorMsg.value = e?.message ?? String(e)
     errorVisible.value = true
   } finally {
     ctaLoading.value = false
   }
+}
+
+async function onIssueSEPKontrol() {
+  if (ctaLoading.value) return
+  ctaLoading.value = true
+  try {
+    if (!selectedDokter.value) {
+      throw new Error('Silakan pilih dokter terlebih dahulu')
+    }
+    const list = result.value?.Data ?? []
+    const sk = Array.isArray(list) ? list[0] : list
+    if (!sk?.NoSurat) {
+      throw new Error('Surat kontrol tidak ditemukan')
+    }
+    const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value)
+    patient.setLastSEP(sep)
+    router.push({ name: 'tiket', query: { from: 'kontrol' } })
+  } catch (e) {
+    errorMsg.value = e?.message ?? String(e)
+    errorVisible.value = true
+  } finally {
+    ctaLoading.value = false
+  }
+}
+
+async function onLanjutPostRANAP() {
+  if (ctaLoading.value) return
+  ctaLoading.value = true
+  try {
+    // P-046+ akan punya DokterPickerScreen dedicated. Sementara
+    // navigate ke tiket; backend akan handle SEP creation.
+    console.log('[PathwayPostRANAP] lanjut → DokterPickerScreen belum siap')
+    router.push({ name: 'tiket', query: { from: 'postranap' } })
+  } catch (e) {
+    errorMsg.value = e?.message ?? String(e)
+    errorVisible.value = true
+  } finally {
+    ctaLoading.value = false
+  }
+}
+
+async function onLanjutPostRAJAL() {
+  if (ctaLoading.value) return
+  ctaLoading.value = true
+  try {
+    console.log('[PathwayPostRAJAL] lanjut → DokterPickerScreen belum siap')
+    router.push({ name: 'tiket', query: { from: 'postrajal' } })
+  } catch (e) {
+    errorMsg.value = e?.message ?? String(e)
+    errorVisible.value = true
+  } finally {
+    ctaLoading.value = false
+  }
+}
+
+async function onIssueSEPRujukan() {
+  if (ctaLoading.value) return
+  ctaLoading.value = true
+  try {
+    // P-046+ akan punya DokterPickerScreen tersendiri untuk RujukanBaru.
+    router.push({ name: 'tiket', query: { from: 'rujukan' } })
+  } catch (e) {
+    errorMsg.value = e?.message ?? String(e)
+    errorVisible.value = true
+  } finally {
+    ctaLoading.value = false
+  }
+}
+
+async function onDaftarUmum() {
+  await patient.reset()
+  router.push({ name: 'input', query: { mode: 'umum' } })
+}
+
+function onHubungiPetugas() {
+  // P-046 admin panel akan emit event "staff:call" → audible alert.
+  // Sementara no-op visual.
 }
 
 async function ghostAction() {
@@ -232,46 +300,34 @@ const { isCountingDown, secondsLeft } = useIdleTimeout({
   },
 })
 
-// CTA label per kategori
-const ctaLabel = computed(() => {
-  switch (ptype.value) {
-    case PatientType.MJKN: return 'Konfirmasi kedatangan dan cetak tiket'
-    case PatientType.Kontrol: return 'Buat surat layanan kontrol dan cetak'
-    case PatientType.PostRANAP: return 'Pilih poli untuk kontrol'
-    case PatientType.PostRAJAL: return 'Pilih poli tujuan'
-    case PatientType.RujukanBaru: return 'Pilih dokter dan lanjutkan'
-    case PatientType.TidakAktif: return 'Daftar sebagai pasien umum'
-    default: return 'Hubungi petugas'
-  }
-})
-
-// Ghost button label per kategori
+// Ghost button label per kategori (legacy back/Bukan saya).
 const ghostLabel = computed(() => {
   if (ptype.value === PatientType.TidakAktif) return 'Hubungi petugas untuk bantuan'
   if (ptype.value === PatientType.Error) return 'Hubungi petugas'
   return 'Bukan saya — masukkan ulang'
 })
 
-// Info bar per kategori
-const infoBar = computed(() => {
-  switch (ptype.value) {
-    case PatientType.MJKN:
-      return { variant: 'success', text: 'Booking dari Mobile JKN terkonfirmasi. Cetak tiket untuk konfirmasi kedatangan.' }
-    case PatientType.RujukanBaru:
-      // Conditional: hanya kalau perluBiometrik
-      if (perluBiometrik.value) {
-        return { variant: 'warning', text: 'Verifikasi sidik jari diperlukan setelah pilih dokter.' }
-      }
-      return null
-    case PatientType.TidakAktif:
-      return {
-        variant: 'danger',
-        text: 'Status BPJS Anda saat ini tidak aktif. Hubungi BPJS Kesehatan untuk aktivasi, atau daftar sebagai pasien umum di RS ini.',
-      }
-    case PatientType.Error:
-      return { variant: 'danger', text: 'Sistem tidak dapat memeriksa status Anda saat ini. Silakan hubungi petugas.' }
-    default: return null
+// Apakah ghost button perlu di-render di footer? PathwayTidakAktif
+// sudah punya CTA daftar-umum + ghost hubungi-petugas sendiri, jadi
+// jangan duplicate ghost di parent. Sama untuk Error (no CTA).
+const showFooterGhost = computed(() =>
+  ptype.value !== PatientType.TidakAktif,
+)
+
+// Info bar untuk RujukanBaru (conditional biometrik) — masih di parent
+// karena logic-nya bergantung peserta + age yang dihitung di sini.
+const rujukanInfoBar = computed(() => {
+  if (ptype.value !== PatientType.RujukanBaru) return null
+  if (perluBiometrik.value) {
+    return { variant: 'warning', text: 'Verifikasi sidik jari diperlukan setelah pilih dokter.' }
   }
+  return null
+})
+
+// Info bar untuk Error pathway.
+const errorInfoBar = computed(() => {
+  if (ptype.value !== PatientType.Error) return null
+  return { variant: 'danger', text: 'Sistem tidak dapat memeriksa status Anda saat ini. Silakan hubungi petugas.' }
 })
 
 const infoBarClass = (v) => {
@@ -282,8 +338,6 @@ const infoBarClass = (v) => {
     default: return 'bg-bg text-text-secondary border-border'
   }
 }
-
-const showCTA = computed(() => ptype.value !== PatientType.Error)
 </script>
 
 <template>
@@ -343,39 +397,147 @@ const showCTA = computed(() => ptype.value !== PatientType.Error)
         </p>
       </div>
 
-      <!-- Dokter picker untuk Kontrol -->
-      <div v-if="ptype === PatientType.Kontrol" class="flex flex-col gap-[clamp(8px,1.2vw,10px)]">
-        <p class="text-[clamp(11px,1.5vw,13px)] text-text-secondary font-medium uppercase tracking-wide">
-          Pilih dokter
-        </p>
-        <DokterPicker v-model="selectedDokter" :list="dokterList" />
-      </div>
+      <!-- ====== Per-pathway slot ====== -->
 
-      <!-- Info bar (conditional per kategori) -->
+      <!-- MJKN: tampilkan booking detail + CTA confirm -->
+      <PathwayMJKN
+        v-if="ptype === PatientType.MJKN"
+        :booking="bookingMJKN"
+        :loading="ctaLoading"
+        @confirm="onConfirmMJKN"
+      />
+
+      <!-- Kontrol: dokter picker + CTA buat surat layanan (inline,
+           preserve flow existing) -->
+      <template v-else-if="ptype === PatientType.Kontrol">
+        <div class="flex flex-col gap-[clamp(8px,1.2vw,10px)]">
+          <p class="text-[clamp(11px,1.5vw,13px)] text-text-secondary font-medium uppercase tracking-wide">
+            Pilih dokter
+          </p>
+          <DokterPicker v-model="selectedDokter" :list="dokterList" />
+        </div>
+        <button
+          type="button"
+          :disabled="ctaLoading"
+          :class="[
+            'w-full rounded-kiosk transition-opacity active:opacity-85',
+            'bg-blue text-white border border-blue',
+            'px-[clamp(14px,2.5vw,20px)] py-[clamp(14px,2.5vw,20px)]',
+            'text-[clamp(14px,2vw,17px)] font-medium',
+            'flex items-center justify-between gap-3',
+            'min-h-[clamp(56px,8vw,72px)]',
+            'disabled:opacity-60 disabled:cursor-not-allowed',
+          ]"
+          @click="onIssueSEPKontrol"
+        >
+          <span class="flex items-center gap-2">
+            <svg
+              v-if="ctaLoading"
+              class="animate-spin w-5 h-5"
+              viewBox="0 0 24 24" fill="none"
+            >
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"
+                      fill="none" stroke-dasharray="40" stroke-dashoffset="20" />
+            </svg>
+            {{ ctaLoading ? 'Memproses...' : 'Buat surat layanan kontrol dan cetak' }}
+          </span>
+          <svg
+            v-if="!ctaLoading"
+            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="w-5 h-5 shrink-0"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </template>
+
+      <!-- PostRANAP -->
+      <PathwayPostRANAP
+        v-else-if="ptype === PatientType.PostRANAP"
+        :riwayat="riwayatRANAP"
+        :loading="ctaLoading"
+        @lanjut="onLanjutPostRANAP"
+      />
+
+      <!-- PostRAJAL -->
+      <PathwayPostRAJAL
+        v-else-if="ptype === PatientType.PostRAJAL"
+        :kunjungan="kunjunganRAJAL"
+        :loading="ctaLoading"
+        @lanjut="onLanjutPostRAJAL"
+      />
+
+      <!-- RujukanBaru: info bar biometrik conditional + CTA pilih dokter
+           (inline — DokterPickerScreen masuk P-046, sementara CTA navigate
+           langsung ke tiket sesuai behavior existing) -->
+      <template v-else-if="ptype === PatientType.RujukanBaru">
+        <div
+          v-if="rujukanInfoBar"
+          :class="['rounded-card border p-[clamp(10px,1.8vw,14px)] flex items-start gap-2', infoBarClass(rujukanInfoBar.variant)]"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+            stroke-linejoin="round" class="w-5 h-5 mt-[2px] shrink-0"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <p class="text-[clamp(11px,1.5vw,13px)] leading-snug">
+            {{ rujukanInfoBar.text }}
+          </p>
+        </div>
+        <button
+          type="button"
+          :disabled="ctaLoading"
+          :class="[
+            'w-full rounded-kiosk transition-opacity active:opacity-85',
+            'bg-blue text-white border border-blue',
+            'px-[clamp(14px,2.5vw,20px)] py-[clamp(14px,2.5vw,20px)]',
+            'text-[clamp(14px,2vw,17px)] font-medium',
+            'flex items-center justify-between gap-3',
+            'min-h-[clamp(56px,8vw,72px)]',
+            'disabled:opacity-60 disabled:cursor-not-allowed',
+          ]"
+          @click="onIssueSEPRujukan"
+        >
+          <span class="flex items-center gap-2">
+            <svg
+              v-if="ctaLoading"
+              class="animate-spin w-5 h-5"
+              viewBox="0 0 24 24" fill="none"
+            >
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"
+                      fill="none" stroke-dasharray="40" stroke-dashoffset="20" />
+            </svg>
+            {{ ctaLoading ? 'Memproses...' : 'Pilih dokter dan lanjutkan' }}
+          </span>
+          <svg
+            v-if="!ctaLoading"
+            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" class="w-5 h-5 shrink-0"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </template>
+
+      <!-- TidakAktif -->
+      <PathwayTidakAktif
+        v-else-if="ptype === PatientType.TidakAktif"
+        @daftar-umum="onDaftarUmum"
+        @hubungi-petugas="onHubungiPetugas"
+      />
+
+      <!-- Error / Unknown: hanya info bar, no CTA -->
       <div
-        v-if="infoBar"
-        :class="['rounded-card border p-[clamp(10px,1.8vw,14px)] flex items-start gap-2', infoBarClass(infoBar.variant)]"
+        v-else-if="errorInfoBar"
+        :class="['rounded-card border p-[clamp(10px,1.8vw,14px)] flex items-start gap-2', infoBarClass(errorInfoBar.variant)]"
       >
         <svg
-          v-if="infoBar.variant === 'success'"
-          xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-          stroke-linejoin="round" class="w-5 h-5 mt-[2px] shrink-0"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-        <svg
-          v-else-if="infoBar.variant === 'warning'"
-          xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-          stroke-linejoin="round" class="w-5 h-5 mt-[2px] shrink-0"
-        >
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-        <svg
-          v-else
           xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
           stroke-linejoin="round" class="w-5 h-5 mt-[2px] shrink-0"
@@ -385,49 +547,14 @@ const showCTA = computed(() => ptype.value !== PatientType.Error)
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <p class="text-[clamp(11px,1.5vw,13px)] leading-snug">
-          {{ infoBar.text }}
+          {{ errorInfoBar.text }}
         </p>
       </div>
 
-      <!-- CTA primary dengan loading state -->
+      <!-- Footer ghost button — sembunyikan untuk TidakAktif (sudah ada
+           "Hubungi petugas" sebagai bagian dari Pathway component-nya) -->
       <button
-        v-if="showCTA"
-        type="button"
-        :disabled="ctaLoading"
-        :class="[
-          'w-full rounded-kiosk transition-opacity active:opacity-85',
-          'bg-blue text-white border border-blue',
-          'px-[clamp(14px,2.5vw,20px)] py-[clamp(14px,2.5vw,20px)]',
-          'text-[clamp(14px,2vw,17px)] font-medium',
-          'flex items-center justify-between gap-3',
-          'min-h-[clamp(56px,8vw,72px)]',
-          'disabled:opacity-60 disabled:cursor-not-allowed',
-        ]"
-        @click="goNext"
-      >
-        <span class="flex items-center gap-2">
-          <svg
-            v-if="ctaLoading"
-            class="animate-spin w-5 h-5"
-            viewBox="0 0 24 24" fill="none"
-          >
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"
-                    fill="none" stroke-dasharray="40" stroke-dashoffset="20" />
-          </svg>
-          {{ ctaLoading ? 'Memproses...' : ctaLabel }}
-        </span>
-        <svg
-          v-if="!ctaLoading"
-          xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-          stroke-linejoin="round" class="w-5 h-5 shrink-0"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
-
-      <!-- Ghost button -->
-      <button
+        v-if="showFooterGhost"
         type="button"
         :disabled="ctaLoading"
         class="w-full rounded-kiosk transition-colors

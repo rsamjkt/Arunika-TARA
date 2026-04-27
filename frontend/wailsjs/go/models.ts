@@ -158,6 +158,9 @@ export namespace domain {
 	    Penjamin: string;
 	    NoSEP: string;
 	    Catatan: string;
+	    PJawab: string;
+	    AlmtPJ: string;
+	    HubunganPJ: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PendaftaranRequest(source);
@@ -173,9 +176,32 @@ export namespace domain {
 	        this.Penjamin = source["Penjamin"];
 	        this.NoSEP = source["NoSEP"];
 	        this.Catatan = source["Catatan"];
+	        this.PJawab = source["PJawab"];
+	        this.AlmtPJ = source["AlmtPJ"];
+	        this.HubunganPJ = source["HubunganPJ"];
 	    }
 	}
 	
+	export class Poliklinik {
+	    kd_poli: string;
+	    nm_poli: string;
+	    registrasi: number;
+	    registrasi_lama: number;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Poliklinik(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kd_poli = source["kd_poli"];
+	        this.nm_poli = source["nm_poli"];
+	        this.registrasi = source["registrasi"];
+	        this.registrasi_lama = source["registrasi_lama"];
+	        this.status = source["status"];
+	    }
+	}
 	export class SEP {
 	    NoSEP: string;
 	    NoKartu: string;
@@ -186,6 +212,21 @@ export namespace domain {
 	    NmDokter: string;
 	    // Go type: time
 	    CreatedAt: any;
+	    NoRujukan: string;
+	    TglRujukan: string;
+	    KdPPKRujukan: string;
+	    NmPPKRujukan: string;
+	    AsalRujukan: string;
+	    DiagnosaAwal: string;
+	    NamaDiagnosa: string;
+	    JenisPelayanan: string;
+	    KelasRawat: string;
+	    NoSKDP: string;
+	    KdDPJP: string;
+	    NmDPJP: string;
+	    NoMR: string;
+	    NamaPasien: string;
+	    PRBCode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SEP(source);
@@ -201,6 +242,21 @@ export namespace domain {
 	        this.KdDokter = source["KdDokter"];
 	        this.NmDokter = source["NmDokter"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.NoRujukan = source["NoRujukan"];
+	        this.TglRujukan = source["TglRujukan"];
+	        this.KdPPKRujukan = source["KdPPKRujukan"];
+	        this.NmPPKRujukan = source["NmPPKRujukan"];
+	        this.AsalRujukan = source["AsalRujukan"];
+	        this.DiagnosaAwal = source["DiagnosaAwal"];
+	        this.NamaDiagnosa = source["NamaDiagnosa"];
+	        this.JenisPelayanan = source["JenisPelayanan"];
+	        this.KelasRawat = source["KelasRawat"];
+	        this.NoSKDP = source["NoSKDP"];
+	        this.KdDPJP = source["KdDPJP"];
+	        this.NmDPJP = source["NmDPJP"];
+	        this.NoMR = source["NoMR"];
+	        this.NamaPasien = source["NamaPasien"];
+	        this.PRBCode = source["PRBCode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

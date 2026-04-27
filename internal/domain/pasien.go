@@ -13,3 +13,19 @@ type Pasien struct {
 	NoTelp    string
 	IhsNumber string // Satu Sehat ID jika sudah aktif
 }
+
+// PasienEnriched augments Pasien with derived fields for registrasi
+// (penanggung jawab, alamat lengkap, umur). Sumber: query JOIN pasien
+// + kelurahan + kecamatan + kabupaten + propinsi.
+//
+// Dipakai oleh MySQLClient.BuatPendaftaran untuk mengisi kolom
+// reg_periksa: p_jawab (= NamaKeluarga), almt_pj (= AlamatLengkap),
+// hubunganpj (= Keluarga), umurdaftar (= UmurValue), sttsumur (= SttsUmur).
+type PasienEnriched struct {
+	Pasien
+	NamaKeluarga  string // dari pasien.namakeluarga
+	Keluarga      string // dari pasien.keluarga (relasi: ISTRI/SUAMI/dll)
+	AlamatLengkap string // alamat + kel + kec + kab + prop di-concat, trim empty parts
+	UmurValue     int    // angka — bisa Th, Bl, atau Hr
+	SttsUmur      string // "Th" / "Bl" / "Hr"
+}

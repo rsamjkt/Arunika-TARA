@@ -37,12 +37,33 @@ type AppConfig struct {
 	Version        string `mapstructure:"version"`
 }
 
-// ServerConfig — koneksi ke SIMRS Khanza (Laravel REST).
+// ServerConfig — koneksi ke SIMRS Khanza.
+//
+// Dua mode dukungan:
+//   - REST (default): KhanzaURL + KhanzaAPIKey → Laravel API Khanza.
+//   - Direct MySQL: KhanzaDSN diisi → tembak langsung ke DB Khanza
+//     (mengikuti pola repo referensi RS-INDRIATI/anjunganmandiriSEP).
+//
+// Kalau KhanzaDSN non-kosong, App.initialize akan pakai khanza.NewMySQL().
 type ServerConfig struct {
 	KhanzaURL    string `mapstructure:"khanza_url"`
 	KhanzaAPIKey string `mapstructure:"khanza_api_key"`
 	TimeoutMs    int    `mapstructure:"timeout_ms"`
 	Retry        int    `mapstructure:"retry"`
+
+	// KhanzaDSN — Go MySQL DSN, contoh:
+	//   "user:pass@tcp(10.0.2.121:3306)/sikrsam260312?parseTime=true&loc=Local&timeout=5s"
+	// Kosong = pakai REST. Non-kosong = mode direct-DB.
+	// Kalau dimulai dengan "ENC:", akan didekripsi via master key (P-051).
+	KhanzaDSN string `mapstructure:"khanza_dsn"`
+
+	// KhanzaKdPjUmum — kode penjamin "Umum" di tabel penjab Khanza RS ini.
+	// Default kosong → MySQLClient pakai "A03" (umum di sikrsam260312).
+	KhanzaKdPjUmum string `mapstructure:"khanza_kd_pj_umum"`
+
+	// KhanzaKdPjBPJS — kode penjamin "BPJS" di tabel penjab Khanza RS ini.
+	// Default kosong → MySQLClient pakai "BPJ".
+	KhanzaKdPjBPJS string `mapstructure:"khanza_kd_pj_bpjs"`
 }
 
 // BPJSConfig — kredensial dan endpoint BPJS (VClaim + Antrol).
@@ -57,6 +78,10 @@ type BPJSConfig struct {
 
 // FingerprintConfig — After.exe (BPJS Sidik Jari) integrasi.
 // UsernameEnc & PasswordEnc adalah cipher AES-256-GCM (lihat P-051).
+//
+// Field WindowClass* opsional — pakai default Delphi VCL kalau kosong.
+// Override hanya kalau RS pakai After.exe versi non-standar dengan
+// class name berbeda (verify via Spy++ di Windows kiosk).
 type FingerprintConfig struct {
 	ExePath        string `mapstructure:"exe_path"`
 	RestURL        string `mapstructure:"rest_url"`
@@ -64,15 +89,42 @@ type FingerprintConfig struct {
 	PasswordEnc    string `mapstructure:"password_enc"`
 	ScanTimeoutSec int    `mapstructure:"scan_timeout_sec"`
 	PollIntervalMs int    `mapstructure:"poll_interval_ms"`
+
+	// Class names dialog login After.exe untuk auto-login injection.
+	// Default Delphi VCL: TfrmLogin / TEdit / TButton.
+	WindowClassLogin    string `mapstructure:"window_class_login"`
+	WindowClassEdit     string `mapstructure:"window_class_edit"`
+	WindowClassButton   string `mapstructure:"window_class_button"`
+	StartupDelaySec     int    `mapstructure:"startup_delay_sec"` // wait setelah spawn sebelum inject (default 3s)
 }
 
-// FristaConfig — card reader Frista.
+// FristaConfig — card reader Frista (BPJS desktop app).
+//
+// Pola interaksi (mirror DlgRegistrasiSEPPertama.java reference repo):
+//  1. Spawn frista.exe (CREATE_NO_WINDOW kalau supported)
+//  2. Auto-login: inject UsernameEnc + PasswordEnc via Win32 UI Automation
+//  3. Pasien tap KTP/kartu BPJS → Frista taruh JSON di clipboard
+//  4. APM polling clipboard → parse → emit ke CardRead channel
+//
+// Field WindowClass* opsional — Frista pakai class name Delphi VCL
+// standar (TfrmLogin/TEdit/TButton). Override hanya kalau versi beda.
+//
+// PollIntervalMs: berapa sering polling clipboard (default 500ms).
 type FristaConfig struct {
 	ExePath        string `mapstructure:"exe_path"`
 	UsernameEnc    string `mapstructure:"username_enc"`
 	PasswordEnc    string `mapstructure:"password_enc"`
 	ReadTimeoutMs  int    `mapstructure:"read_timeout_ms"`
 	RestartOnCrash bool   `mapstructure:"restart_on_crash"`
+
+	// UI Automation — class names dialog login Frista.
+	WindowClassLogin  string `mapstructure:"window_class_login"`
+	WindowClassEdit   string `mapstructure:"window_class_edit"`
+	WindowClassButton string `mapstructure:"window_class_button"`
+	StartupDelaySec   int    `mapstructure:"startup_delay_sec"` // wait setelah spawn (default 5s — Frista lebih lambat dari After.exe)
+
+	// Clipboard polling untuk capture card data.
+	PollIntervalMs int `mapstructure:"poll_interval_ms"` // default 500ms
 }
 
 // PrinterConfig — thermal printer.
@@ -150,7 +202,8 @@ func decryptInPlace(cfg *Config) error {
 	hasEncrypted := IsEncrypted(cfg.Fingerprint.UsernameEnc) ||
 		IsEncrypted(cfg.Fingerprint.PasswordEnc) ||
 		IsEncrypted(cfg.Frista.UsernameEnc) ||
-		IsEncrypted(cfg.Frista.PasswordEnc)
+		IsEncrypted(cfg.Frista.PasswordEnc) ||
+		IsEncrypted(cfg.Server.KhanzaDSN)
 	if !hasEncrypted {
 		return nil
 	}
@@ -175,6 +228,7 @@ func decryptInPlace(cfg *Config) error {
 	cfg.Fingerprint.PasswordEnc = mustDecrypt(cfg.Fingerprint.PasswordEnc)
 	cfg.Frista.UsernameEnc = mustDecrypt(cfg.Frista.UsernameEnc)
 	cfg.Frista.PasswordEnc = mustDecrypt(cfg.Frista.PasswordEnc)
+	cfg.Server.KhanzaDSN = mustDecrypt(cfg.Server.KhanzaDSN)
 	return nil
 }
 
@@ -203,8 +257,11 @@ func (c *Config) Validate() error {
 	check("app.log_level", c.App.LogLevel)
 	check("app.timezone", c.App.Timezone)
 
-	// Server
-	check("server.khanza_url", c.Server.KhanzaURL)
+	// Server — wajib salah satu: KhanzaURL (REST) ATAU KhanzaDSN (direct MySQL).
+	if strings.TrimSpace(c.Server.KhanzaURL) == "" &&
+		strings.TrimSpace(c.Server.KhanzaDSN) == "" {
+		missing = append(missing, "server.khanza_url ATAU server.khanza_dsn")
+	}
 	if c.Server.TimeoutMs <= 0 {
 		missing = append(missing, "server.timeout_ms (>0)")
 	}

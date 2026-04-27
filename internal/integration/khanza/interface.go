@@ -49,6 +49,22 @@ type KhanzaClient interface {
 	// Khanza filter berdasarkan hari & status cuti.
 	GetJadwalDokter(ctx context.Context, kdPoli string, tgl time.Time) ([]domain.JadwalDokter, error)
 
+	// GetPoliklinikAktif mengembalikan list poliklinik dengan status='1'
+	// (aktif). Dipakai screen Pasien Umum untuk picker poli.
+	GetPoliklinikAktif(ctx context.Context) ([]domain.Poliklinik, error)
+
+	// GetBookingMJKN mencari booking online (Mobile JKN, antrol BPJS,
+	// reguler RS) untuk no_rkm_medis pada tanggal tgl. Return nil jika
+	// tidak ada. Dipakai detector PostMJKN sebagai fallback ketika
+	// Antrol API tidak responsif.
+	GetBookingMJKN(ctx context.Context, noRM string, tgl time.Time) (*domain.BookingMJKN, error)
+
+	// GetRujukanInternalAntarPoli mencari rujukan internal antar-poli
+	// (rujukan_internal_poli) yang relate ke kunjungan pasien dalam
+	// daysBack hari terakhir. Filter: kd_poli rujukan != kd_poli asal.
+	// Dipakai detector PostRAJAL.
+	GetRujukanInternalAntarPoli(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error)
+
 	// BuatPendaftaran mendaftarkan pasien ke poli dengan dokter & tgl
 	// tertentu. Untuk pasien BPJS wajib pasok NoSEP yang sudah di-issue.
 	BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
@@ -58,8 +74,16 @@ type KhanzaClient interface {
 	BuatAntrian(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error)
 
 	// SimpanSEP menyimpan SEP yang sudah di-issue VClaim ke Khanza
-	// (untuk audit trail dan klaim BPJS).
+	// (untuk audit trail dan klaim BPJS). Akan auto-link ke
+	// reg_periksa terbaru (no_rawat).
+	//
+	// Side-effect: kalau sep.PRBCode non-empty, juga insert ke `bpjs_prb`.
 	SimpanSEP(ctx context.Context, sep domain.SEP) error
+
+	// SimpanRujukMasuk insert ke tabel `rujuk_masuk` — link rujukan FKTP
+	// ke kunjungan rawat (no_rawat). Dipanggil setelah BuatPendaftaran
+	// BPJS yang berasal dari rujukan baru.
+	SimpanRujukMasuk(ctx context.Context, r domain.RujukMasuk) error
 
 	// UpdateSatuSehatID menyimpan IHS Number (Satu Sehat ID) ke master
 	// pasien Khanza setelah aktivasi sukses.

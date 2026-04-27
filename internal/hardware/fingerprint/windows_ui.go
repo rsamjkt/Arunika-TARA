@@ -8,21 +8,20 @@
 package fingerprint
 
 import (
-	"errors"
 	"fmt"
 	"syscall"
 	"time"
 	"unsafe"
 )
 
-// Class name dialog login After.exe yang sudah diketahui dari riset
-// lapangan. Bisa berubah kalau vendor After.exe update — kalau itu
-// terjadi, update konstanta ini + verifikasi lewat tool seperti Spy++.
+// Default class name dialog login After.exe (Delphi VCL convention).
+// Dipakai kalau config.FingerprintConfig.WindowClass* kosong.
+// Kalau vendor After.exe update class names, override via config TANPA
+// recompile — verifikasi dengan Spy++ di kiosk Windows.
 const (
-	afterLoginClassName = "TfrmLogin"
-	afterUsernameField  = "TEdit"
-	afterPasswordField  = "TEdit"
-	afterLoginButton    = "TButton"
+	defaultAfterLoginClassName = "TfrmLogin"
+	defaultAfterEditClassName  = "TEdit"
+	defaultAfterButtonClass    = "TButton"
 )
 
 // Windows message constants
@@ -46,22 +45,33 @@ var (
 // Strategi:
 //
 //  1. Tunggu sampai dialog login muncul (max 5 detik retry)
-//  2. FindWindowW(class=TfrmLogin) → handle hWnd
+//  2. FindWindowW(class=cfg.WindowClassLogin) → handle hWnd
 //  3. Iterasi child windows → 2 TEdit pertama = username & password
 //     (urutan z-order — verified manual via Spy++)
 //  4. SendMessageW(WM_SETTEXT) ke masing-masing
-//  5. FindWindowExW(class=TButton) → click via SendMessage(BM_CLICK)
-func injectAfterLogin(username, password string) error {
-	hWnd, err := waitForWindow(afterLoginClassName, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("dialog login After.exe tidak ditemukan: %w", err)
+//  5. FindChildWindowsByClass(TButton) → click via SendMessage(BM_CLICK)
+func injectAfterLogin(username, password, classLogin, classEdit, classButton string) error {
+	if classLogin == "" {
+		classLogin = defaultAfterLoginClassName
+	}
+	if classEdit == "" {
+		classEdit = defaultAfterEditClassName
+	}
+	if classButton == "" {
+		classButton = defaultAfterButtonClass
 	}
 
-	// Cari child TEdit (username & password).
-	editFields := findChildWindowsByClass(hWnd, afterUsernameField, 2)
+	hWnd, err := waitForWindow(classLogin, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("dialog login After.exe (class=%q) tidak ditemukan: %w", classLogin, err)
+	}
+
+	// Cari child TEdit (username & password). Limit 2 — z-order pertama
+	// = username, kedua = password (verified Delphi VCL standard).
+	editFields := findChildWindowsByClass(hWnd, classEdit, 2)
 	if len(editFields) < 2 {
-		return fmt.Errorf("hanya menemukan %d TEdit (butuh ≥2 untuk username+password)",
-			len(editFields))
+		return fmt.Errorf("hanya menemukan %d %s (butuh ≥2 untuk username+password)",
+			len(editFields), classEdit)
 	}
 	if err := setText(editFields[0], username); err != nil {
 		return fmt.Errorf("set username: %w", err)
@@ -70,10 +80,10 @@ func injectAfterLogin(username, password string) error {
 		return fmt.Errorf("set password: %w", err)
 	}
 
-	// Cari TButton login — biasanya tombol pertama.
-	buttons := findChildWindowsByClass(hWnd, afterLoginButton, 1)
+	// Cari TButton login — biasanya tombol pertama dalam z-order.
+	buttons := findChildWindowsByClass(hWnd, classButton, 1)
 	if len(buttons) == 0 {
-		return errors.New("tombol login (TButton) tidak ditemukan")
+		return fmt.Errorf("tombol login (%s) tidak ditemukan", classButton)
 	}
 	clickButton(buttons[0])
 	return nil

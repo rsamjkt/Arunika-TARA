@@ -35,6 +35,18 @@ func (c *Client) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 	return nil
 }
 
+// SimpanRujukMasuk — REST stub. Khanza Laravel umumnya tidak punya
+// endpoint POST /rujuk-masuk dedicated; rujukan disimpan via SEP body
+// langsung. Return nil supaya caller bisa lanjut.
+func (c *Client) SimpanRujukMasuk(ctx context.Context, r domain.RujukMasuk) error {
+	if r.NoRawat == "" {
+		return fmt.Errorf("simpan rujuk masuk: no_rawat wajib")
+	}
+	// REST mode: rujukan biasanya di-handle via SimpanSEP body. Kita
+	// no-op di sini supaya signature interface konsisten.
+	return nil
+}
+
 type satusehatBody struct {
 	IhsNumber string `json:"ihs_number"`
 }

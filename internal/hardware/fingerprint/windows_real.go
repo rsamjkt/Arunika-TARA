@@ -185,15 +185,21 @@ func (w *WindowsHeadlessVerifier) ensureRunning() error {
 		"pid", cmd.Process.Pid, "exe", w.cfg.ExePath)
 
 	// Wait beberapa detik untuk app load sebelum inject login.
-	// 3 detik adalah default After.exe — bisa di-override via config.
-	time.Sleep(3 * time.Second)
+	startupDelay := time.Duration(w.cfg.StartupDelaySec) * time.Second
+	if startupDelay <= 0 {
+		startupDelay = 3 * time.Second
+	}
+	time.Sleep(startupDelay)
 
-	// Inject login lewat user32.dll UI Automation
-	if err := injectAfterLogin(w.cfg.UsernameEnc, w.cfg.PasswordEnc); err != nil {
+	// Inject login lewat user32.dll UI Automation. Class names dari
+	// config — fallback ke Delphi VCL default kalau kosong.
+	if err := injectAfterLogin(
+		w.cfg.UsernameEnc, w.cfg.PasswordEnc,
+		w.cfg.WindowClassLogin, w.cfg.WindowClassEdit, w.cfg.WindowClassButton,
+	); err != nil {
 		w.logger.Warn("fingerprint: gagal inject login", "err", err.Error())
-		// Tidak fatal — user mungkin sudah login manual sebelumnya.
-		// Verify call berikutnya akan fail kalau login memang belum done,
-		// dan operator bisa intervensi.
+		// Tidak fatal — operator mungkin sudah login manual sebelumnya.
+		// Verify call berikutnya akan fail kalau login memang belum done.
 	}
 	return nil
 }
