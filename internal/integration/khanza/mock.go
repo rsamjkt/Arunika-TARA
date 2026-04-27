@@ -30,7 +30,9 @@ type MockKhanzaClient struct {
 	GetPoliklinikAktifFunc func(ctx context.Context) ([]domain.Poliklinik, error)
 	GetBookingMJKNFunc    func(ctx context.Context, noRM string, tgl time.Time) (*domain.BookingMJKN, error)
 	GetRujukanInternalAntarPoliFunc func(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error)
-	BuatPendaftaranFunc   func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
+	CheckDuplicateRegistrationFunc func(ctx context.Context, noRM, kdPoli, kdDokter, tglRegistrasi, kdPj string) (bool, error)
+	CheckDoctorOnLeaveFunc         func(ctx context.Context, kdDokter, tglRegistrasi string) (bool, error)
+	BuatPendaftaranFunc            func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
 	BuatAntrianFunc       func(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error)
 	SimpanSEPFunc            func(ctx context.Context, sep domain.SEP) error
 	SimpanRujukMasukFunc     func(ctx context.Context, r domain.RujukMasuk) error
@@ -218,6 +220,22 @@ func (m *MockKhanzaClient) GetRujukanInternalAntarPoli(ctx context.Context, noRM
 		return m.GetRujukanInternalAntarPoliFunc(ctx, noRM, daysBack)
 	}
 	return nil, nil
+}
+
+func (m *MockKhanzaClient) CheckDuplicateRegistration(ctx context.Context, noRM, kdPoli, kdDokter, tglRegistrasi, kdPj string) (bool, error) {
+	m.recordCall("CheckDuplicateRegistration")
+	if m.CheckDuplicateRegistrationFunc != nil {
+		return m.CheckDuplicateRegistrationFunc(ctx, noRM, kdPoli, kdDokter, tglRegistrasi, kdPj)
+	}
+	return false, nil
+}
+
+func (m *MockKhanzaClient) CheckDoctorOnLeave(ctx context.Context, kdDokter, tglRegistrasi string) (bool, error) {
+	m.recordCall("CheckDoctorOnLeave")
+	if m.CheckDoctorOnLeaveFunc != nil {
+		return m.CheckDoctorOnLeaveFunc(ctx, kdDokter, tglRegistrasi)
+	}
+	return false, nil
 }
 
 func (m *MockKhanzaClient) BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error) {

@@ -12,6 +12,7 @@ var (
 	ErrPesertaTidakAktif          = errors.New("status kepesertaan BPJS tidak aktif")
 	ErrRujukanExpired             = errors.New("nomor rujukan FKTP tidak ditemukan atau sudah expired")
 	ErrDuplikasiSEP               = errors.New("SEP untuk tanggal ini sudah pernah dibuat")
+	ErrSudahTerdaftarHariIni      = errors.New("Anda sudah terdaftar di poli & dokter ini hari ini — silakan ke loket bila ada perubahan")
 	ErrBiometrikDiperlukan        = errors.New("verifikasi sidik jari diperlukan untuk pasien ini")
 	ErrSuratKontrolTidakDitemukan = errors.New("surat kontrol tidak ditemukan")
 	ErrDokterCuti                 = errors.New("dokter sedang cuti pada tanggal yang dipilih")

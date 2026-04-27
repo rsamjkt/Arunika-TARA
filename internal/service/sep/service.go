@@ -30,6 +30,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/arunika/apm-go/internal/domain"
@@ -96,28 +97,118 @@ func (s *SEPService) BuatSEPRujukan(
 		return nil, fmt.Errorf("buat sep rujukan: NoRujukan wajib diisi")
 	}
 
-	// Step 1: biometrik kalau perlu
+	tglSEP := parseDateOrNow(req.TglSEP, s.now()).Format("2006-01-02")
+	if req.TglSEP == "" {
+		req.TglSEP = tglSEP
+	}
+
+	// Step 1: pre-flight checks (mirror Java DlgRegistrasiSEPPertama:1734-1794)
+	if err := s.runPreflight(ctx, peserta, req.KdPoli, req.KdDokter, peserta.NoKartu, tglSEP); err != nil {
+		return nil, err
+	}
+
+	// Step 2: biometrik kalau perlu (umur >=17 + non-IGD)
 	fpToken, err := s.maybeBiometrik(ctx, *peserta, req.KdPoli)
 	if err != nil {
-		return nil, err // ErrBiometrikDiperlukan
+		return nil, err
 	}
 	req.FPToken = fpToken
 
-	// Step 2: validasi rujukan
-	tglSEP := parseDateOrNow(req.TglSEP, s.now())
-	if _, err := s.vclaim.ValidasiRujukan(ctx, req.NoRujukan, tglSEP); err != nil {
+	// Step 3: validasi rujukan FKTP via VClaim
+	if _, err := s.vclaim.ValidasiRujukan(ctx, req.NoRujukan, parseDateOrNow(tglSEP, s.now())); err != nil {
 		return nil, fmt.Errorf("validasi rujukan: %w", err)
 	}
 
-	// Step 3: issue SEP via VClaim
+	// Step 4: INSERT reg_periksa di Khanza DULU (mirror Java line 2682-2685
+	// — bridging_sep punya FK ke reg_periksa.no_rawat, jadi reg_periksa
+	// harus exist sebelum SimpanSEP).
+	pendaftaran, err := s.khanza.BuatPendaftaran(ctx, domain.PendaftaranRequest{
+		NoRM:       peserta.NoRM,
+		KdPoli:     req.KdPoli,
+		KdDokter:   req.KdDokter,
+		TglPeriksa: tglSEP,
+		Penjamin:   "BPJS",
+		Catatan:    req.CatatanPelayanan,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("buat pendaftaran BPJS: %w", err)
+	}
+	if pendaftaran == nil {
+		pendaftaran = &domain.Pendaftaran{}
+	}
+	s.logger.Info("sep rujukan: pendaftaran tercatat",
+		"no_rawat", pendaftaran.NoRawat, "no_urut", pendaftaran.NoUrut)
+
+	// Step 5: issue SEP via VClaim
 	sepObj, err := s.vclaim.CreateSEP(ctx, req)
 	if err != nil {
+		// reg_periksa sudah ke-INSERT — log warning, biarkan untuk reconcile manual
+		s.logger.Error("sep rujukan: VClaim CreateSEP gagal — reg_periksa sudah tercatat",
+			"no_rawat", pendaftaran.NoRawat, "err", err.Error())
 		return nil, fmt.Errorf("vclaim CreateSEP: %w", err)
 	}
 
-	// Step 4-5: persist + post ke Khanza
+	// Step 6: persist + post ke Khanza (bridging_sep + rujuk_masuk + bridging_rujukan_bpjs)
 	s.persistAndSyncKhanza(ctx, sepObj, "RUJUKAN", req)
+
+	// Step 7: simpan rujukan FKTP audit trail (Java line 2688-2692)
+	_ = s.khanza.SimpanRujukMasuk(ctx, domain.RujukMasuk{
+		NoRawat:       pendaftaran.NoRawat,
+		Perujuk:       req.NmPPKRujukan,
+		NoRujuk:       req.NoRujukan,
+		KdPenyakit:    req.DiagnosaAwal,
+		KategoriRujuk: "-",
+	})
+	_ = s.khanza.SimpanRujukanBPJS(ctx, domain.RujukanBPJS{
+		NoSEP:         sepObj.NoSEP,
+		NoRujukan:     req.NoRujukan,
+		TglRujukan:    req.TglRujukan,
+		PPKDirujuk:    req.KdPPKRujukan,
+		NmPPKDirujuk:  req.NmPPKRujukan,
+		JnsPelayanan:  "2",
+		DiagRujukan:   req.DiagnosaAwal,
+		NmDiagRujukan: req.NamaDiagnosa,
+		PoliRujukan:   req.KdPoli,
+		NmPoliRujukan: sepObj.NmPoli,
+		User:          "kiosk-tara",
+	})
+
 	return sepObj, nil
+}
+
+// runPreflight menjalankan 3 cek wajib sebelum issue SEP (mirror
+// vendor Java validasi flow):
+//
+//  1. CheckDuplicateRegistration di reg_periksa lokal
+//  2. CheckDoctorOnLeave di jadwal_cuti_libur lokal
+//  3. CekSEPDuplikasi di server BPJS via VClaim
+//
+// Pre-flight failure → return error supaya UI tidak masuk ke flow VClaim
+// (cegah duplikasi state lokal vs BPJS).
+func (s *SEPService) runPreflight(
+	ctx context.Context,
+	peserta *domain.Peserta,
+	kdPoli, kdDokter, noKartu, tglSEP string,
+) error {
+	if dup, err := s.khanza.CheckDuplicateRegistration(ctx, peserta.NoRM, kdPoli, kdDokter, tglSEP, "BPJ"); err != nil {
+		s.logger.Warn("preflight: check duplicate registration error", "err", err.Error())
+	} else if dup {
+		return domain.ErrSudahTerdaftarHariIni
+	}
+
+	if cuti, err := s.khanza.CheckDoctorOnLeave(ctx, kdDokter, tglSEP); err != nil {
+		s.logger.Warn("preflight: check doctor on leave error", "err", err.Error())
+	} else if cuti {
+		return domain.ErrDokterCuti
+	}
+
+	if dupSEP, err := s.vclaim.CekSEPDuplikasi(ctx, noKartu, tglSEP); err != nil {
+		// VClaim error tidak fatal — log + lanjutkan (BPJS server akan reject sendiri kalau memang dup)
+		s.logger.Warn("preflight: CekSEPDuplikasi VClaim error (lanjut)", "err", err.Error())
+	} else if dupSEP != nil {
+		return fmt.Errorf("%w: SEP existing %s", domain.ErrDuplikasiSEP, dupSEP.NoSEP)
+	}
+	return nil
 }
 
 // ============================================================
@@ -158,29 +249,56 @@ func (s *SEPService) BuatSEPKontrol(
 		return nil, domain.ErrJadwalKontrolBelumTiba(sk.TglRencana)
 	}
 
-	// Biometrik kalau perlu (poli kontrol)
+	tglStr := s.now().Format("2006-01-02")
+	resolvedKdDokter := firstNonEmpty(kdDokter, sk.KdDokter)
+
+	// Step 2.5: pre-flight checks (mirror Java DlgRegistrasiSEPPertama)
+	if err := s.runPreflight(ctx, peserta, sk.KdPoli, resolvedKdDokter, peserta.NoKartu, tglStr); err != nil {
+		return nil, err
+	}
+
+	// Step 3: biometrik kalau perlu (poli kontrol)
 	fpToken, err := s.maybeBiometrik(ctx, *peserta, sk.KdPoli)
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 3: build request + issue
-	tglStr := s.now().Format("2006-01-02")
+	// Step 4: INSERT reg_periksa BPJS (sebelum issue SEP)
+	pendaftaran, err := s.khanza.BuatPendaftaran(ctx, domain.PendaftaranRequest{
+		NoRM:       peserta.NoRM,
+		KdPoli:     sk.KdPoli,
+		KdDokter:   resolvedKdDokter,
+		TglPeriksa: tglStr,
+		Penjamin:   "BPJS",
+		Catatan:    "Kontrol — " + sk.NoSurat,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("buat pendaftaran kontrol: %w", err)
+	}
+	if pendaftaran == nil {
+		pendaftaran = &domain.Pendaftaran{}
+	}
+	s.logger.Info("sep kontrol: pendaftaran tercatat",
+		"no_rawat", pendaftaran.NoRawat, "no_surat", sk.NoSurat)
+
+	// Step 5: build request + issue SEP via VClaim
 	req := domain.SEPKontrolRequest{
 		NoSuratKontrol: noSuratKontrol,
 		NoKartu:        peserta.NoKartu,
 		TglSEP:         tglStr,
-		KdDokter:       firstNonEmpty(kdDokter, sk.KdDokter),
+		KdDokter:       resolvedKdDokter,
 		KelasRawat:     peserta.KelasHak,
 		JnsPelayanan:   "1", // Rawat Jalan
 		FPToken:        fpToken,
 	}
 	sepObj, err := s.vclaim.CreateSEPKontrol(ctx, req)
 	if err != nil {
+		s.logger.Error("sep kontrol: VClaim gagal — reg_periksa sudah tercatat",
+			"no_rawat", pendaftaran.NoRawat, "err", err.Error())
 		return nil, fmt.Errorf("vclaim CreateSEPKontrol: %w", err)
 	}
 
-	// Step 4-5: persist
+	// Step 6: persist
 	s.persistAndSyncKhanza(ctx, sepObj, "KONTROL", req)
 	return sepObj, nil
 }
@@ -227,12 +345,36 @@ func (s *SEPService) buatSEPPasca(
 		return nil, fmt.Errorf("buat sep %s: kdPoli/kdDokter wajib diisi", label)
 	}
 
+	tglStr := s.now().Format("2006-01-02")
+
+	// Pre-flight checks
+	if err := s.runPreflight(ctx, peserta, kdPoli, kdDokter, peserta.NoKartu, tglStr); err != nil {
+		return nil, err
+	}
+
 	fpToken, err := s.maybeBiometrik(ctx, *peserta, kdPoli)
 	if err != nil {
 		return nil, err
 	}
 
-	tglStr := s.now().Format("2006-01-02")
+	// INSERT reg_periksa BPJS (sebelum SEP issue)
+	pendaftaran, err := s.khanza.BuatPendaftaran(ctx, domain.PendaftaranRequest{
+		NoRM:       peserta.NoRM,
+		KdPoli:     kdPoli,
+		KdDokter:   kdDokter,
+		TglPeriksa: tglStr,
+		Penjamin:   "BPJS",
+		Catatan:    label,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("buat pendaftaran %s: %w", label, err)
+	}
+	if pendaftaran == nil {
+		pendaftaran = &domain.Pendaftaran{}
+	}
+	s.logger.Info("sep "+strings.ToLower(label)+": pendaftaran tercatat",
+		"no_rawat", pendaftaran.NoRawat)
+
 	req := domain.SEPRequest{
 		NoKartu:      peserta.NoKartu,
 		TglSEP:       tglStr,
@@ -247,6 +389,8 @@ func (s *SEPService) buatSEPPasca(
 
 	sepObj, err := s.vclaim.CreateSEP(ctx, req)
 	if err != nil {
+		s.logger.Error("sep "+strings.ToLower(label)+": VClaim gagal — reg_periksa sudah tercatat",
+			"no_rawat", pendaftaran.NoRawat, "err", err.Error())
 		return nil, fmt.Errorf("vclaim CreateSEP %s: %w", label, err)
 	}
 

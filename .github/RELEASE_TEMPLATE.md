@@ -2,6 +2,40 @@
 
 > Self-service kiosk for hospital outpatient registration, BPJS SEP issuance, and queue management. Direct-DB integration with SIMRS Khanza, Smart BPJS Detector with auto-classification, modern accessibility-first UI built for **multi-generation Indonesian patients** (elderly + middle-aged + young).
 
+## What's New in v1.4 ("Mahatma 1.4")
+
+**Critical SEP flow alignment dengan Java vendor reference** — fix bug yang mencegah flow Pasien BPJS bekerja end-to-end.
+
+### 🚨 CRITICAL FIX — BuatPendaftaran sebelum SimpanSEP
+Sebelumnya flow BPJS skip `BuatPendaftaran` → `SimpanSEP` gagal resolve `no_rawat` → SEP issued di BPJS server tapi tidak tercatat di Khanza lokal → antrian/rekam medis broken.
+
+Sekarang (mirror `DlgRegistrasiSEPPertama.java:2682-2685`):
+- `BuatSEPRujukan` → preflight → biometrik → ValidasiRujukan → **BuatPendaftaran** → CreateSEP (VClaim) → SimpanSEP → SimpanRujukMasuk + SimpanRujukanBPJS
+- `BuatSEPKontrol` → preflight → biometrik → BuatPendaftaran → CreateSEPKontrol → SimpanSEP
+- `BuatSEPPostRANAP` / `BuatSEPPostRAJAL` → preflight → biometrik → BuatPendaftaran → CreateSEP → SimpanSEP
+
+### 🛡️ Pre-flight Checks (mirror Java line 1734-1794)
+Method baru di `KhanzaClient`:
+- `CheckDuplicateRegistration(noRM, kdPoli, kdDokter, tglRegistrasi, kdPj)` → reject kalau pasien sudah daftar di poli+dokter+kdPj sama hari ini → `domain.ErrSudahTerdaftarHariIni`
+- `CheckDoctorOnLeave(kdDokter, tglRegistrasi)` → reject kalau dokter cuti → `domain.ErrDokterCuti`
+
+Plus `vclaim.CekSEPDuplikasi(noKartu, tglSEP)` dipanggil di preflight (anti-fraud server-side).
+
+`runPreflight()` helper terpadu di `service/sep/service.go` — dipanggil semua flow BPJS.
+
+### 📦 SEPRequest Extended (parity Java payload)
+Tambahan field opsional: detail rujukan (TglRujukan/KdPPK/NmPPK/AsalRujukan/Diagnosa), SKDP context (NoSKDP/KdDPJP), conditional (Eksekutif/COB/Katarak/LakaLantas + lokasi 4-tier), routing (TujuanKunjungan/FlagProcedure/KdPenunjang/AsesmenPelayanan), User audit.
+
+UI panel conditional (Laka Lantas form, COB confirmation) defer ke v1.5.
+
+### 🩺 Auto Audit Trail Post-SEP
+Flow Rujukan FKTP: setelah SimpanSEP sukses, otomatis call `SimpanRujukMasuk` (`rujuk_masuk`) + `SimpanRujukanBPJS` (`bridging_rujukan_bpjs` compliance audit BPJS).
+
+### 🎯 Error Sentinel Baru
+- `domain.ErrSudahTerdaftarHariIni`
+
+---
+
 ## What's New in v1.3 ("Mahatma 1.3")
 
 Major BPJS parity push + UX completion.

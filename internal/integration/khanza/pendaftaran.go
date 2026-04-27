@@ -29,6 +29,19 @@ type pendaftaranWire struct {
 	NoUrut     int    `json:"no_urut"`
 }
 
+// CheckDuplicateRegistration — REST stub. Khanza Laravel umumnya tidak
+// expose endpoint ini; flow direct-DB MySQL pakai SQL count langsung.
+// Return false supaya caller flow REST tidak block (BPJS server akan
+// reject duplikasi sendiri).
+func (c *Client) CheckDuplicateRegistration(ctx context.Context, noRM, kdPoli, kdDokter, tglRegistrasi, kdPj string) (bool, error) {
+	return false, nil
+}
+
+// CheckDoctorOnLeave — REST stub.
+func (c *Client) CheckDoctorOnLeave(ctx context.Context, kdDokter, tglRegistrasi string) (bool, error) {
+	return false, nil
+}
+
 // BuatPendaftaran — POST /pendaftaran
 func (c *Client) BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error) {
 	if req.NoRM == "" || req.KdPoli == "" || req.KdDokter == "" {

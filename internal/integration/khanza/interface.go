@@ -65,6 +65,17 @@ type KhanzaClient interface {
 	// Dipakai detector PostRAJAL.
 	GetRujukanInternalAntarPoli(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error)
 
+	// CheckDuplicateRegistration cek di reg_periksa apakah pasien sudah
+	// terdaftar di poli+dokter+kd_pj yang sama hari ini. Return true
+	// kalau sudah ada — caller harus reject untuk hindari duplikasi
+	// klaim BPJS atau pendaftaran ganda.
+	CheckDuplicateRegistration(ctx context.Context, noRM, kdPoli, kdDokter, tglRegistrasi, kdPj string) (bool, error)
+
+	// CheckDoctorOnLeave cek di tabel jadwal_cuti_libur apakah dokter
+	// cuti pada tgl tertentu. Return true kalau cuti — caller harus
+	// reject pendaftaran supaya pasien tidak terlantar.
+	CheckDoctorOnLeave(ctx context.Context, kdDokter, tglRegistrasi string) (bool, error)
+
 	// BuatPendaftaran mendaftarkan pasien ke poli dengan dokter & tgl
 	// tertentu. Untuk pasien BPJS wajib pasok NoSEP yang sudah di-issue.
 	BuatPendaftaran(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)

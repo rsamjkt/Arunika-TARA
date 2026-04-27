@@ -4,16 +4,55 @@ import "time"
 
 // SEPRequest adalah payload untuk membuat SEP baru lewat VClaim
 // (POST /SEP/2.0/insert atau /SEP/2.0/kontrol/insert).
+// SEPRequest adalah payload untuk membuat SEP baru lewat VClaim.
+// Field opsional ditambahkan untuk parity dengan vendor Java
+// (DlgRegistrasiSEPPertama.java:2610-2671). Kalau caller tidak
+// pasok (kosong), backend pakai default safe ("0", "0. Tidak", dll).
 type SEPRequest struct {
 	NoKartu          string
 	TglSEP           string // format "2006-01-02"
 	KdPoli           string
 	KdDokter         string
-	JnsPelayanan     string // "1" = Rawat Jalan, "2" = Rawat Inap
+	JnsPelayanan     string // "1" = Rawat Jalan, "2" = Rawat Inap (default "1")
 	KelasRawat       string // "1", "2", "3"
 	NoRujukan        string
 	CatatanPelayanan string
-	FPToken          string // token sidik jari (opsional, dipakai jika perluBiometrik)
+	FPToken          string
+
+	// Detail rujukan FKTP (untuk SEP dari rujukan baru)
+	TglRujukan   string
+	KdPPKRujukan string
+	NmPPKRujukan string
+	AsalRujukan  string // "1" Faskes 1 / "2" Faskes 2(RS)
+	DiagnosaAwal string // ICD-10
+	NamaDiagnosa string
+	NoMR         string
+	NoTelp       string
+
+	// SKDP context (untuk SEP kontrol kalau panggil CreateSEP, bukan CreateSEPKontrol)
+	NoSKDP string
+	KdDPJP string
+
+	// Conditional / additional flags untuk klaim BPJS
+	Eksekutif        string // "0" / "1"
+	COB              string // "0" / "1"
+	Katarak          string // "0" / "1"
+	LakaLantas       string // "0"/"1"/"2"/"3"
+	TglKejadian      string // "2006-01-02"
+	KetKecelakaan    string
+	Suplesi          string // "0" / "1"
+	NoSepSuplesi     string
+	KdPropinsi       string
+	NmPropinsi       string
+	KdKabupaten      string
+	NmKabupaten      string
+	KdKecamatan      string
+	NmKecamatan      string
+	TujuanKunjungan  string
+	FlagProcedure    string
+	KdPenunjang      string
+	AsesmenPelayanan string
+	User             string
 }
 
 // SEPKontrolRequest adalah payload untuk membuat SEP dari surat kontrol

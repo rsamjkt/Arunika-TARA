@@ -715,6 +715,70 @@ func (c *MySQLClient) GetTarifPoli(ctx context.Context, kdPoli string, isLama bo
 //   - Cek duplikasi (no_rkm_medis + kd_poli + kd_dokter + tgl + kd_pj)
 //   - INSERT 19 kolom standar Khanza
 //
+// ============================================================
+// CheckDuplicateRegistration — pre-flight check duplikasi reg_periksa
+// ============================================================
+
+func (c *MySQLClient) CheckDuplicateRegistration(
+	ctx context.Context,
+	noRM, kdPoli, kdDokter, tglRegistrasi, kdPj string,
+) (bool, error) {
+	if noRM == "" || kdPoli == "" || kdDokter == "" || tglRegistrasi == "" {
+		return false, errors.New("check duplicate: noRM/kdPoli/kdDokter/tglRegistrasi wajib")
+	}
+	kdPjEffective := kdPj
+	if kdPjEffective == "" {
+		kdPjEffective = c.kdPjBPJS // default BPJS
+	}
+	const sqlQ = `
+		SELECT COUNT(*) FROM reg_periksa
+		WHERE no_rkm_medis = ? AND kd_poli = ? AND kd_dokter = ?
+		  AND tgl_registrasi = ? AND kd_pj = ?
+		  AND stts <> 'Batal'
+	`
+	var count int
+	if err := c.db.QueryRowContext(ctx, sqlQ,
+		noRM, kdPoli, kdDokter, tglRegistrasi, kdPjEffective,
+	).Scan(&count); err != nil {
+		return false, fmt.Errorf("check duplicate registration: %w", wrapOfflineMySQL(err))
+	}
+	return count > 0, nil
+}
+
+// ============================================================
+// CheckDoctorOnLeave — cek jadwal_cuti_libur
+// ============================================================
+
+func (c *MySQLClient) CheckDoctorOnLeave(
+	ctx context.Context,
+	kdDokter, tglRegistrasi string,
+) (bool, error) {
+	if kdDokter == "" || tglRegistrasi == "" {
+		return false, errors.New("check leave: kdDokter/tglRegistrasi wajib")
+	}
+	// Probe tabel — kalau tidak ada di RS ini, return false (graceful)
+	var exists int
+	err := c.db.QueryRowContext(ctx,
+		`SELECT 1 FROM information_schema.TABLES
+		 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'jadwal_cuti_libur' LIMIT 1`,
+	).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("probe jadwal_cuti_libur: %w", wrapOfflineMySQL(err))
+	}
+	const sqlQ = `
+		SELECT COUNT(*) FROM jadwal_cuti_libur
+		WHERE kd_dokter = ? AND tanggallibur = ?
+	`
+	var count int
+	if err := c.db.QueryRowContext(ctx, sqlQ, kdDokter, tglRegistrasi).Scan(&count); err != nil {
+		return false, fmt.Errorf("check doctor on leave: %w", wrapOfflineMySQL(err))
+	}
+	return count > 0, nil
+}
+
 // Map domain.Penjamin → kd_pj:
 //
 //	"BPJS" → c.kdPjBPJS  (default "BPJ")
