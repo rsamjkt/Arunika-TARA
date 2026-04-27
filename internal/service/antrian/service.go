@@ -113,6 +113,14 @@ func (s *AntrianService) Create(ctx context.Context, req domain.AntrianRequest) 
 			"jenis", req.Jenis)
 		return s.createOffline(ctx, req)
 
+	case errors.Is(err, khanza.ErrAntrianHandledLocally):
+		// MySQL direct-DB mode TIDAK punya endpoint atomic counter
+		// di Khanza Java desktop — antrian DI-DESIGN handle local SQLite.
+		// Bukan offline, tapi by-design pakai counter lokal.
+		s.logger.Info("antrian: khanza-mysql mode → pakai counter lokal SQLite",
+			"jenis", req.Jenis)
+		return s.createOffline(ctx, req)
+
 	default:
 		return nil, fmt.Errorf("buat antrian khanza: %w", err)
 	}
