@@ -67,11 +67,18 @@ type ServerConfig struct {
 }
 
 // BPJSConfig — kredensial dan endpoint BPJS (VClaim + Antrol).
-// Cons ID & secret dipakai untuk HMAC-SHA256 signing.
+//
+// Cons ID & ConsumerSecret dipakai untuk HMAC-SHA256 signing
+// (header X-cons-id + X-signature).
+//
+// UserKey wajib di header `user_key` untuk decrypt response BPJS
+// (AES-256-CBC). Kalau kosong, endpoint production akan reject
+// atau return blank — selalu isi sesuai issued credential dari BPJS.
 type BPJSConfig struct {
 	VClaimURL         string `mapstructure:"vclaim_url"`
 	ConsID            string `mapstructure:"cons_id"`
 	ConsumerSecret    string `mapstructure:"consumer_secret"`
+	UserKey           string `mapstructure:"user_key"`
 	AntrolURL         string `mapstructure:"antrol_url"`
 	DetectorTimeoutMs int    `mapstructure:"detector_timeout_ms"`
 }

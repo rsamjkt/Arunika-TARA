@@ -16,6 +16,7 @@ import (
 type Client struct {
 	consID     string
 	secretKey  string
+	userKey    string // BPJS user_key header (untuk decrypt AES-256-CBC response)
 	baseURL    string
 	httpClient *resty.Client
 	now        func() time.Time // injected untuk test
@@ -51,6 +52,7 @@ func New(cfg config.BPJSConfig) *Client {
 	return &Client{
 		consID:     cfg.ConsID,
 		secretKey:  cfg.ConsumerSecret,
+		userKey:    cfg.UserKey,
 		baseURL:    baseURL,
 		httpClient: hc,
 		now:        time.Now,

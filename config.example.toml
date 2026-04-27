@@ -16,49 +16,82 @@ timezone         = "Asia/Jakarta"
 version          = "1.0.0"
 
 [server]
-# SIMRS Khanza (Laravel REST API di jaringan RS)
-khanza_url      = "http://192.168.1.10:8080"
-khanza_api_key  = "REPLACE_WITH_BEARER_TOKEN"
-timeout_ms      = 10000
-retry           = 2
+# SIMRS Khanza — Direct MySQL mode (mengikuti pola anjunganmandiriSEP).
+# Kosongkan khanza_url; isi khanza_dsn dengan Go MySQL DSN.
+#
+# Format DSN: user:password@tcp(host:port)/database?parseTime=true&loc=Local&timeout=5s
+# Kalau dimulai dengan "ENC:" → akan didekripsi via master key OS.
+khanza_url        = ""
+khanza_api_key    = ""
+khanza_dsn        = "user:password@tcp(IP_KHANZA:3306)/nama_db?parseTime=true&loc=Local&timeout=5s"
+khanza_kd_pj_umum = "A03"          # cek tabel penjab — kode penjamin Umum/Tunai RS-mu
+khanza_kd_pj_bpjs = "BPJ"          # kode penjamin BPJS RS-mu
+timeout_ms        = 5000
+retry             = 2
 
 [bpjs]
 # VClaim — production: https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
 # VClaim — development: https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/
-vclaim_url           = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
+vclaim_url           = "https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/"
 cons_id              = "REPLACE_WITH_CONS_ID"
 consumer_secret      = "REPLACE_WITH_CONSUMER_SECRET"
+user_key             = "REPLACE_WITH_USER_KEY"   # wajib untuk decrypt response BPJS
 antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
 detector_timeout_ms  = 5000        # Smart Detector parallel-check timeout
 
 [fingerprint]
-# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only)
+# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only — di Mac otomatis pakai mock)
 exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
-rest_url           = "https://fp.bpjs-kesehatan.go.id/finger-rest/"
-username_enc       = "REPLACE_WITH_FP_USERNAME"
+rest_url           = "http://localhost:9999/finger-rest/"   # internal After.exe REST port
+username_enc       = "REPLACE_WITH_FP_USERNAME"             # plaintext OK, atau "ENC:..." kalau encrypted
 password_enc       = "REPLACE_WITH_FP_PASSWORD"
 scan_timeout_sec   = 30
 poll_interval_ms   = 500
 
+# UI Automation — class names dialog login After.exe (Win32 SendMessageW
+# injection). Default Delphi VCL standar — biasanya cukup. Override hanya
+# kalau RS pakai versi non-standar (verify dengan Spy++).
+window_class_login    = "TfrmLogin"
+window_class_edit     = "TEdit"
+window_class_button   = "TButton"
+startup_delay_sec     = 3          # tunggu setelah spawn sebelum inject login
+
 [frista]
-# Frista card reader (Windows only — di Mac otomatis pakai mock)
+# Frista card reader (Windows only — di Mac otomatis pakai mock).
+# Aplikasi spawn headless (CREATE_NO_WINDOW), auto-login, lalu APM
+# polling clipboard untuk capture data kartu yang Frista tulis.
 exe_path          = "C:\\Program Files\\Frista\\frista.exe"
 username_enc      = "REPLACE_WITH_FRISTA_USERNAME"
 password_enc      = "REPLACE_WITH_FRISTA_PASSWORD"
 read_timeout_ms   = 1000
 restart_on_crash  = true
 
+# UI Automation — sama seperti fingerprint (default Delphi VCL).
+window_class_login    = "TfrmLogin"
+window_class_edit     = "TEdit"
+window_class_button   = "TButton"
+startup_delay_sec     = 5          # Frista lebih lambat dari After.exe
+
+# Polling clipboard untuk capture card scan data.
+poll_interval_ms      = 500
+
 [printer]
-# Mode: "console" (Mac dev — print ke stdout) | "escpos_usb" | "escpos_serial" | "escpos_network"
+# Mode pilihan:
+#   "console"        → output ke stdout (Mac dev — pakai ini di non-Windows)
+#   "escpos_usb"     → USB printer (Windows production)
+#   "escpos_serial"  → Serial / RS232 (atau USB-to-Serial adapter)
+#   "escpos_network" → Network printer (LAN/Wi-Fi, port 9100 standar)
 mode      = "console"
-port      = "POS-58"               # nama printer (USB) / COM port (serial) / IP:port (network)
+port      = "POS-58"               # USB: nama printer di Settings → Printers
+                                   # Serial: COM1 / /dev/cu.usbserial-A1234
+                                   # Network: 192.168.1.50:9100
 width_mm  = 58                     # 58 atau 80
 
 [antrian]
 loket_prefix = "A"
 poli_prefix  = "B"
 umum_prefix  = "C"
-reset_time   = "00:01"             # HH:MM WIB — reset counter harian
+reset_time   = "00:01"             # HH:MM WIB — auto-reset counter harian
 
 [admin]
 # PIN 4-6 digit untuk akses admin panel kiosk. Plaintext untuk
