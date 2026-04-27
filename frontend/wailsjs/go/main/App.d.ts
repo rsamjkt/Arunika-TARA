@@ -24,6 +24,8 @@ export function DetectPatient(arg1:string):Promise<domain.DetectionResult>;
 
 export function GetAdminStats():Promise<main.AdminStats>;
 
+export function GetBranding():Promise<main.Branding>;
+
 export function GetCounters():Promise<Record<string, number>>;
 
 export function GetHardwareStatus():Promise<main.HardwareStatus>;
@@ -33,8 +35,6 @@ export function GetJadwalDokter(arg1:string):Promise<Array<domain.JadwalDokter>>
 export function GetPendingSEPs():Promise<Array<store.PendingSep>>;
 
 export function GetPoliklinikAktif():Promise<Array<domain.Poliklinik>>;
-
-export function GetBranding():Promise<main.Branding>;
 
 export function GetRecentLogs(arg1:number):Promise<Array<main.AdminLogEntry>>;
 

@@ -165,7 +165,12 @@ func (a *App) initialize(ctx context.Context) error {
 	a.db = db
 
 	// Clients
-	a.vclaim = vclaim.New(cfg.BPJS)
+	if cfg.BPJS.Mock {
+		a.vclaim = vclaim.NewMockPreset()
+		a.logger.Warn("vclaim: MOCK mode aktif — semua call BPJS pakai canned response (jangan dipakai di production!)")
+	} else {
+		a.vclaim = vclaim.New(cfg.BPJS)
+	}
 	a.antrol = antrol.NewMock() // TODO P-021+: real Antrol HTTP client
 
 	// Khanza: pilih implementasi berdasarkan config.

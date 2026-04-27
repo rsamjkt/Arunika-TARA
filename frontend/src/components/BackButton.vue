@@ -1,18 +1,16 @@
 <!--
   BackButton — tombol "Kembali" konsisten di kiri-bawah semua screen.
 
-  Sebelumnya tombol Back tipis di pojok header (tidak terlihat oleh lansia).
-  Sekarang: floating bottom-left, ukuran touchscreen-friendly, dengan ikon
-  Phosphor + text label lengkap.
+  Single-root template (Vue 3 attribute inheritance friendly).
 
   Props:
-    onClick: handler langsung (jika tidak ada modal konfirmasi)
-    needsConfirm: kalau true, tampilkan ConfirmBackModal sebelum execute onClick
+    needsConfirm: kalau true, tampilkan ConfirmBackModal sebelum execute
     confirmTitle, confirmMessage: copywriting modal
+    label: text label (default "Kembali")
 
   Usage:
     <BackButton @click="back" />
-    <BackButton :needs-confirm="hasUnsavedData" confirm-message="Data yg sudah diisi akan hilang" @click="back" />
+    <BackButton :needs-confirm="hasUnsavedData" @click="back" />
 -->
 <script setup>
 import { ref } from 'vue'
@@ -34,7 +32,9 @@ const audio = useAudioCue()
 
 const showModal = ref(false)
 
-function handleTap() {
+function handleTap(event) {
+  // Stop event bubbling supaya parent container click tidak ikut trigger
+  if (event && event.stopPropagation) event.stopPropagation()
   audio.tap()
   if (props.needsConfirm) {
     showModal.value = true
@@ -52,28 +52,32 @@ function cancelBack() {
 </script>
 
 <template>
-  <button
-    type="button"
-    class="bg-surface border border-border text-text-primary
-           font-medium rounded-btn
-           min-h-[clamp(60px,8vw,72px)]
-           min-w-[clamp(140px,18vw,200px)]
-           px-[clamp(16px,2.5vw,24px)] py-[clamp(12px,1.8vw,16px)]
-           text-[clamp(14px,1.9vw,17px)]
-           hover:border-border-strong active:bg-bg
-           flex items-center gap-3 shadow-sm"
-    aria-label="Kembali ke layar sebelumnya"
-    @click="handleTap"
-  >
-    <PhCaretLeft :size="24" weight="bold" />
-    <span>{{ label }}</span>
-  </button>
+  <div class="inline-block">
+    <button
+      type="button"
+      class="bg-surface border border-border text-text-primary
+             font-medium rounded-btn cursor-pointer
+             min-h-[clamp(60px,8vw,72px)]
+             min-w-[clamp(140px,18vw,200px)]
+             px-[clamp(16px,2.5vw,24px)] py-[clamp(12px,1.8vw,16px)]
+             text-[clamp(14px,1.9vw,17px)]
+             hover:border-border-strong hover:bg-bg
+             active:bg-border
+             flex items-center gap-3 shadow-sm
+             relative z-10"
+      aria-label="Kembali ke layar sebelumnya"
+      @click="handleTap"
+    >
+      <PhCaretLeft :size="24" weight="bold" />
+      <span>{{ label }}</span>
+    </button>
 
-  <ConfirmBackModal
-    :visible="showModal"
-    :title="confirmTitle"
-    :message="confirmMessage"
-    @confirm="confirmBack"
-    @cancel="cancelBack"
-  />
+    <ConfirmBackModal
+      :visible="showModal"
+      :title="confirmTitle"
+      :message="confirmMessage"
+      @confirm="confirmBack"
+      @cancel="cancelBack"
+    />
+  </div>
 </template>

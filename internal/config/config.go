@@ -83,6 +83,12 @@ type BPJSConfig struct {
 	UserKey           string `mapstructure:"user_key"`
 	AntrolURL         string `mapstructure:"antrol_url"`
 	DetectorTimeoutMs int    `mapstructure:"detector_timeout_ms"`
+
+	// Mock = true → pakai MockVClaimClient dengan canned response varied
+	// (test 5 path Smart Detector tanpa hit real BPJS API). Hanya untuk
+	// dev environment. Default false. Lihat
+	// internal/integration/vclaim/mock_preset.go untuk scenario mapping.
+	Mock bool `mapstructure:"mock"`
 }
 
 // FingerprintConfig — After.exe (BPJS Sidik Jari) integrasi.

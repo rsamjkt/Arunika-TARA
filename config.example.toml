@@ -69,6 +69,17 @@ user_key             = "REPLACE_WITH_USER_KEY"   # wajib untuk decrypt response 
 antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
 detector_timeout_ms  = 5000        # Smart Detector parallel-check timeout
 
+# Mock VClaim — hanya untuk dev/test tanpa hit real BPJS API.
+# true  → pakai canned response (lihat internal/integration/vclaim/mock_preset.go).
+#         Identifier prefix akan trigger scenario berbeda:
+#           "INVALID..."   → error (test error path)
+#           "INACTIVE..."  → peserta tidak aktif
+#           "MJKN..."      → peserta aktif (test MJKN flow)
+#           "KONTROL..."   → peserta aktif + ada SKDP (test Kontrol flow)
+#           default        → peserta aktif (RujukanBaru flow)
+# false → pakai real VClaim client (production).
+mock                 = false
+
 [fingerprint]
 # After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only — di Mac otomatis pakai mock)
 exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"

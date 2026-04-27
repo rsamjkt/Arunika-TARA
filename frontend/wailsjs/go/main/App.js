@@ -42,6 +42,10 @@ export function GetAdminStats() {
   return window['go']['main']['App']['GetAdminStats']();
 }
 
+export function GetBranding() {
+  return window['go']['main']['App']['GetBranding']();
+}
+
 export function GetCounters() {
   return window['go']['main']['App']['GetCounters']();
 }
@@ -60,10 +64,6 @@ export function GetPendingSEPs() {
 
 export function GetPoliklinikAktif() {
   return window['go']['main']['App']['GetPoliklinikAktif']();
-}
-
-export function GetBranding() {
-  return window['go']['main']['App']['GetBranding']();
 }
 
 export function GetRecentLogs(arg1) {

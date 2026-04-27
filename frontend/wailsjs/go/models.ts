@@ -227,6 +227,19 @@ export namespace domain {
 	    NoMR: string;
 	    NamaPasien: string;
 	    PRBCode: string;
+	    LakaLantas: string;
+	    TglKejadian: string;
+	    KetKecelakaan: string;
+	    KdPropinsi: string;
+	    NmPropinsi: string;
+	    KdKabupaten: string;
+	    NmKabupaten: string;
+	    KdKecamatan: string;
+	    NmKecamatan: string;
+	    COB: string;
+	    Eksekutif: string;
+	    TujuanKunjungan: string;
+	    AsesmenPelayanan: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SEP(source);
@@ -257,6 +270,19 @@ export namespace domain {
 	        this.NoMR = source["NoMR"];
 	        this.NamaPasien = source["NamaPasien"];
 	        this.PRBCode = source["PRBCode"];
+	        this.LakaLantas = source["LakaLantas"];
+	        this.TglKejadian = source["TglKejadian"];
+	        this.KetKecelakaan = source["KetKecelakaan"];
+	        this.KdPropinsi = source["KdPropinsi"];
+	        this.NmPropinsi = source["NmPropinsi"];
+	        this.KdKabupaten = source["KdKabupaten"];
+	        this.NmKabupaten = source["NmKabupaten"];
+	        this.KdKecamatan = source["KdKecamatan"];
+	        this.NmKecamatan = source["NmKecamatan"];
+	        this.COB = source["COB"];
+	        this.Eksekutif = source["Eksekutif"];
+	        this.TujuanKunjungan = source["TujuanKunjungan"];
+	        this.AsesmenPelayanan = source["AsesmenPelayanan"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -287,6 +313,35 @@ export namespace domain {
 	    NoRujukan: string;
 	    CatatanPelayanan: string;
 	    FPToken: string;
+	    TglRujukan: string;
+	    KdPPKRujukan: string;
+	    NmPPKRujukan: string;
+	    AsalRujukan: string;
+	    DiagnosaAwal: string;
+	    NamaDiagnosa: string;
+	    NoMR: string;
+	    NoTelp: string;
+	    NoSKDP: string;
+	    KdDPJP: string;
+	    Eksekutif: string;
+	    COB: string;
+	    Katarak: string;
+	    LakaLantas: string;
+	    TglKejadian: string;
+	    KetKecelakaan: string;
+	    Suplesi: string;
+	    NoSepSuplesi: string;
+	    KdPropinsi: string;
+	    NmPropinsi: string;
+	    KdKabupaten: string;
+	    NmKabupaten: string;
+	    KdKecamatan: string;
+	    NmKecamatan: string;
+	    TujuanKunjungan: string;
+	    FlagProcedure: string;
+	    KdPenunjang: string;
+	    AsesmenPelayanan: string;
+	    User: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SEPRequest(source);
@@ -303,6 +358,35 @@ export namespace domain {
 	        this.NoRujukan = source["NoRujukan"];
 	        this.CatatanPelayanan = source["CatatanPelayanan"];
 	        this.FPToken = source["FPToken"];
+	        this.TglRujukan = source["TglRujukan"];
+	        this.KdPPKRujukan = source["KdPPKRujukan"];
+	        this.NmPPKRujukan = source["NmPPKRujukan"];
+	        this.AsalRujukan = source["AsalRujukan"];
+	        this.DiagnosaAwal = source["DiagnosaAwal"];
+	        this.NamaDiagnosa = source["NamaDiagnosa"];
+	        this.NoMR = source["NoMR"];
+	        this.NoTelp = source["NoTelp"];
+	        this.NoSKDP = source["NoSKDP"];
+	        this.KdDPJP = source["KdDPJP"];
+	        this.Eksekutif = source["Eksekutif"];
+	        this.COB = source["COB"];
+	        this.Katarak = source["Katarak"];
+	        this.LakaLantas = source["LakaLantas"];
+	        this.TglKejadian = source["TglKejadian"];
+	        this.KetKecelakaan = source["KetKecelakaan"];
+	        this.Suplesi = source["Suplesi"];
+	        this.NoSepSuplesi = source["NoSepSuplesi"];
+	        this.KdPropinsi = source["KdPropinsi"];
+	        this.NmPropinsi = source["NmPropinsi"];
+	        this.KdKabupaten = source["KdKabupaten"];
+	        this.NmKabupaten = source["NmKabupaten"];
+	        this.KdKecamatan = source["KdKecamatan"];
+	        this.NmKecamatan = source["NmKecamatan"];
+	        this.TujuanKunjungan = source["TujuanKunjungan"];
+	        this.FlagProcedure = source["FlagProcedure"];
+	        this.KdPenunjang = source["KdPenunjang"];
+	        this.AsesmenPelayanan = source["AsesmenPelayanan"];
+	        this.User = source["User"];
 	    }
 	}
 	export class Ticket {
@@ -363,40 +447,7 @@ export namespace domain {
 }
 
 export namespace main {
-
-	export class Branding {
-	    hospital_name: string;
-	    hospital_tagline: string;
-	    logo_path: string;
-	    logo_data_url: string;
-	    primary_color: string;
-	    primary_color_dark: string;
-	    accent_color: string;
-	    bpjs_logo_path: string;
-	    bpjs_logo_data_url: string;
-	    audio_enabled: boolean;
-	    audio_volume: number;
-
-	    static createFrom(source: any = {}) {
-	        return new Branding(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.hospital_name = source["hospital_name"];
-	        this.hospital_tagline = source["hospital_tagline"];
-	        this.logo_path = source["logo_path"];
-	        this.logo_data_url = source["logo_data_url"];
-	        this.primary_color = source["primary_color"];
-	        this.primary_color_dark = source["primary_color_dark"];
-	        this.accent_color = source["accent_color"];
-	        this.bpjs_logo_path = source["bpjs_logo_path"];
-	        this.bpjs_logo_data_url = source["bpjs_logo_data_url"];
-	        this.audio_enabled = source["audio_enabled"];
-	        this.audio_volume = source["audio_volume"];
-	    }
-	}
-
+	
 	export class AdminLogEntry {
 	    id: number;
 	    table_name: string;
@@ -439,6 +490,38 @@ export namespace main {
 	        this.pending_sync = source["pending_sync"];
 	        this.uptime_sec = source["uptime_sec"];
 	        this.started_at = source["started_at"];
+	    }
+	}
+	export class Branding {
+	    hospital_name: string;
+	    hospital_tagline: string;
+	    logo_path: string;
+	    logo_data_url: string;
+	    primary_color: string;
+	    primary_color_dark: string;
+	    accent_color: string;
+	    bpjs_logo_path: string;
+	    bpjs_logo_data_url: string;
+	    audio_enabled: boolean;
+	    audio_volume: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Branding(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hospital_name = source["hospital_name"];
+	        this.hospital_tagline = source["hospital_tagline"];
+	        this.logo_path = source["logo_path"];
+	        this.logo_data_url = source["logo_data_url"];
+	        this.primary_color = source["primary_color"];
+	        this.primary_color_dark = source["primary_color_dark"];
+	        this.accent_color = source["accent_color"];
+	        this.bpjs_logo_path = source["bpjs_logo_path"];
+	        this.bpjs_logo_data_url = source["bpjs_logo_data_url"];
+	        this.audio_enabled = source["audio_enabled"];
+	        this.audio_volume = source["audio_volume"];
 	    }
 	}
 	export class HardwareStatus {
