@@ -41,18 +41,31 @@ type Provider struct {
 // db dipakai oleh ConsolePrinter untuk Reprint (perlu print_history).
 // Boleh nil — Reprint akan return error kalau dipanggil.
 func NewProvider(cfg config.Config, db *sql.DB) *Provider {
+	// Printer dispatch:
+	//  - Windows + mode=escpos_*  → real ESC/POS (USB / serial / network)
+	//  - Windows + mode=console   → ConsolePrinter (admin override untuk
+	//                               test tanpa printer fisik)
+	//  - Mac/Linux                → ConsolePrinter (config mode di-abaikan,
+	//                               kiosk tetap jalan tanpa printer)
+	var printerImpl printer.ThermalPrinter
+	if runtime.GOOS == "windows" && cfg.Printer.Mode != "console" {
+		printerImpl = printer.NewESCPOS(cfg.Printer, db)
+	} else {
+		printerImpl = printer.NewConsolePrinter(db)
+	}
+
 	switch runtime.GOOS {
 	case "windows":
 		return &Provider{
 			Frista:      frista.NewWindowsReader(cfg.Frista),
 			Fingerprint: fingerprint.NewWindowsHeadless(cfg.Fingerprint),
-			Printer:     printer.NewESCPOS(cfg.Printer, db),
+			Printer:     printerImpl,
 		}
 	default: // darwin (Mac), linux
 		return &Provider{
 			Frista:      frista.NewMock(cfg.Dev.MockServerPort),
 			Fingerprint: fingerprint.NewMock(),
-			Printer:     printer.NewConsolePrinter(db),
+			Printer:     printerImpl,
 		}
 	}
 }

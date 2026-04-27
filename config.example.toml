@@ -107,15 +107,19 @@ poll_interval_ms      = 500
 
 [printer]
 # Mode pilihan:
-#   "console"        → output ke stdout (Mac dev — pakai ini di non-Windows)
-#   "escpos_usb"     → USB printer (Windows production)
+#   "escpos_usb"     → USB printer thermal (default untuk kiosk Windows)
 #   "escpos_serial"  → Serial / RS232 (atau USB-to-Serial adapter)
 #   "escpos_network" → Network printer (LAN/Wi-Fi, port 9100 standar)
-mode      = "console"
-port      = "POS-58"               # USB: nama printer di Settings → Printers
-                                   # Serial: COM1 / /dev/cu.usbserial-A1234
+#   "console"        → output ke stdout (untuk dev tanpa printer)
+#
+# Default: USB POS-58 thermal printer (yang paling umum di kiosk RS Indonesia).
+# Mac/Linux dev: mode apapun di sini OTOMATIS jadi console (lihat
+# provider.go) — kiosk tetap jalan tanpa printer fisik.
+mode      = "escpos_usb"
+port      = "POS-58"               # USB: nama printer dari `Get-Printer` Windows
+                                   # Serial: COM3 / /dev/cu.usbserial-A1234
                                    # Network: 192.168.1.50:9100
-width_mm  = 58                     # 58 atau 80
+width_mm  = 58                     # 58 atau 80, sesuai printer thermal Anda
 
 [antrian]
 loket_prefix = "A"
