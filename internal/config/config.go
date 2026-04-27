@@ -174,6 +174,10 @@ type BrandingConfig struct {
 	PrimaryColor      string `mapstructure:"primary_color"`
 	PrimaryColorDark  string `mapstructure:"primary_color_dark"`
 	AccentColor       string `mapstructure:"accent_color"`
+
+	// BpjsLogoPath — opsional override logo BPJS Kesehatan dengan file resmi
+	// dari brosur RS. Kalau kosong, pakai SVG default di BpjsLogo.vue.
+	BpjsLogoPath string `mapstructure:"bpjs_logo_path"`
 }
 
 // AudioConfig — kontrol audio cue (tap/success/error sound).

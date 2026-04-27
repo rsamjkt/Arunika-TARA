@@ -475,6 +475,8 @@ type Branding struct {
 	PrimaryColor    string `json:"primary_color"`
 	PrimaryColorDark string `json:"primary_color_dark"`
 	AccentColor     string `json:"accent_color"`
+	BpjsLogoPath    string `json:"bpjs_logo_path"`
+	BpjsLogoDataURL string `json:"bpjs_logo_data_url"`  // override default SVG kalau RS punya file
 	AudioEnabled    bool   `json:"audio_enabled"`
 	AudioVolume     float64 `json:"audio_volume"`
 }
@@ -508,6 +510,15 @@ func (a *App) GetBranding() Branding {
 			out.LogoDataURL = "data:" + mime + ";base64," + data
 		} else {
 			a.logger.Warn("branding: gagal load logo", "path", b.LogoPath, "err", err.Error())
+		}
+	}
+	// Load logo BPJS file kalau ada (override SVG default di BpjsLogo.vue)
+	out.BpjsLogoPath = b.BpjsLogoPath
+	if b.BpjsLogoPath != "" {
+		if data, mime, err := readLogoAsDataURL(b.BpjsLogoPath); err == nil {
+			out.BpjsLogoDataURL = "data:" + mime + ";base64," + data
+		} else {
+			a.logger.Warn("branding: gagal load logo BPJS", "path", b.BpjsLogoPath, "err", err.Error())
 		}
 	}
 	return out

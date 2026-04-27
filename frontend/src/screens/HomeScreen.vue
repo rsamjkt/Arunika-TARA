@@ -14,7 +14,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
-  PhIdentificationCard,
   PhUser,
   PhTicket,
   PhFingerprint,
@@ -22,10 +21,12 @@ import {
   PhPhone,
   PhSparkle,
   PhCircleNotch,
+  PhCaretRight,
 } from '@phosphor-icons/vue'
 
 import StatusDot from '../components/StatusDot.vue'
 import IdleOverlay from '../components/IdleOverlay.vue'
+import BpjsLogo from '../components/BpjsLogo.vue'
 
 import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
@@ -210,7 +211,7 @@ onMounted(refreshStatus)
         </div>
       </div>
 
-      <!-- Hero BPJS — primary action 60% visual weight -->
+      <!-- Hero BPJS — primary action 60% visual weight + logo BPJS resmi -->
       <button
         type="button"
         class="text-left rounded-card transition-all
@@ -218,13 +219,18 @@ onMounted(refreshStatus)
                hover:opacity-95 active:opacity-90
                flex items-center gap-[clamp(14px,2.5vw,20px)]
                px-[clamp(20px,3vw,28px)] py-[clamp(20px,3vw,28px)]
-               min-h-[clamp(100px,13vw,130px)]
+               min-h-[clamp(110px,14vw,140px)]
                shadow-md text-white"
         :style="{ backgroundColor: 'var(--color-primary, #1B4FD8)' }"
         @click="startBPJS"
       >
-        <div class="bg-white/20 rounded-[12px] p-[clamp(12px,1.8vw,16px)] flex-shrink-0">
-          <PhIdentificationCard :size="40" weight="fill" />
+        <!-- Logo BPJS Kesehatan resmi (atau dari config kalau ada) -->
+        <div
+          class="bg-white rounded-[12px] p-[clamp(10px,1.5vw,14px)] flex-shrink-0
+                 flex items-center justify-center
+                 w-[clamp(72px,10vw,96px)] h-[clamp(72px,10vw,96px)]"
+        >
+          <BpjsLogo size="md" variant="icon" />
         </div>
         <div class="flex-1">
           <div class="text-[clamp(20px,2.8vw,26px)] font-semibold leading-tight">
@@ -234,7 +240,7 @@ onMounted(refreshStatus)
             Tap kartu BPJS atau ketik nomor — sistem otomatis mendeteksi jenis kunjungan
           </p>
         </div>
-        <PhSparkle :size="32" weight="bold" class="opacity-70" />
+        <PhCaretRight :size="32" weight="bold" class="opacity-80" />
       </button>
 
       <!-- 2 Secondary cards: Umum + Antrian Loket -->

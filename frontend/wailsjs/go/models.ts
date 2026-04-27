@@ -372,6 +372,8 @@ export namespace main {
 	    primary_color: string;
 	    primary_color_dark: string;
 	    accent_color: string;
+	    bpjs_logo_path: string;
+	    bpjs_logo_data_url: string;
 	    audio_enabled: boolean;
 	    audio_volume: number;
 
@@ -388,6 +390,8 @@ export namespace main {
 	        this.primary_color = source["primary_color"];
 	        this.primary_color_dark = source["primary_color_dark"];
 	        this.accent_color = source["accent_color"];
+	        this.bpjs_logo_path = source["bpjs_logo_path"];
+	        this.bpjs_logo_data_url = source["bpjs_logo_data_url"];
 	        this.audio_enabled = source["audio_enabled"];
 	        this.audio_volume = source["audio_volume"];
 	    }

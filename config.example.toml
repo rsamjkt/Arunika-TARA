@@ -34,6 +34,11 @@ primary_color      = "#1B4FD8"
 primary_color_dark = ""             # kosong = auto-darken 12%
 accent_color       = ""             # kosong = derive dari primary
 
+# Logo BPJS Kesehatan untuk pasien BPJS — opsional override.
+# Default: SVG inline yang sudah dibundle (lihat BpjsLogo.vue).
+# Set kalau RS punya file logo BPJS resmi dari brosur cabang BPJS.
+bpjs_logo_path     = ""             # mis. "./assets/logo-bpjs.png"
+
 [audio]
 # Audio cue (tap sound, success chime, error tone).
 # Disable kalau kiosk di environment yang sudah ramai (audio bukan tambahan info).

@@ -32,6 +32,7 @@ import NumPad from '../components/NumPad.vue'
 import InputDisplay from '../components/InputDisplay.vue'
 import IdleOverlay from '../components/IdleOverlay.vue'
 import BackButton from '../components/BackButton.vue'
+import BpjsLogo from '../components/BpjsLogo.vue'
 
 import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
@@ -135,14 +136,19 @@ onUnmounted(() => {
 
 <template>
   <main class="min-h-screen bg-bg flex flex-col">
-    <!-- Header -->
+    <!-- Header — kalau mode BPJS, tampilkan logo BPJS Kesehatan resmi -->
     <header
-      class="bg-surface border-b border-border flex items-center
+      class="bg-surface border-b border-border flex items-center justify-between
              px-[clamp(16px,3vw,28px)] py-[clamp(12px,1.8vw,16px)]"
     >
       <h1 class="text-[clamp(16px,2.2vw,20px)] font-semibold text-text-primary">
         {{ title }}
       </h1>
+      <BpjsLogo
+        v-if="mode === 'bpjs'"
+        size="sm"
+        variant="full"
+      />
     </header>
 
     <!-- Body — dual-channel split -->

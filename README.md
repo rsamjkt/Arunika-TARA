@@ -441,15 +441,126 @@ App auto-decrypt saat startup. Tidak perlu rebuild atau setup ulang.
 3. **Edit `config.toml`** — set `[fingerprint] exe_path`, `username_enc`, `password_enc`
 4. **Restart app** — auto-login saat APM start
 
-### Thermal Printer
+### Thermal Printer — Setup Detail
 
-1. **Install driver** Windows untuk printer USB ESC/POS-mu
-2. **Cek nama printer**: Settings → Printers & scanners → copy nama persis
-3. **Edit `config.toml`** — set `[printer] mode = "escpos_usb"` + `port = "Nama_Printer"`
-4. **Test cetak** dari admin panel APM atau via:
-   ```bash
-   curl http://localhost:34115/admin/test-print
-   ```
+T.A.R.A support 4 mode printer di `[printer] mode`:
+
+| Mode | Untuk apa | Dipakai kapan |
+|---|---|---|
+| `console` | Output ke stdout terminal | Mac/Linux dev |
+| `escpos_usb` | USB printer terinstall di OS | **Production Windows** |
+| `escpos_serial` | Serial RS-232 atau USB-to-Serial adapter | Printer dot-matrix lama |
+| `escpos_network` | LAN/Wi-Fi printer (port 9100) | Shared printer satu jaringan |
+
+#### Step 1 — Install printer driver
+
+1. Hubungkan printer USB ke kiosk
+2. Windows biasanya auto-detect (driver Generic / Text Only). Kalau gagal:
+   - Install vendor driver dari CD / website (mis. https://gprinter.net, https://xprinter.net)
+3. **Test cetak halaman test dari OS** dulu sebelum lanjut:
+   - Settings → Bluetooth & devices → Printers & scanners → klik printer → Manage → Print test page
+
+#### Step 2 — Cari nama printer / port
+
+**Windows USB:**
+```powershell
+Get-Printer | Select-Object Name, PortName, DriverName
+```
+Sample output:
+```
+Name              PortName     DriverName
+----              --------     ----------
+EPSON TM-T82      USB001       Generic / Text Only
+POS-58            USB002       Microsoft Generic / Text
+```
+→ Copy kolom `Name` (bukan `PortName`) — itu yang di-config.
+
+**Serial / COM port:**
+```powershell
+[System.IO.Ports.SerialPort]::GetPortNames()
+# Output: COM1, COM3, COM4
+```
+
+**Network:**
+- IP printer biasanya di stiker bawah / panel printer LCD
+- Port standar ESC/POS network: `9100`
+- Format: `192.168.x.x:9100`
+
+**Mac dev (test only):**
+```bash
+lpstat -p              # USB & network printer terdaftar
+ls /dev/cu.usbserial-* # Serial via USB-Serial adapter
+```
+
+#### Step 3 — Edit `config.toml`
+
+Pilih sesuai jenis printer. Setelah edit, **restart kiosk** (Cmd+Q + run lagi, atau `Restart-Service APM-TARA`).
+
+**USB (paling umum di kiosk Windows):**
+```toml
+[printer]
+mode      = "escpos_usb"
+port      = "POS-58"            # nama persis dari Get-Printer
+width_mm  = 58                  # 58 atau 80 sesuai printer
+```
+
+**Serial (printer dot-matrix / RS-232 via adapter):**
+```toml
+[printer]
+mode      = "escpos_serial"
+port      = "COM3"              # Windows COM port
+# port    = "/dev/cu.usbserial-A1234"   # Mac/Linux
+width_mm  = 80
+```
+
+**Network (shared LAN/Wi-Fi printer):**
+```toml
+[printer]
+mode      = "escpos_network"
+port      = "192.168.1.50:9100"
+width_mm  = 80
+```
+
+#### Step 4 — Test cetak
+
+Setelah restart APM:
+1. Buka **Admin Panel** di kiosk (PIN dari `[admin] pin` config — default `1234`)
+2. Klik **"Test Cetak Tiket"** — printer akan keluarkan struk dummy berisi nama RS + nomor sample
+3. Atau test pasien beneran: ambil antrian loket → struk harus keluar otomatis
+
+#### Troubleshooting cetak
+
+| Gejala | Kemungkinan penyebab | Fix |
+|---|---|---|
+| Tidak ada cetak sama sekali | Driver salah, printer offline | Test print dari OS dulu (step 1) |
+| `port not found` di log | Nama printer salah | Pakai persis output `Get-Printer` (sensitive case + spasi) |
+| Cetak garbled / aneh | Encoding / width mismatch | Pastikan `width_mm` match printer; banyak printer Cina butuh 58mm meski casing 80mm |
+| Cetak tapi terpotong | Margin terlalu lebar | Edit template ESC/POS di `templates/` folder |
+| Network printer reject | Firewall block port 9100 | Buka inbound TCP 9100 di Windows Defender Firewall |
+| Serial baud rate mismatch | Default 9600 tidak cocok | Cek manual printer; biasanya 9600/19200/115200 — masih hardcoded di kode (bisa di-config nanti) |
+
+#### Print pattern T.A.R.A — apa yang dicetak kapan
+
+| Aksi pasien | Yang dicetak | Tabel SQLite log |
+|---|---|---|
+| Ambil antrian loket (single-tap di Home) | Struk antrian: nomor (A001), waktu, nama RS, lokasi tunggu | `print_history` doc_type=ANTRIAN |
+| Daftar Pasien Umum | Struk pendaftaran: no_rawat, no_urut, poli, dokter, jam, biaya | `print_history` doc_type=PENDAFTARAN |
+| Daftar BPJS Rujukan Baru | Struk + no_sep + no_urut + DPJP | `print_history` doc_type=SEP |
+| Daftar BPJS Kontrol (SKDP) | Struk + no_sep + SKDP info + DPJP | `print_history` doc_type=SEP_KONTROL |
+| Reprint via Admin | Cetak ulang byte-stream dari `print_history` | (read-only) |
+
+#### Logo BPJS di struk (opsional)
+
+Kalau RS punya file logo BPJS resmi (PNG, 1-bit untuk kompresi terbaik), set di `config.toml`:
+```toml
+[branding]
+bpjs_logo_path = "./assets/logo-bpjs.png"      # akan dipakai di kiosk UI + struk BPJS
+```
+
+Logo otomatis dipakai di:
+- Hero "Pasien BPJS" di HomeScreen
+- Header `InputScreen` saat mode BPJS
+- Struk SEP yang dicetak (untuk pasien BPJS)
 
 ### Class Name UI Automation (kalau auto-login gagal)
 
