@@ -1,199 +1,607 @@
-# T.A.R.A — Total Automated Registration Assistant
+# APM · T.A.R.A
 
-> **Arunika · TaRa** — Anjungan Pasien Mandiri (APM) generasi baru untuk rumah sakit Indonesia.
-> Reimplementasi Go + Wails dari sistem APM legacy, dengan **Smart BPJS Detector**, integrasi penuh BPJS (VClaim · Antrol · Mobile JKN) dan SIMRS Khanza.
+> **Arunihealth · T.A.R.A** — _Total Automated Registration Assistant_
+> Anjungan Pasien Mandiri (APM) generasi baru untuk rumah sakit Indonesia, dibangun dengan **Go + Wails + Vue 3**, terintegrasi langsung dengan **SIMRS Khanza** (MySQL atau REST), **BPJS** (VClaim · Antrol · Mobile JKN), **Frista card reader**, dan **Aplikasi Sidik Jari BPJS**.
 
 [![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Wails](https://img.shields.io/badge/Wails-v2-FF0000)](https://wails.io)
 [![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org)
 [![Tailwind](https://img.shields.io/badge/Tailwind-3-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white)]()
+[![Platform](https://img.shields.io/badge/Production-Windows%2010%2F11-0078D4?logo=windows&logoColor=white)]()
 [![Dev](https://img.shields.io/badge/Dev-macOS%20%7C%20Linux-000000?logo=apple&logoColor=white)]()
+
+---
+
+## Daftar Isi
+
+- [Tentang T.A.R.A](#tentang-tara)
+- [Fitur Utama](#fitur-utama)
+- [Smart BPJS Detector](#smart-bpjs-detector)
+- [Quickstart — Pakai Aplikasi (Production)](#quickstart--pakai-aplikasi-production)
+- [Konfigurasi `config.toml`](#konfigurasi-configtoml)
+- [Setup Credential](#setup-credential)
+- [Setup Hardware](#setup-hardware)
+- [Operasi Sehari-hari](#operasi-sehari-hari)
+- [Setup Development](#setup-development)
+- [Build dari Source](#build-dari-source)
+- [Arsitektur](#arsitektur)
+- [Troubleshooting](#troubleshooting)
+- [Lisensi](#lisensi)
 
 ---
 
 ## Tentang T.A.R.A
 
-**T.A.R.A** (*Total Automated Registration Assistant*) adalah perangkat lunak Anjungan Pasien Mandiri yang berjalan sebagai **kiosk fullscreen** di rumah sakit. Pasien melakukan registrasi sendiri — cukup tap kartu KTP atau ketik NIK/No. Kartu BPJS — sistem akan otomatis mendeteksi jenis kunjungan, membuat SEP, mendaftar ke poli, dan mencetak tiket antrian.
+T.A.R.A adalah perangkat lunak Anjungan Pasien Mandiri yang berjalan sebagai **kiosk fullscreen** di rumah sakit. Pasien melakukan registrasi sendiri — tap kartu KTP, ketik NIK, atau ketik No. Kartu BPJS — sistem akan **otomatis mendeteksi jenis kunjungan**, membuat SEP, mendaftar ke poli, dan mencetak tiket antrian.
 
 | Atribut | Detail |
 |---|---|
 | **Pemilik** | PT. Arunika Komputasi Awan Integrasi |
+| **Codename rilis** | Mahatma (v1.0.0) |
 | **Repo** | [github.com/rsamjkt/Arunika-TARA](https://github.com/rsamjkt/Arunika-TARA) |
 | **Stack** | Go 1.22+ · Wails v2 · Vue 3 · Tailwind CSS · SQLite |
-| **Target Deploy** | Windows 10/11 x64 (kiosk & loket) |
+| **Target Deploy** | Windows 10/11 x64 (kiosk) |
 | **Development** | macOS / Linux (cross-compile ke Windows) |
 
 ---
 
 ## Fitur Utama
 
-### Smart BPJS Detector — *unggulan T.A.R.A*
-
-Pasien input **satu identitas saja** (No. Kartu / NIK / No. RM). Sistem menjalankan 5 pengecekan **paralel** (4 goroutine + 1 serial), lalu mengembalikan **kategori kunjungan** dengan prioritas yang benar.
-
-```
-       Input identitas (No. Kartu / NIK / No. RM)
-                       │
-                       ▼
-       [1] VClaim · GetPeserta · validasi status aktif (SERIAL)
-                       │
-                       ▼  (4 paralel · timeout 5 detik)
-   ┌───────────┬──────────────┬─────────────┬───────────────┐
-   │   MJKN    │   KONTROL    │ POST_RANAP  │  POST_RAJAL   │
-   │  Antrol   │ Khanza surat │ Khanza      │ Khanza        │
-   │           │ kontrol      │ kamar_inap  │ reg_periksa   │
-   └───────────┴──────────────┴─────────────┴───────────────┘
-                       │
-              Priority resolution:
-   MJKN > KONTROL > POST_RANAP > POST_RAJAL > RUJUKAN_BARU
-```
-
-### Daftar Fitur Lengkap
-
-- 🎯 **Smart Detector** — 5 pemeriksaan paralel, prioritas otomatis, hasil <5 detik
-- 🆔 **Frista Card Reader** — auto-baca KTP, auto-fill form (Windows: USB HID + auto-login headless)
-- 👆 **Fingerprint BPJS** — integrasi `After.exe` headless via Windows UI Automation
-- 🖨️ **Thermal Printer ESC/POS** — cetak tiket antrian dengan template Go `text/template`
-- 📋 **3 Jalur Antrian** — Loket Admisi, Poli, Umum (counter management)
-- 🏥 **Pendaftaran Otomatis** — Poli Umum & BPJS, integrasi langsung Khanza SIMRS
-- 📲 **Aktivasi Satu Sehat Mobile** — flow OAuth2 untuk pasien
-- 🔄 **Offline Queue & Reconcile** — background worker, tahan saat BPJS API down
-- 🎨 **Kiosk UI Responsif** — `clamp()` di mana-mana, jalan mulus 15"–32" monitor
-- 🔐 **Credential Encryption** — Windows DPAPI + AES-256-GCM untuk config sensitif
-- 🪵 **PHI-Safe Logging** — NIK/No.Kartu/No.RM otomatis di-mask di log
+- 🧠 **Smart BPJS Detector** — auto-classify pasien ke 6 kategori (MJKN / Kontrol / PostRANAP / PostRAJAL / Rujukan Baru / Tidak Aktif) tanpa pilih manual operator.
+- 🏥 **Pasien Umum lengkap** — INSERT 19 kolom `reg_periksa` benar (nama PJ, alamat lengkap join 5 tabel master, biaya dari `poliklinik.registrasilama`, smart umur Th/Bl/Hr).
+- 🔌 **Khanza Dual-Mode** — Direct MySQL (mengikuti pola `anjunganmandiriSEP`) **atau** REST API Laravel — switchable via 1 baris config.
+- 🆔 **Frista auto-launch** — spawn `frista.exe` headless, auto-login via Win32 UI Automation, capture data kartu via clipboard polling.
+- 👆 **Aplikasi Sidik Jari BPJS auto-login** — spawn `After.exe` headless, auto-isi username/password, REST polling untuk hasil scan.
+- 🖨️ **Thermal Printer ESC/POS** — USB / Serial / Network, template Go `text/template`.
+- 📋 **Antrian 3 Jalur** — Loket Admisi / Poli / Umum dengan reset harian via cron.
+- 🔄 **Offline Queue + Reconcile** — kalau Khanza atau BPJS down, data antri di SQLite lokal, sync otomatis saat pulih.
+- 🔒 **Credential Encryption** — AES-256-GCM, key dari Windows DPAPI / Mac Keychain.
+- 🪵 **PHI-Safe Logging** — NIK/No.Kartu/No.RM auto-mask di log.
+- 🎨 **Kiosk UI Responsif** — Vue 3 + Tailwind `clamp()`, jalan mulus 15"–32" monitor.
 
 ---
 
-## Arsitektur Singkat
+## Smart BPJS Detector
+
+Pasien input **satu identitas saja** (No. Kartu / NIK / No. RM). Sistem fire 5 pengecekan **paralel** dengan timeout 5 detik, lalu pilih kategori paling spesifik.
 
 ```
-apm-go/
-├── cmd/apm/main.go              ← Entry point Wails
-├── internal/
-│   ├── config/                  ← Viper TOML loader + hot-reload
-│   ├── domain/                  ← Pure structs, interfaces, enums (no external deps)
-│   ├── service/
-│   │   ├── detector/            ← ★ Smart BPJS Detector (5 goroutine paralel)
-│   │   ├── antrian/             ← Counter management, 3 jalur
-│   │   ├── sep/                 ← SEP builder + VClaim integration
-│   │   ├── pendaftaran/         ← Registrasi poli umum & BPJS
-│   │   └── satusehat/           ← Aktivasi Satu Sehat Mobile
-│   ├── integration/
-│   │   ├── vclaim/              ← BPJS VClaim v2 (HMAC-SHA256 + AES-256-CBC decrypt)
-│   │   ├── antrol/              ← BPJS Antrean Online API
-│   │   ├── mjkn/                ← Mobile JKN API
-│   │   └── khanza/              ← Laravel SIMRS Khanza REST client
-│   ├── hardware/
-│   │   ├── frista/              ← Mac: mock | Windows: USB HID + auto-login
-│   │   ├── fingerprint/         ← Mac: mock | Windows: headless After.exe
-│   │   └── printer/             ← ESC/POS thermal printer
-│   ├── store/                   ← sqlc generated SQLite access
-│   └── reconcile/               ← Offline queue background worker
-├── frontend/                    ← Vue 3 + Tailwind CSS kiosk UI
-│   ├── src/screens/             ← HomeScreen, DetectScreen, ResultScreen, dll
-│   ├── src/components/          ← BigButton, PatientCard, NumPad, dll
-│   └── src/stores/              ← Pinia: patient, antrian, detection
-├── migrations/                  ← SQLite schema SQL
-├── templates/                   ← ESC/POS print templates
-├── config.example.toml          ← Template konfigurasi (commit ini, BUKAN config.toml asli)
-└── Makefile                     ← dev · build-mac · build-windows · test
+       Input identitas
+              │
+              ▼
+       [VClaim · GetPeserta · validasi status aktif]  ← serial
+              │
+              ▼  4 paralel + fallback chain
+   ┌──────────┬──────────┬──────────┬──────────┐
+   │  MJKN    │ KONTROL  │ POST_RA  │ POST_RA  │
+   │          │   BPJS   │   NAP    │   JAL    │
+   ├──────────┼──────────┼──────────┼──────────┤
+   │ Antrol   │ bridging_│ kamar_   │ rujukan_ │
+   │  API     │ surat_   │ inap +   │ internal │
+   │   ↓      │ kontrol_ │ dpjp_    │ _poli    │
+   │ Khanza   │ bpjs     │ ranap    │   ↓      │
+   │ booking_ │ JOIN     │  (window │  SKDP    │
+   │ regis    │ bridging │  ≤7 hr)  │ fallback │
+   │ (fall    │ _sep     │          │          │
+   │  back)   │  (window │          │          │
+   │          │  ≤30 hr) │          │          │
+   └──────────┴──────────┴──────────┴──────────┘
+              │
+   Priority resolution (paling spesifik menang):
+   MJKN > KONTROL > POSTRANAP > POSTRAJAL > RUJUKAN_BARU
 ```
 
-### Dual-Platform: Satu Codebase, Dua Runtime
+**Yang membuat T.A.R.A lebih SMART** dibanding implementasi manual klasik:
 
-T.A.R.A dikembangkan di **Mac/Linux** (mock hardware) lalu di-deploy ke **Windows** (real hardware). Deteksi platform dilakukan sekali di `internal/hardware/provider.go`:
-
-```go
-func NewProvider(cfg config.Config) *Provider {
-    switch runtime.GOOS {
-    case "windows":
-        return &Provider{
-            Frista:      frista.NewWindowsReader(cfg.Frista),
-            Fingerprint: fingerprint.NewWindowsHeadless(cfg.Fingerprint),
-            Printer:     printer.NewESCPOS(cfg.Printer),
-        }
-    default: // darwin (Mac), linux — development
-        return &Provider{
-            Frista:      frista.NewMock(cfg.Dev.MockServerPort),
-            Fingerprint: fingerprint.NewMock(),
-            Printer:     printer.NewConsolePrinter(),
-        }
-    }
-}
-```
+1. **Auto-classify** — operator tidak perlu pilih jenis pasien
+2. **Date-window** — Kontrol ≤30 hari, PostRANAP ≤7 hari, MJKN exact today
+3. **Multi-source fallback** — kalau Antrol down, fallback ke `booking_registrasi` di Khanza
+4. **Schema-aware mapping** — auto-translate `kd_poli` & `kd_dokter` BPJS ↔ kode RS via `maping_poli_bpjs` & `maping_dokter_dpjpvclaim`
+5. **Graceful degradation** — kalau VClaim error, tetap bisa lanjut sebagai kategori DB-lokal
 
 ---
 
-## Instalasi
+## Quickstart — Pakai Aplikasi (Production)
 
-### A. Setup Development di macOS / Linux
+> Untuk install sebagai kiosk RS production. Build sudah jadi — tinggal deploy.
 
-#### 1. Install Prerequisites
+### 1. Download Release
+
+Download dari [GitHub Releases](https://github.com/rsamjkt/Arunika-TARA/releases) — pilih sesuai platform:
+- **macOS** (Universal — Intel + Apple Silicon): `apm-go-mac-universal.zip`
+- **Windows** (x64): `apm-windows-amd64.zip`
+
+### 2. Extract + Letak File
+
+Layout file yang harus ada di **satu folder**:
+
+```
+APM/
+├── apm-go.app                ← (Mac) atau apm.exe (Windows)
+├── config.toml               ← edit sesuai environment RS
+├── migrations/
+│   └── 001_initial.sql       ← schema SQLite lokal
+├── data/                     ← auto-created saat first launch
+└── logs/                     ← auto-created
+```
+
+**Mac**: extract zip, lalu copy `config.example.toml` (dari repo) ke `config.toml` di folder yang sama dengan `.app`.
+
+**Windows**: extract zip, lalu copy `config.example.toml` ke `config.toml` di folder yang sama dengan `apm.exe`.
+
+### 3. Edit `config.toml`
+
+Minimum yang harus diisi (lihat [section konfigurasi lengkap](#konfigurasi-configtoml)):
+
+```toml
+[server]
+khanza_dsn = "user:password@tcp(IP_SERVER:3306)/nama_database?parseTime=true&loc=Local&timeout=5s"
+
+[bpjs]
+vclaim_url      = "https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/"
+cons_id         = "12345"           # dari kantor cabang BPJS
+consumer_secret = "xxx-xxx-xxx"     # dari kantor cabang BPJS
+user_key        = "xxxxxxxxxxxx"    # dari kantor cabang BPJS
+```
+
+### 4. Jalankan
+
+**Mac** — pakai script launcher (recommended):
 
 ```bash
-# Go 1.22+
-brew install go
-
-# Wails v2
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-# Node.js 18+ (frontend Vue)
-brew install node
-
-# Cross-compile toolchain (untuk build Windows dari Mac)
-brew install mingw-w64
-
-# Verifikasi
-go version                          # go1.22+
-wails version                       # v2.x
-node --version                      # v18+
-x86_64-w64-mingw32-gcc --version    # cross-compiler Windows
+cd /path/to/APM
+./run.sh
 ```
 
-#### 2. Clone Repository
+Atau manual via terminal:
+```bash
+cd /path/to/APM
+APM_CONFIG_PATH=./config.toml ./apm-go.app/Contents/MacOS/apm-go
+```
+
+**Windows**:
+- Double-click `apm.exe`, atau
+- Run sebagai service (lihat [section Operasi](#operasi-sehari-hari))
+
+### 5. Verifikasi
+
+Cek `logs/apm.log` — harus muncul:
+
+```json
+{"level":"INFO","msg":"khanza: mode direct MySQL aktif"}
+{"level":"INFO","msg":"app initialized","platform":"darwin","real_hardware":false}
+```
+
+Window kiosk fullscreen kebuka di layar — siap dipakai pasien.
+
+---
+
+## Konfigurasi `config.toml`
+
+### Section `[app]`
+
+```toml
+[app]
+idle_timeout_sec = 60                # detik idle sebelum auto-back ke home
+log_level        = "info"            # debug | info | warn | error
+log_dir          = "./logs"          # path output log
+timezone         = "Asia/Jakarta"
+version          = "1.0.0"
+```
+
+### Section `[server]` — koneksi SIMRS Khanza
+
+**Mode 1 — Direct MySQL (recommended, lebih cepat)**:
+
+```toml
+[server]
+khanza_url        = ""                # kosongkan
+khanza_api_key    = ""
+khanza_dsn        = "user:password@tcp(10.0.2.121:3306)/nama_db?parseTime=true&loc=Local&timeout=5s"
+khanza_kd_pj_umum = "A03"             # kode penjamin Umum di tabel penjab RS-mu
+khanza_kd_pj_bpjs = "BPJ"             # kode penjamin BPJS
+timeout_ms        = 5000
+retry             = 2
+```
+
+Kode `kd_pj` Umum/BPJS RS-spesifik. Cek dengan SQL:
+```sql
+SELECT kd_pj, png_jawab, status FROM penjab WHERE status='1';
+```
+
+**Mode 2 — REST API Khanza Laravel**:
+
+```toml
+[server]
+khanza_url     = "http://192.168.1.10:8080"   # base URL Laravel API
+khanza_api_key = "REPLACE_WITH_BEARER_TOKEN"
+khanza_dsn     = ""                            # kosongkan
+timeout_ms     = 10000
+retry          = 2
+```
+
+Aplikasi auto-pilih mode berdasar mana yang diisi (DSN menang kalau keduanya non-kosong).
+
+### Section `[bpjs]`
+
+```toml
+[bpjs]
+# Production
+vclaim_url      = "https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/"
+# Development
+# vclaim_url    = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
+
+cons_id              = "12345"            # dari BPJS — angka konsumen ID
+consumer_secret      = "secret-string"    # untuk HMAC-SHA256 signing
+user_key             = "user-key-hex"     # API key BPJS (header X-cons-id)
+antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
+detector_timeout_ms  = 5000               # timeout fase paralel detector
+```
+
+**Cara dapat credential BPJS**:
+1. RS daftar ke kantor cabang BPJS sebagai integrator
+2. BPJS issue: `cons_id`, `consumer_secret`, `user_key`
+3. RS kasih: IP address kiosk untuk di-whitelist BPJS
+
+Tanpa whitelist → endpoint production akan return `connection refused`.
+
+### Section `[fingerprint]` — Aplikasi Sidik Jari BPJS
+
+```toml
+[fingerprint]
+exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
+rest_url           = "http://localhost:9999/finger-rest/"   # internal After.exe REST
+username_enc       = "username_anda"                        # plaintext OK, atau ENC: prefix kalau encrypted
+password_enc       = "password_anda"
+scan_timeout_sec   = 30
+poll_interval_ms   = 500
+
+# UI Automation — class names dialog login After.exe
+# Default Delphi VCL: TfrmLogin / TEdit / TButton — biasanya cukup
+window_class_login    = "TfrmLogin"
+window_class_edit     = "TEdit"
+window_class_button   = "TButton"
+startup_delay_sec     = 3                # tunggu setelah spawn sebelum inject
+```
+
+### Section `[frista]` — Card Reader
+
+```toml
+[frista]
+exe_path          = "C:\\Program Files\\Frista\\frista.exe"
+username_enc      = "username_frista"
+password_enc      = "password_frista"
+read_timeout_ms   = 1000
+restart_on_crash  = true
+
+# UI Automation — class names dialog login Frista
+window_class_login    = "TfrmLogin"
+window_class_edit     = "TEdit"
+window_class_button   = "TButton"
+startup_delay_sec     = 5                # Frista lebih lambat dari After.exe
+
+# Polling clipboard untuk capture card data
+poll_interval_ms      = 500
+```
+
+### Section `[printer]`
+
+```toml
+[printer]
+# Mode pilihan:
+#   "console"        → output ke stdout (Mac dev)
+#   "escpos_usb"     → USB printer (Windows production)
+#   "escpos_serial"  → Serial / RS232 (atau USB-to-Serial adapter)
+#   "escpos_network" → Network printer (Wi-Fi / LAN)
+mode      = "escpos_usb"
+port      = "POS-58"                # USB: nama printer di System Settings
+                                    # Serial: COM1 / /dev/cu.usbserial-A1234
+                                    # Network: 192.168.1.50:9100
+width_mm  = 58                      # 58 atau 80
+```
+
+**Cara cek nama printer**:
+- **Windows**: `Settings → Bluetooth & devices → Printers & scanners` → copy nama persis
+- **Mac**: `lpstat -p` → list printer terdaftar
+- **Serial**: `ls /dev/cu.*` (Mac) atau Device Manager → COM Ports (Windows)
+
+### Section `[antrian]`
+
+```toml
+[antrian]
+loket_prefix = "A"                  # tiket loket: A-001, A-002, ...
+poli_prefix  = "B"                  # tiket poli: B-001, B-002, ...
+umum_prefix  = "C"                  # tiket umum: C-001, ...
+reset_time   = "00:01"              # HH:MM WIB — auto-reset counter harian
+```
+
+### Section `[admin]`
+
+```toml
+[admin]
+pin = "1234"                        # PIN 4-6 digit untuk akses admin panel
+                                    # Kosongkan = panel admin tanpa PIN (dev)
+```
+
+### Section `[dev]`
+
+```toml
+[dev]
+mock_hardware    = true             # Mac/Linux dev — auto-mock Frista/Fingerprint/Printer
+mock_server_port = 9090             # HTTP mock untuk simulasi tap kartu
+```
+
+---
+
+## Setup Credential
+
+T.A.R.A perlu **3 set credential** — semua bisa disimpan plaintext untuk dev, atau di-enkripsi untuk production.
+
+### 1. Khanza Database
+
+DSN MySQL standar Go:
+```
+user:password@tcp(host:port)/database?parseTime=true&loc=Local&timeout=5s
+```
+
+Pakai **user database read-write** yang punya akses ke tabel:
+- `pasien`, `reg_periksa`, `poliklinik`, `dokter`, `jadwal`, `penjab`
+- `kamar_inap`, `dpjp_ranap`, `bangsal`, `kamar`
+- `bridging_sep`, `bridging_surat_kontrol_bpjs`, `bridging_rujukan_bpjs`
+- `rujuk_masuk`, `bpjs_prb`, `booking_registrasi`
+- `rujukan_internal_poli`, `maping_poli_bpjs`, `maping_dokter_dpjpvclaim`
+- `kelurahan`, `kecamatan`, `kabupaten`, `propinsi`, `flagging_pasien_satusehat`
+
+User minimum dengan grant:
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON nama_db.* TO 'apm_user'@'IP_KIOSK';
+FLUSH PRIVILEGES;
+```
+
+### 2. BPJS API
+
+Setelah dapat `cons_id`, `consumer_secret`, `user_key` dari kantor cabang BPJS:
+
+```toml
+[bpjs]
+cons_id         = "12345"
+consumer_secret = "abc-def-ghi"
+user_key        = "1234567890abcdef"
+```
+
+**TIDAK** perlu di-encrypt — credential ini di-share dengan vendor sistem RS (bukan personal).
+
+### 3. Frista + Aplikasi Sidik Jari BPJS
+
+Username/password yang dipakai operator login secara manual. Operator → IT minta credential → masukkan ke `config.toml`:
+
+```toml
+[fingerprint]
+username_enc = "operator_bpjs"
+password_enc = "rahasia123"
+
+[frista]
+username_enc = "operator_frista"
+password_enc = "rahasia456"
+```
+
+> **Plaintext OK kalau `config.toml` di-protect dengan filesystem permission**. Tapi di kiosk yang multi-user fisik, _enkripsi wajib_.
+
+#### Encrypt credential (production)
+
+Jalankan sekali dari PowerShell sebagai Administrator (Windows) atau Terminal (Mac):
+
+```powershell
+.\apm.exe --encrypt-config
+```
+
+```bash
+# Mac
+./apm-go.app/Contents/MacOS/apm-go --encrypt-config
+```
+
+Apa yang terjadi:
+1. App baca `config.toml`
+2. Untuk setiap field `*_enc` yang plaintext → encrypt dengan AES-256-GCM
+3. Master key di-derive dari **Windows DPAPI** (Windows) atau **Keychain** (Mac)
+4. Field di-update jadi `ENC:base64hash...`
+
+Setelah encrypt, `config.toml` aman di-share — tapi master key **tidak portable** (akun OS / mesin tertentu).
+
+Contoh hasil:
+```toml
+[fingerprint]
+username_enc = "ENC:KGc3Y2lQ..."
+password_enc = "ENC:TmF4ZGV..."
+```
+
+App auto-decrypt saat startup. Tidak perlu rebuild atau setup ulang.
+
+---
+
+## Setup Hardware
+
+### Frista Card Reader (Windows production)
+
+1. **Install Frista** dari vendor (file dari BPJS / RSU)
+2. **Konfigurasi reader USB** terpasang dan terdeteksi Windows
+3. **Test manual** — buka `frista.exe`, login dengan operator credential, tap KTP → harus muncul data NIK + nama
+4. **Edit `config.toml`** — set `[frista] exe_path` = path absolut ke `frista.exe`
+5. **Edit `[frista] username_enc / password_enc`** — credential operator
+6. **Restart app** — APM akan spawn frista.exe headless + auto-login + monitor clipboard
+
+**Cara kerja capture card**: setelah login sukses, Frista output ke Windows clipboard setiap kartu di-tap. Format yang di-support:
+- JSON: `{"nik":"...","nama":"...","tgl_lahir":"...","alamat":"...","no_kartu":"..."}`
+- Pipe-delimited: `NIK#NAMA#TGL#ALAMAT#NO_KARTU`
+
+### Aplikasi Sidik Jari BPJS (`After.exe`)
+
+1. **Install dari BPJS** — _Aplikasi Sidik Jari BPJS Kesehatan_ (versi 2.0+)
+2. **Test manual** — buka `After.exe`, login, scan jari → harus connect ke server BPJS
+3. **Edit `config.toml`** — set `[fingerprint] exe_path`, `username_enc`, `password_enc`
+4. **Restart app** — auto-login saat APM start
+
+### Thermal Printer
+
+1. **Install driver** Windows untuk printer USB ESC/POS-mu
+2. **Cek nama printer**: Settings → Printers & scanners → copy nama persis
+3. **Edit `config.toml`** — set `[printer] mode = "escpos_usb"` + `port = "Nama_Printer"`
+4. **Test cetak** dari admin panel APM atau via:
+   ```bash
+   curl http://localhost:34115/admin/test-print
+   ```
+
+### Class Name UI Automation (kalau auto-login gagal)
+
+Default class name Delphi VCL biasanya cukup. Tapi kalau Frista atau After.exe versi non-standar:
+
+1. Install [Spy++](https://learn.microsoft.com/en-us/visualstudio/debugger/introducing-spy-increment) (Visual Studio Tools)
+2. Buka dialog login Frista / After.exe secara manual
+3. Drag Spy++ finder cursor ke window login
+4. Catat **Class Name** dari window utama, dari TextBox, dari Button
+5. Update di `config.toml`:
+   ```toml
+   [frista]
+   window_class_login  = "ClassNameYangAnda"
+   window_class_edit   = "..."
+   window_class_button = "..."
+   ```
+
+---
+
+## Operasi Sehari-hari
+
+### Start / Stop kiosk
+
+**Mac**:
+```bash
+cd /path/to/APM
+./run.sh                        # start (foreground, Ctrl+C untuk stop)
+```
+
+**Windows** (Recommended — install sebagai service):
+```powershell
+# Sekali setup, run as Administrator
+.\apm.exe --install-service --name "APM-TARA"
+Set-Service -Name "APM-TARA" -StartupType Automatic
+Start-Service -Name "APM-TARA"
+
+# Verifikasi
+Get-Service -Name "APM-TARA"
+
+# Restart setelah edit config
+Restart-Service -Name "APM-TARA"
+```
+
+Atau standalone:
+```powershell
+# Foreground
+.\apm.exe
+
+# Background (close console hidden)
+Start-Process -FilePath ".\apm.exe" -WindowStyle Hidden
+```
+
+### Setelah edit `config.toml`
+
+1. **Stop app** (Cmd+Q di Mac, atau `Restart-Service` di Windows)
+2. **Edit `config.toml`** dengan editor pilihan
+3. **Start app** lagi — config baru langsung dipakai
+
+> Tidak perlu rebuild `.app` / `.exe` — config di-load runtime.
+
+### Restart harian
+
+Recommended setup cron Windows untuk restart kiosk setiap pagi:
+
+```powershell
+# Jalankan sebagai Administrator di Task Scheduler
+schtasks /create /tn "APM Restart Pagi" /tr "powershell Restart-Service APM-TARA" /sc daily /st 04:00
+```
+
+### Lihat log
+
+Logs di `logs/apm.log` (relatif ke working directory). Format JSON, structured:
+```json
+{"time":"2026-04-27T09:17:55","level":"INFO","msg":"khanza: mode direct MySQL aktif"}
+```
+
+Tail real-time (Mac):
+```bash
+tail -f logs/apm.log | jq
+```
+
+Tail (Windows PowerShell):
+```powershell
+Get-Content logs\apm.log -Wait -Tail 20
+```
+
+### Backup data
+
+`data/apm.db` (SQLite) berisi:
+- `print_history` — backup tiket cetak (untuk reprint)
+- `pending_sep` — antrian SEP yang belum sync ke Khanza (offline mode)
+- `antrian_counter` — counter antrian harian
+
+Backup harian recommended:
+```bash
+# Cron Mac
+0 3 * * * cp /path/to/APM/data/apm.db /backup/apm-$(date +\%F).db
+```
+
+```powershell
+# Task Scheduler Windows
+Copy-Item C:\APM\data\apm.db D:\Backup\apm-$(Get-Date -Format yyyy-MM-dd).db
+```
+
+---
+
+## Setup Development
+
+> Untuk developer yang mau modifikasi kode T.A.R.A.
+
+### Prerequisites Mac
+
+```bash
+# Homebrew + tools
+brew install go node mingw-w64
+
+# Wails CLI v2
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# Verifikasi
+go version           # 1.22+
+node --version       # 18+
+wails version        # v2.x
+x86_64-w64-mingw32-gcc --version    # untuk cross-compile Windows
+```
+
+### Clone + Run Dev
 
 ```bash
 git clone https://github.com/rsamjkt/Arunika-TARA.git
 cd Arunika-TARA
-```
 
-#### 3. Setup Konfigurasi
-
-```bash
-# Copy template config
+# Setup config (placeholder values OK untuk dev awal)
 cp config.example.toml config.toml
+# Edit minimal: khanza_dsn, bpjs.cons_id
 
-# Edit config.toml — minimal yang perlu diisi untuk dev:
-#   [server] khanza_url = "http://IP-SERVER-KHANZA:PORT"
-#   [bpjs]   cons_id, consumer_secret  ← dari BPJS dev env
-#
-# Hardware (Frista, Fingerprint, Printer) di-mock OTOMATIS di non-Windows.
-```
-
-#### 4. Install Dependencies
-
-```bash
-# Go modules
+# Install deps
 go mod download
-
-# Frontend
 cd frontend && npm install && cd ..
-```
 
-#### 5. Jalankan Dev Mode
-
-```bash
-# Hot reload Vue + Go
+# Run dev (hot reload Go + Vue)
 make dev
-# atau
-wails dev
 ```
 
-#### 6. Simulasi Hardware (Mac/Linux)
+Window kiosk kebuka, kalau Mac dev hardware otomatis di-mock.
+
+### Simulasi Hardware (Mac dev)
+
+Frista mock punya HTTP server di port 9090:
 
 ```bash
-# Simulasi tap kartu KTP via Frista
+# Simulasi tap KTP
 curl -X POST http://localhost:9090/mock/card-read \
   -H "Content-Type: application/json" \
   -d '{
@@ -206,168 +614,175 @@ curl -X POST http://localhost:9090/mock/card-read \
 
 # Simulasi fingerprint gagal (sekali pakai)
 curl -X POST http://localhost:9090/mock/fp-fail
-
-# Output printer akan muncul di stdout terminal saat user selesai antrian/SEP
 ```
 
----
+### Smoke Test Khanza Connection
 
-### B. Build & Deploy ke Windows Production
-
-#### 1. Cross-Compile dari Mac
+Sebelum run dev, validate koneksi MySQL dulu:
 
 ```bash
-make build-windows
-# Output: dist/apm-windows-amd64/apm.exe
+APM_KHANZA_DSN='user:pass@tcp(10.0.2.121:3306)/db?parseTime=true&timeout=5s&loc=Local' \
+APM_QUERY=Budi \
+go run -tags smoke ./cmd/khanza-smoke
 ```
 
-#### 2. Prasyarat Mesin Windows
-
-- Windows 10 Pro/Enterprise x64 (build 1903+) atau Windows 11
-- WebView2 Runtime ([download](https://developer.microsoft.com/en-us/microsoft-edge/webview2/))
-- Microsoft Visual C++ Redistributable 2022
-- Frista.exe dari vendor (path dikonfigurasi di `config.toml`)
-- After.exe — Aplikasi Sidik Jari BPJS Kesehatan v2.0+
-  *Default: `C:\Program Files (x86)\Aplikasi Sidik Jari BPJS Kesehatan\After.exe`*
-- Thermal printer ESC/POS (USB atau Serial)
-- LAN ke server Khanza · Internet ke BPJS API
-
-#### 3. Encrypt Credential (jalankan sekali)
-
-```powershell
-apm.exe --encrypt-config
-# Akan prompt username/password Frista & FP BPJS
-# Output: config.toml di-update dengan ENC:... (AES-256-GCM, key dari Windows DPAPI)
-```
-
-#### 4. Install sebagai Windows Service
-
-```powershell
-# Jalankan PowerShell sebagai Administrator
-.\apm.exe --install-service --name "APMService" --display "Anjungan Pasien Mandiri"
-Set-Service -Name "APMService" -StartupType Automatic
-Start-Service -Name "APMService"
-
-# Verifikasi
-Get-Service -Name "APMService"
-Get-EventLog -LogName Application -Source "APMService" -Newest 50
-```
+Output:
+- HealthCheck status
+- CariPasien hasil
+- 5 poli aktif
+- Jadwal dokter hari ini
+- SKDP BPJS pasien (Phase B probes)
+- Optional write test (set `APM_WRITE_TEST=1` untuk INSERT + auto-rollback)
 
 ---
 
-## Konfigurasi
+## Build dari Source
 
-Lihat `config.example.toml` untuk template lengkap. Bagian yang perlu diisi:
-
-| Bagian | Wajib | Keterangan |
-|---|---|---|
-| `[server]` `khanza_url` | ✅ | URL REST API Khanza SIMRS di jaringan RS |
-| `[bpjs]` `vclaim_url` | ✅ | `https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/` (prod) atau `https://dvlp...` (dev) |
-| `[bpjs]` `cons_id`, `consumer_secret` | ✅ | Credential dari kantor cabang BPJS |
-| `[bpjs]` `antrol_*` | ✅ | Credential terpisah untuk Antrol |
-| `[satusehat]` | optional | OAuth2 client untuk aktivasi SSM |
-| `[frista]` `exe_path` | Win only | Path ke `frista.exe` |
-| `[fingerprint]` `exe_path` | Win only | Path ke `After.exe` |
-| `[printer]` | Win only | Port USB / nama printer ESC/POS |
-| `[dev]` `mock_hardware` | Mac/Linux | `true` di dev (default), `false` di prod |
-
-### Endpoint Referensi BPJS
-
-| Service | Base URL | Auth |
-|---------|----------|------|
-| BPJS VClaim | `https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/` | HMAC-SHA256 |
-| BPJS Antrol | `https://apijkn.bpjs-kesehatan.go.id/antrean-rest/` | HMAC-SHA256 |
-| Satu Sehat | `https://api-satusehat.kemkes.go.id/` | OAuth2 client credentials |
-| Khanza API | `http://{RS_HOST}:{PORT}/api/apm/` | Bearer token |
-| FP BPJS lokal | `https://fp.bpjs-kesehatan.go.id/finger-rest/` | Basic auth |
-
----
-
-## Testing
+### Build Mac (.app)
 
 ```bash
-# Unit tests — semua
+PATH="$PATH:$HOME/.local/node/bin" make build-mac
+# Output: build/bin/apm-go.app (universal Intel + Apple Silicon, ~12 MB)
+```
+
+### Build Windows (.exe) — cross-compile dari Mac
+
+```bash
+# Sekali setup
+brew install mingw-w64
+
+# Build
+PATH="$PATH:$HOME/.local/node/bin" make build-windows
+# Output: build/bin/apm.exe
+```
+
+### Build di mesin Windows native
+
+Install Wails CLI di Windows + run `wails build`.
+
+```powershell
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+wails build -platform windows/amd64
+```
+
+### Test
+
+```bash
+# Unit tests
 make test
 
 # Coverage report
-make test-coverage          # target ≥ 80% untuk business logic
-
-# Integration tests (butuh mock BPJS server)
-make test-integration
+make test-coverage              # target ≥80% untuk business logic
 
 # Lint
-make lint                   # golangci-lint
+make lint                       # golangci-lint
+
+# Smoke test live (read-only)
+APM_KHANZA_DSN='...' go run -tags smoke ./cmd/khanza-smoke
+
+# Smoke test write (INSERT + auto-rollback)
+APM_KHANZA_DSN='...' APM_WRITE_TEST=1 go run -tags smoke ./cmd/khanza-smoke
 ```
 
-**Mocks tersedia untuk:**
-- `MockFristaReader` (HTTP endpoint untuk simulasi tap kartu)
-- `MockFingerprintVerifier` (return success setelah 2 detik delay)
-- `MockESCPOSPrinter` (output ke stdout dalam format readable)
-- `MockVClaimClient`, `MockAntrolClient`, `MockKhanzaClient`
+---
+
+## Arsitektur
+
+```
+apm-go/
+├── app.go                      ← Wails App struct (entry IPC Go ↔ Vue)
+├── main.go                     ← Wails app bootstrap
+├── cmd/
+│   └── khanza-smoke/           ← Smoke test runner (build tag: smoke)
+├── internal/
+│   ├── config/                 ← TOML loader + AES encrypt/decrypt
+│   ├── domain/                 ← Pure structs (Pasien, SEP, Pendaftaran, dll)
+│   ├── service/
+│   │   ├── detector/           ← ★ Smart BPJS Detector
+│   │   ├── antrian/            ← Counter management
+│   │   └── sep/                ← SEP builder + VClaim integration
+│   ├── integration/
+│   │   ├── khanza/             ← Direct MySQL + REST client (dual-mode)
+│   │   ├── vclaim/             ← BPJS VClaim v2 (HMAC-SHA256)
+│   │   └── antrol/             ← BPJS Antrol API
+│   ├── hardware/
+│   │   ├── frista/             ← Mac mock + Windows real (clipboard pattern)
+│   │   ├── fingerprint/        ← Mac mock + Windows real (After.exe headless)
+│   │   └── printer/            ← Console / ESC/POS USB / Serial / Network
+│   ├── store/                  ← SQLite local (sqlc-generated)
+│   └── reconcile/              ← Offline queue worker
+├── frontend/
+│   ├── src/screens/            ← HomeScreen, InputScreen, DetectScreen,
+│   │                              ResultScreen, SearchPasienScreen,
+│   │                              RegistrasiUmumScreen, TicketScreen, ...
+│   ├── src/components/         ← PathwayMJKN, PathwayPostRANAP, dll
+│   └── src/stores/             ← Pinia: patient, antrian, detection
+├── migrations/                 ← SQLite schema
+├── templates/                  ← ESC/POS print templates
+├── config.example.toml         ← Template — JANGAN commit config.toml asli
+└── Makefile                    ← dev / build-mac / build-windows / test / lint
+```
 
 ---
 
-## Aturan Coding
+## Troubleshooting
 
-T.A.R.A mengikuti aturan ketat — lihat `CLAUDE.md` untuk detail lengkap.
+### "khanza: gagal connect MySQL — fallback ke REST"
 
-### Go
-- Semua error **wajib** di-wrap: `fmt.Errorf("context: %w", err)`
-- Semua HTTP call **wajib** pakai `context.Context` dengan timeout
-- Goroutine **wajib** bisa di-cancel via context
-- Hardware **wajib** dibungkus interface (untuk mockability)
-- **Tidak boleh** ada hardcoded credential di source code
-- Logging pakai `slog` (Go 1.21+ stdlib)
-- **PHI** (NIK, No. Kartu, No. RM) **wajib** di-mask di log → `***`
+DSN salah atau MySQL tidak reach. Test dengan smoke runner:
 
-### Vue / Frontend
-- Semua font & padding pakai `clamp()` untuk responsivitas
-- Touch target minimum: `min-height: clamp(52px, 7vw, 72px)`
-- Warna **hanya** dari design token (lihat `DESIGN_SYSTEM.md`)
-- State via Pinia stores — **tidak ada** logic bisnis di component
-- Wails IPC call **wajib** `async/await` dengan error handling
+```bash
+APM_KHANZA_DSN='...' go run -tags smoke ./cmd/khanza-smoke
+```
 
-### Testing
-- Business logic: **min 80% coverage**
-- Semua BPJS API call **wajib** bisa di-mock via interface
+Cek juga firewall + MySQL `bind-address` + grant user.
 
----
+### "registrasi BPJS untuk no_kartu pada YYYY-MM-DD tidak ditemukan"
 
-## Dokumentasi Tambahan
+`SimpanSEP` gagal resolve `no_rawat` karena belum ada `reg_periksa` BPJS hari ini untuk pasien tsb. Pastikan `BuatPendaftaran` (BPJS, kd_pj=BPJ) dijalankan dulu sebelum `SimpanSEP`.
 
-| File | Isi |
-|---|---|
-| [`CLAUDE.md`](./CLAUDE.md) | Master memory untuk Claude Code (baca pertama!) |
-| [`BPJS_INTEGRATION.md`](./BPJS_INTEGRATION%20.md) | Detail teknis VClaim, Antrol, MJKN, Fingerprint |
-| [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) | Token warna, spacing, komponen Vue + responsivitas |
-| [`HARDWARE_PLATFORM.md`](./HARDWARE_PLATFORM.md) | Platform detection, mock vs real, Windows-specific |
-| [`PROMPTS.md`](./PROMPTS.md) | Prompt library lengkap untuk setiap task coding |
-| [`QUICKSTART.md`](./QUICKSTART.md) | Quickstart development di Mac |
+### Frista auto-login gagal — operator ketik manual
 
----
+Cek `logs/apm.log`:
+```
+"frista: gagal inject login (operator mungkin perlu manual)"
+"err":"dialog login Frista (class=\"TfrmLogin\") tidak ditemukan: timeout..."
+```
 
-## Roadmap
+Berarti class name dialog beda. Pakai Spy++ verify, override di `[frista] window_class_login`.
 
-- [x] Smart BPJS Detector engine (5 goroutine paralel)
-- [x] Frista card reader (mock + Windows USB HID)
-- [x] Fingerprint BPJS headless integration
-- [x] ESC/POS thermal printer
-- [x] Antrian 3 jalur (Loket / Poli / Umum)
-- [ ] Aktivasi Satu Sehat Mobile (in progress)
-- [ ] Offline reconcile worker (in progress)
-- [ ] Admin dashboard via PIN
-- [ ] Multi-cabang RS support
+### "tabel rencana_kontrol doesn't exist"
+
+Tidak masalah — RS pakai SKDP BPJS langsung dari `bridging_surat_kontrol_bpjs`. Detector sudah switch ke source ini di v1.0.0+.
+
+### Window tidak muncul saat launch app (.app)
+
+CWD salah. App perlu `config.toml` + `migrations/` di working directory. Pakai `run.sh` launcher (auto-cd) atau set env:
+
+```bash
+APM_CONFIG_PATH=/absolute/path/to/config.toml ./apm-go.app/Contents/MacOS/apm-go
+```
+
+### "device or resource busy" saat clipboard polling Frista
+
+Ada aplikasi lain sering pakai clipboard (mis. password manager, clipboard history). Tutup app yang konflik atau naikkan `[frista] poll_interval_ms` ke 1000.
 
 ---
 
-## Lisensi & Kontak
+## Lisensi
 
 **© 2026 PT. Arunika Komputasi Awan Integrasi**
 
-Software ini adalah produk proprietary milik PT. Arunika Komputasi Awan Integrasi.
-Untuk pertanyaan, kerja sama, atau dukungan teknis, hubungi tim IT melalui repo issue tracker.
+Proprietary software. Untuk pertanyaan, kerja sama, atau dukungan teknis, hubungi tim IT melalui [GitHub Issues](https://github.com/rsamjkt/Arunika-TARA/issues).
 
 ---
 
-> **T.A.R.A** — *Total Automated Registration Assistant*
-> Built with ☕ for Indonesian healthcare.
+## Credits
+
+- Pattern direct-DB Khanza diilhami dari [`RS-INDRIATI/anjunganmandiriSEP`](https://github.com/RS-INDRIATI/anjunganmandiriSEP) — Java reference implementation
+- Smart Detector + per-pathway UI = original kontribusi T.A.R.A
+- Built with ☕ untuk **healthcare** Indonesia
+
+---
+
+> **T.A.R.A · Mahatma** — _Total Automated Registration Assistant_
