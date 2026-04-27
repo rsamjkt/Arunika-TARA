@@ -1,8 +1,27 @@
-Rumah Sakit: {{.RSName}}
-Tanggal: {{.Tanggal}}
------------------
-{{.JenisAntrian}}
-No. Antrian:
-{{.Nomor}}
------------------
-Harap tunggu panggilan
+[C][B]{{.RSName}}[/B][/C]
+{{- if .RSAddress }}
+[C]{{.RSAddress}}[/C]
+{{- end }}
+{{- if .RSPhone }}
+[C]Telp: {{.RSPhone}}[/C]
+{{- end }}
+================================
+
+[C][B]ANTRIAN {{.JenisAntrian}}[/B][/C]
+
+
+[C][XL]{{.Nomor}}[/XL][/C]
+
+
+[C]{{.Tanggal}}[/C]
+[C]{{.Jam}}[/C]
+
+--------------------------------
+[C]Silakan menunggu panggilan[/C]
+[C]di area Loket Pendaftaran[/C]
+{{- if .EstimasiMenit }}
+[C]Estimasi: {{.EstimasiMenit}} menit[/C]
+{{- end }}
+
+[C]Terima kasih · Lekas sembuh[/C]
+================================

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/arunika/apm-go/internal/config"
@@ -25,12 +26,9 @@ var (
 	escFeed        = []byte{0x0A}             // LF
 	escCutPaper    = []byte{0x1D, 0x56, 0x00} // GS V 0 — full cut
 	escFeedTriple  = []byte{0x0A, 0x0A, 0x0A} // 3 baris kosong sebelum cut
-
-	// escSizeNormal {0x1D, 0x21, 0x00} dan escSizeDouble
-	// {0x1D, 0x21, 0x11} di-reserve untuk bold-large-text feature
-	// (mis. nomor antrian double-height). Belum dipakai — di-comment
-	// supaya lint clean. Re-enable saat encodeESCPOS handle marker
-	// "[BIG]...".
+	escSizeNormal  = []byte{0x1D, 0x21, 0x00} // GS ! 0  — normal
+	escSizeDouble  = []byte{0x1D, 0x21, 0x11} // GS ! 0x11 — double width+height
+	escSizeXL      = []byte{0x1D, 0x21, 0x33} // GS ! 0x33 — quad size (untuk nomor antrian)
 )
 
 // ============================================================
@@ -198,36 +196,68 @@ func (p *ESCPOSPrinter) write(b []byte) error {
 // encodeESCPOS — convert text rendered ke bytes ESC/POS
 // ============================================================
 
-// encodeESCPOS membungkus text dengan ESC/POS commands:
-//   - ESC @ (reset)
-//   - ESC a 1 (center align) untuk header (line pertama)
-//   - ESC a 0 (left align) untuk body
-//   - For TIKET: ESC E 1 (bold) + GS ! 0x11 (double size) untuk
-//     nomor antrian (heuristik: line setelah "No. Antrian:")
-//   - 3x LF + GS V 0 (cut) di akhir
+// Marker tag → ESC/POS byte sequence. Template designer pakai marker
+// inline (mis. [C]CENTERED[/C]) supaya output struk terformat tanpa
+// harus tau byte sequence ESC/POS. Marker yang didukung:
+//
+//	[C]...[/C]   — center align
+//	[B]...[/B]   — bold
+//	[XL]...[/XL] — extra-large (quad size, untuk nomor antrian)
+//	[BIG]...[/BIG] — double size (untuk nama RS / heading)
+//	[CUT]        — paper cut di tengah dokumen (jarang dipakai)
+//
+// Marker tidak boleh nested kompleks — gunakan sequence linear:
+//
+//	[C][B]Header[/B][/C]\n
+//	[C][XL]A001[/XL][/C]\n
+//
+// Marker tidak match kena `escSizeNormal` reset di akhir untuk safety.
+var markerReplacements = []struct {
+	from string
+	to   []byte
+}{
+	{"[C]", escAlignCenter},
+	{"[/C]", escAlignLeft},
+	{"[B]", escBoldOn},
+	{"[/B]", escBoldOff},
+	{"[BIG]", escSizeDouble},
+	{"[/BIG]", escSizeNormal},
+	{"[XL]", escSizeXL},
+	{"[/XL]", escSizeNormal},
+	{"[CUT]", escCutPaper},
+}
+
+// encodeESCPOS render template output ke ESC/POS bytes:
+//  1. ESC @ reset printer
+//  2. Substitute marker tags ke byte sequence
+//  3. 3x LF + GS V 0 cut di akhir
+//
+// docType saat ini diabaikan (semua marker di-handle di template);
+// parameter dipertahankan untuk backward compat + future variant
+// (mis. width-aware encoding 58mm vs 80mm).
 func encodeESCPOS(docType, rendered string) []byte {
+	_ = docType
+
 	var buf []byte
 	buf = append(buf, escReset...)
+	buf = append(buf, []byte(substituteMarkers(rendered))...)
 
-	// Header line di-center + bold supaya stand out
-	buf = append(buf, escAlignCenter...)
-	buf = append(buf, escBoldOn...)
-	buf = append(buf, []byte(docType)...)
-	buf = append(buf, escFeed...)
+	// Safety reset — kalau template lupa tutup [/B] atau [/BIG]
 	buf = append(buf, escBoldOff...)
+	buf = append(buf, escSizeNormal...)
 	buf = append(buf, escAlignLeft...)
-	buf = append(buf, escFeed...)
 
-	// Body — emit text apa adanya
-	buf = append(buf, []byte(rendered)...)
-
-	// Untuk TIKET: tambah extra emphasize lewat reset + double size
-	// pada konten Nomor (kalau template render mengandung pola
-	// "No. Antrian:\n<NOMOR>\n" — heuristik). Versi simple ini
-	// di-skip; iterasi berikutnya bisa pakai marker di template.
-
-	// Footer: 3 line feed + cut
+	// Footer
 	buf = append(buf, escFeedTriple...)
 	buf = append(buf, escCutPaper...)
 	return buf
+}
+
+// substituteMarkers replace marker text dengan ESC/POS bytes.
+// Multi-byte safe (marker pakai ASCII, target byte arbitrary).
+func substituteMarkers(s string) string {
+	for _, r := range markerReplacements {
+		s = strings.ReplaceAll(s, r.from, string(r.to))
+	}
+	return s
 }

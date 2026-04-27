@@ -1,8 +1,91 @@
-SURAT ELIGIBILITAS PESERTA
-No. SEP: {{.NoSEP}}
-Nama: {{.Nama}}
-No. Kartu: {{.NoKartu}}
-Poli: {{.NmPoli}}
-Dokter: {{.NmDokter}}
-Tgl: {{.TglSEP}}
-Kelas: {{.KelasRawat}}
+[C][B]{{.RSName}}[/B][/C]
+{{- if .RSAddress }}
+[C]{{.RSAddress}}[/C]
+{{- end }}
+{{- if .RSPhone }}
+[C]Telp: {{.RSPhone}}[/C]
+{{- end }}
+================================
+
+[C][B]SURAT ELIGIBILITAS PESERTA[/B][/C]
+[C][B](SEP - BPJS Kesehatan)[/B][/C]
+================================
+
+[B]No. SEP[/B]
+  {{.NoSEP}}
+
+[B]No. Kartu BPJS[/B]
+  {{.NoKartu}}
+
+{{- if .NIK }}
+
+[B]NIK[/B]
+  {{.NIK}}
+{{- end }}
+
+[B]Nama Peserta[/B]
+  {{.Nama}}
+{{- if .TglLahir }}
+
+Tgl Lahir / JK : {{.TglLahir}}{{ if .JK }} / {{.JK}}{{ end }}
+{{- end }}
+{{- if .KelasRawat }}
+Kelas Rawat    : Kelas {{.KelasRawat}}
+{{- end }}
+
+================================
+[C][B]DETAIL KUNJUNGAN[/B][/C]
+================================
+
+Poli Tujuan     : {{.NmPoli}}
+Dokter (DPJP)   : {{.NmDokter}}
+Tanggal SEP     : {{.TglSEP}}
+{{- if .JenisPelayananLabel }}
+Jns Pelayanan   : {{.JenisPelayananLabel}}
+{{- end }}
+{{- if .AsalRujukanLabel }}
+Asal Rujukan    : {{.AsalRujukanLabel}}
+{{- end }}
+{{- if .NoRujukan }}
+No. Rujukan     : {{.NoRujukan}}
+{{- end }}
+{{- if .TglRujukan }}
+Tgl Rujukan     : {{.TglRujukan}}
+{{- end }}
+{{- if .NmPPKRujukan }}
+Faskes Perujuk  : {{.NmPPKRujukan}}
+{{- end }}
+{{- if .DiagnosaAwal }}
+Diagnosa        : {{.DiagnosaAwal}}{{ if .NamaDiagnosa }} - {{.NamaDiagnosa}}{{ end }}
+{{- end }}
+{{- if .NoSKDP }}
+
+[B]No. SKDP (Kontrol)[/B]
+  {{.NoSKDP}}
+{{- end }}
+
+================================
+
+[C][B]NOMOR ANTRIAN POLI[/B][/C]
+
+
+[C][XL]{{.NoAntrian}}[/XL][/C]
+
+
+--------------------------------
+[C]Silakan menunggu panggilan[/C]
+{{- if .LokasiPoli }}
+[C]di {{.LokasiPoli}}[/C]
+{{- end }}
+
+================================
+[B]PENTING:[/B]
+- Bawa kartu BPJS dan KTP saat
+  dipanggil dokter
+- Tiket ini bukti kunjungan resmi
+- Jangan dibuang sampai pulang
+================================
+
+Cetakan : {{.WaktuCetak}}
+Petugas : Kiosk-TARA
+================================

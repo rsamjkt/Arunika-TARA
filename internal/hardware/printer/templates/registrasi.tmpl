@@ -1,7 +1,59 @@
-BUKTI PENDAFTARAN
-No. Rawat: {{.NoRawat}}
-Nama: {{.Nama}}
-Poli: {{.NmPoli}}
-Dokter: {{.NmDokter}}
-Tgl: {{.TglKunjungan}}
-Antrian: {{.NoAntrian}}
+[C][B]{{.RSName}}[/B][/C]
+{{- if .RSAddress }}
+[C]{{.RSAddress}}[/C]
+{{- end }}
+{{- if .RSPhone }}
+[C]Telp: {{.RSPhone}}[/C]
+{{- end }}
+================================
+
+[C][B]BUKTI PENDAFTARAN[/B][/C]
+[C]({{.Penjamin}})[/C]
+================================
+
+[B]Nomor Rawat[/B]
+  {{.NoRawat}}
+
+[B]Nomor Pasien (RM)[/B]
+  {{.NoRM}}
+
+[B]Nama Pasien[/B]
+  {{.Nama}}
+
+[B]Penjamin[/B]
+  {{.Penjamin}}
+
+================================
+
+Tujuan      : {{.NmPoli}}
+Dokter      : {{.NmDokter}}
+Tanggal     : {{.TglKunjungan}}
+{{- if .JamPraktik }}
+Jam Praktik : {{.JamPraktik}}
+{{- end }}
+
+================================
+
+[C][B]NOMOR ANTRIAN POLI[/B][/C]
+
+
+[C][XL]{{.NoAntrian}}[/XL][/C]
+
+
+--------------------------------
+[C]Silakan menunggu panggilan[/C]
+{{- if .LokasiPoli }}
+[C]di {{.LokasiPoli}}[/C]
+{{- end }}
+
+{{- if .BiayaRegistrasi }}
+
+Biaya registrasi: Rp {{.BiayaRegistrasi}}
+(silakan bayar di kasir setelah
+periksa)
+{{- end }}
+
+================================
+Cetakan : {{.WaktuCetak}}
+Petugas : Kiosk-TARA
+================================

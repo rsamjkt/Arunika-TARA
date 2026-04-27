@@ -35,13 +35,6 @@ func TestEncodeESCPOS_DimulaiResetDanDiakhiriCut(t *testing.T) {
 	}
 }
 
-func TestEncodeESCPOS_ContainsHeaderDocType(t *testing.T) {
-	bytes := encodeESCPOS("TIKET", "body content")
-	if !strings.Contains(string(bytes), "TIKET") {
-		t.Errorf("header docType tidak ada di output")
-	}
-}
-
 func TestEncodeESCPOS_ContainsBodyText(t *testing.T) {
 	body := "No. SEP: 123456789"
 	bytes := encodeESCPOS("SEP", body)
@@ -50,22 +43,45 @@ func TestEncodeESCPOS_ContainsBodyText(t *testing.T) {
 	}
 }
 
-func TestEncodeESCPOS_AlignCenterUntukHeader_AlignLeftUntukBody(t *testing.T) {
-	bytes := encodeESCPOS("X", "body")
-	// ESC a 1 (center) harus muncul SEBELUM ESC a 0 (left)
-	idxCenter := indexBytes(bytes, []byte{0x1B, 0x61, 0x01})
-	idxLeft := indexBytes(bytes, []byte{0x1B, 0x61, 0x00})
-	if idxCenter < 0 || idxLeft < 0 {
-		t.Fatalf("missing align commands: center=%d left=%d", idxCenter, idxLeft)
+func TestEncodeESCPOS_MarkerCenter_DiSubstitusiKeESCByte(t *testing.T) {
+	bytes := encodeESCPOS("X", "[C]CENTERED[/C]\nbody")
+	// Marker [C] harus di-substitusi ke ESC a 1, [/C] ke ESC a 0
+	if !strings.Contains(string(bytes), string([]byte{0x1B, 0x61, 0x01})) {
+		t.Errorf("[C] tidak di-substitusi ke ESC a 1 (center align)")
 	}
-	if idxCenter > idxLeft {
-		t.Errorf("center align harus muncul SEBELUM left align (header dulu)")
+	if !strings.Contains(string(bytes), string([]byte{0x1B, 0x61, 0x00})) {
+		t.Errorf("[/C] tidak di-substitusi ke ESC a 0 (left align)")
+	}
+	// Marker text tidak boleh muncul di output
+	if strings.Contains(string(bytes), "[C]") || strings.Contains(string(bytes), "[/C]") {
+		t.Errorf("marker [C]/[/C] tidak boleh tersisa di output")
 	}
 }
 
-func indexBytes(haystack, needle []byte) int {
-	return strings.Index(string(haystack), string(needle))
+func TestEncodeESCPOS_MarkerBold_DiSubstitusi(t *testing.T) {
+	bytes := encodeESCPOS("X", "[B]BOLD[/B]")
+	if !strings.Contains(string(bytes), string([]byte{0x1B, 0x45, 0x01})) {
+		t.Errorf("[B] tidak di-substitusi ke ESC E 1 (bold on)")
+	}
+	if !strings.Contains(string(bytes), string([]byte{0x1B, 0x45, 0x00})) {
+		t.Errorf("[/B] tidak di-substitusi ke ESC E 0 (bold off)")
+	}
 }
+
+func TestEncodeESCPOS_MarkerXL_DiSubstitusi(t *testing.T) {
+	bytes := encodeESCPOS("X", "[XL]A001[/XL]")
+	if !strings.Contains(string(bytes), string([]byte{0x1D, 0x21, 0x33})) {
+		t.Errorf("[XL] tidak di-substitusi ke GS ! 0x33 (quad size)")
+	}
+}
+
+func TestEncodeESCPOS_FooterAdaCutPaper(t *testing.T) {
+	bytes := encodeESCPOS("X", "body")
+	if !strings.Contains(string(bytes), string([]byte{0x1D, 0x56, 0x00})) {
+		t.Errorf("cut paper command (GS V 0) tidak ada di footer")
+	}
+}
+
 
 // ============================================================
 // ESCPOSPrinter — Print + connection (pakai mode="console" untuk test)

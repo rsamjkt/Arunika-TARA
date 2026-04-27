@@ -2,6 +2,37 @@
 
 > Self-service kiosk for hospital outpatient registration, BPJS SEP issuance, and queue management. Direct-DB integration with SIMRS Khanza, Smart BPJS Detector with auto-classification, modern accessibility-first UI built for **multi-generation Indonesian patients** (elderly + middle-aged + young).
 
+## What's New in v1.5 ("Mahatma 1.5")
+
+### 🖨️ Print Template Polish — Struk Profesional ESC/POS
+
+Templates `tiket_antrian.tmpl`, `registrasi.tmpl`, `sep.tmpl` di-rewrite total dengan format struk RS Indonesia standar.
+
+**Marker syntax baru** di template ESC/POS:
+- `[C]...[/C]` — center align
+- `[B]...[/B]` — bold
+- `[XL]...[/XL]` — quad-size (untuk nomor antrian besar di tengah struk)
+- `[BIG]...[/BIG]` — double-size (heading)
+
+`encodeESCPOS()` parse marker → substitute ke byte sequence ESC/POS langsung. Plus safety reset di akhir (bold off, size normal, align left) kalau template lupa close marker.
+
+**Layout 3 struk baru**:
+
+**Antrian Loket**: header RS bold center → "ANTRIAN LOKET" → nomor quad-size → tanggal+jam → footer "Silakan menunggu panggilan di Loket"
+
+**Pendaftaran Pasien Umum**: header RS → "BUKTI PENDAFTARAN (UMUM)" → bold sections (No.Rawat / NoRM / Nama / Penjamin) → tabel kunjungan (Tujuan/Dokter/Tgl/Jam) → nomor antrian quad-size → biaya registrasi conditional → footer cetakan+petugas
+
+**SEP BPJS**: header RS → "SURAT ELIGIBILITAS PESERTA" → bold sections (No.SEP / NoKartu / NIK / Nama / TglLahir+JK / Kelas) → "DETAIL KUNJUNGAN" tabel (Poli/Dokter/TglSEP/Asal Rujukan/No Rujukan/Faskes Perujuk/Diagnosa/SKDP) → nomor antrian quad-size → "PENTING: Bawa kartu BPJS dan KTP" → footer audit
+
+**Field opsional rendered conditional** dengan Go template `{{- if .Field }}` — caller tidak pasok = baris tidak muncul = struk lebih clean.
+
+### 🛡️ Backward Compat
+- `encodeESCPOS(docType, body)` signature tetap — caller existing tetap kerja
+- Reset alignment+size di akhir untuk safety
+- Print history tetap simpan bytes hasil encoding (reprint via Admin Panel tetap akurat)
+
+---
+
 ## What's New in v1.4 ("Mahatma 1.4")
 
 **Critical SEP flow alignment dengan Java vendor reference** — fix bug yang mencegah flow Pasien BPJS bekerja end-to-end.

@@ -22,7 +22,7 @@ func TestRenderTemplate_Tiket(t *testing.T) {
 		"2026-04-26 14:30",
 		"POLI PENYAKIT DALAM",
 		"B-INT-005",
-		"Harap tunggu panggilan",
+		"Silakan menunggu panggilan",
 	} {
 		if !strings.Contains(got, sub) {
 			t.Errorf("output tidak mengandung %q:\n%s", sub, got)
