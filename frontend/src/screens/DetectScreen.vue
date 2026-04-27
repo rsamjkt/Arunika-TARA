@@ -96,10 +96,11 @@ onMounted(async () => {
     }
   })
 
-  // Long-running guard: 7 detik
+  // Long-running guard: 5 detik (sebelumnya 7s) — kasih kesempatan lebih
+  // cepat ke user untuk panggil petugas kalau system slow.
   longRunningTimer = setTimeout(() => {
     isLongRunning.value = true
-  }, 7000)
+  }, 5000)
 
   // Start UI simulation
   startSimulation()
@@ -130,6 +131,13 @@ onUnmounted(() => {
   if (simulationTimer) clearInterval(simulationTimer)
   if (longRunningTimer) clearTimeout(longRunningTimer)
 })
+
+// Safety net — call staff button visible setelah long-running guard
+function callStaff() {
+  // TODO emit Wails event 'staff:call' supaya admin panel notification
+  // Sementara: alert visual, tidak mengganggu detection in-progress
+  alert('Petugas akan datang membantu Anda. Mohon tetap berdiri di sini.')
+}
 </script>
 
 <template>
@@ -162,15 +170,32 @@ onUnmounted(() => {
           Sistem sedang memeriksa data Anda di BPJS dan rumah sakit.
         </p>
 
-        <!-- Long-running guard: muncul kalau >7s -->
-        <p
+        <!-- Long-running guard: muncul kalau >5s — sekarang dengan
+             tombol "Hubungi Petugas" supaya user gak panik kalau system lama -->
+        <div
           v-if="isLongRunning"
-          class="text-[clamp(11px,1.5vw,13px)] text-amber-700 mt-1
-                 bg-amber-50 border border-amber-200 rounded-tag
-                 px-[clamp(10px,1.5vw,14px)] py-[clamp(4px,0.8vw,6px)]"
+          class="flex flex-col items-center gap-3 mt-2"
         >
-          Sedang memproses, mohon tunggu...
-        </p>
+          <p
+            class="text-[clamp(13px,1.6vw,15px)] text-amber-800
+                   bg-amber-50 border border-amber-200 rounded-tag
+                   px-[clamp(12px,1.8vw,16px)] py-[clamp(6px,1vw,8px)]"
+          >
+            Sistem agak lama hari ini. Mohon ditunggu sebentar...
+          </p>
+          <button
+            type="button"
+            class="text-[clamp(13px,1.7vw,15px)] font-medium
+                   bg-surface border border-border text-text-primary
+                   px-[clamp(16px,2.2vw,20px)] py-[clamp(10px,1.5vw,12px)]
+                   min-h-[clamp(48px,6vw,56px)]
+                   rounded-btn hover:border-border-strong active:bg-bg
+                   flex items-center gap-2"
+            @click="callStaff"
+          >
+            📞 Panggil Petugas
+          </button>
+        </div>
 
         <!-- Error display kalau ada -->
         <p

@@ -21,9 +21,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { PhBuildings, PhStethoscope, PhCheckSquare } from '@phosphor-icons/vue'
 import DokterPicker from '../components/DokterPicker.vue'
 import IdleOverlay from '../components/IdleOverlay.vue'
 import AlertModal from '../components/AlertModal.vue'
+import StepperBar from '../components/StepperBar.vue'
 
 import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
@@ -174,6 +176,28 @@ const stepLabel = computed(() => {
   }
 })
 
+// StepperBar config — 3 step dengan icon Phosphor
+const stepperSteps = [
+  { label: 'Pilih Poli', icon: PhBuildings },
+  { label: 'Pilih Dokter', icon: PhStethoscope },
+  { label: 'Konfirmasi', icon: PhCheckSquare },
+]
+const stepperCurrentIndex = computed(() => {
+  switch (step.value) {
+    case 'poli': return 0
+    case 'dokter': return 1
+    case 'konfirmasi':
+    case 'submitting': return 2
+    default: return 0
+  }
+})
+function onStepperClick(idx) {
+  // User tap step yang sudah lewat → balik ke step itu (hanya kalau tidak submitting)
+  if (step.value === 'submitting') return
+  if (idx === 0) backToPoli()
+  else if (idx === 1) backToDokter()
+}
+
 const { isCountingDown, secondsLeft } = useIdleTimeout({
   totalSeconds: KIOSK.idleTimeoutSec,
   countdownThreshold: KIOSK.idleCountdownSec,
@@ -217,6 +241,16 @@ onMounted(loadPoli)
         {{ stepLabel }}
       </span>
     </header>
+
+    <!-- StepperBar v1.2 — visual progress segmented (was tiny text in header) -->
+    <div class="bg-surface px-[clamp(16px,3vw,28px)] py-[clamp(8px,1.2vw,12px)] border-b border-border">
+      <StepperBar
+        :steps="stepperSteps"
+        :current-index="stepperCurrentIndex"
+        :clickable="true"
+        @step-click="onStepperClick"
+      />
+    </div>
 
     <!-- Body -->
     <section

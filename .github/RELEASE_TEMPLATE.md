@@ -2,6 +2,42 @@
 
 > Self-service kiosk for hospital outpatient registration, BPJS SEP issuance, and queue management. Direct-DB integration with SIMRS Khanza, Smart BPJS Detector with auto-classification, modern accessibility-first UI built for **multi-generation Indonesian patients** (elderly + middle-aged + young).
 
+## What's New in v1.2 ("Mahatma 1.2")
+
+Continuation of UX brainstorm implementation — addressing the remaining elderly-friendly gaps and one critical BPJS integration parity:
+
+### 🆕 Dual-Channel InputScreen (BB2)
+The old layout buried the Frista card reader as a thin status banner above the NumPad. New layout — **two equal-weight panels side-by-side**:
+- **Left panel: TAP KARTU** — large card icon with pulse animation, 80-120px tap zone, instruction "Tempel kartu Anda di reader bawah", bullet list of supported cards (BPJS / KTP elektronik), live status badge (Reader aktif / tidak aktif)
+- **Right panel: KETIK** — InputDisplay + progress text + 3x4 NumPad
+- Lansia yang punya kartu fisik → tap & done (~5 detik) instead of typing 16 digits with typo risk
+- Footer with `<BackButton>` + "Panggil petugas" safety net
+
+### 🆕 DetectScreen "Hubungi Petugas" Safety Net
+- Long-running guard threshold lowered from 7s → 5s
+- When Smart Detector takes longer than expected, friendly amber notice appears: "Sistem agak lama hari ini. Mohon ditunggu sebentar..."
+- Plus tappable "📞 Panggil Petugas" button — does NOT abort detection (continues in background), just signals staff to assist
+- Calm copywriting (no urgent/scary tone)
+
+### 🆕 RegistrasiUmum Visual Stepper
+- Replaced tiny "1/3 — Pilih Poli" text in header corner with full-width segmented `<StepperBar>`
+- Each step has Phosphor icon (PhBuildings → PhStethoscope → PhCheckSquare)
+- States: ✓ done (emerald), ◉ active (theme primary, animated), ○ future (gray)
+- Tap-back enabled: lansia bisa tap step yang sudah selesai untuk balik (lebih intuitive dari Back button)
+
+### 🩺 BPJS Mobile JKN Booking Status Update (Audit Phase 0b Gap #6)
+- After `SimpanSEP` success, automatically `UPDATE booking_registrasi SET status='Terdaftar', waktu_kunjungan=NOW()` for the matching patient
+- Tanpa fix ini, antrian Mobile JKN BPJS tetap show "Belum" di app pasien meskipun sudah didaftarkan di kiosk → bingung pasien
+- Mirror pattern Java vendor `DlgRegistrasiSEPPertama.java:2760-2767`
+
+## Coming in v1.3
+- "Bantu Saya" wizard (BB1) — 4-screen guided flow + audio TTS
+- BPJS gap closure: COB handling, Laka Lantas conditional, RencanaKontrol API endpoint
+- Per-pathway PatientCard "Apakah ini Anda?" verification
+- Multi-kiosk antrian counter via different prefix
+
+---
+
 ## What's New in v1.1 ("Mahatma 1.1")
 
 ### 🎨 UI/UX Refresh — Built for Elderly & Tech-Savvy Alike

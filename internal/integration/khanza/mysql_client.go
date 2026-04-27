@@ -1169,6 +1169,29 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 				"no_sep", sep.NoSEP, "err", err.Error())
 		}
 	}
+
+	// Side-effect: Mobile JKN booking status update (BPJS audit gap #6)
+	// Kalau pasien daftar dari booking MJKN, update booking_registrasi
+	// supaya status sequence "Belum" → "Terdaftar" + waktu_kunjungan terisi.
+	// Tanpa ini, antrian Mobile JKN BPJS tetap show "Belum" di app pasien.
+	res, err := c.db.ExecContext(ctx, `
+		UPDATE booking_registrasi
+		SET status = 'Terdaftar',
+		    waktu_kunjungan = NOW()
+		WHERE no_rkm_medis = ?
+		  AND tanggal_periksa = ?
+		  AND kd_pj = ?
+		  AND status IN ('Belum', 'Terdaftar')`,
+		nomr.String, tglSEP, c.kdPjBPJS,
+	)
+	if err != nil {
+		c.logger.Warn("simpan sep: gagal update booking_registrasi (SEP utama tetap OK)",
+			"no_sep", sep.NoSEP, "err", err.Error())
+	} else if rows, _ := res.RowsAffected(); rows > 0 {
+		c.logger.Info("simpan sep: booking MJKN status di-update",
+			"no_sep", sep.NoSEP, "rows", rows)
+	}
+
 	return nil
 }
 
