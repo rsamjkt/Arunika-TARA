@@ -1,0 +1,169 @@
+# Auto-build Mac universal (.app) + Windows amd64 (.exe) saat push tag v*,
+# lalu create GitHub release dengan kedua artifact attached.
+#
+# Trigger:
+#   git tag v1.0.0-mahatma
+#   git push origin v1.0.0-mahatma
+#
+# Manual override (run workflow tanpa tag): Actions tab → "Release" → Run workflow
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag (mis. v1.0.0-mahatma) — kalau kosong, pakai SHA singkat'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: '1.22'
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================================
+  # Build: macOS (universal — Intel + Apple Silicon)
+  # ============================================================
+  build-mac:
+    name: Build macOS Universal
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Mac universal binary
+        run: wails build -platform darwin/universal -clean
+
+      - name: Bundle release zip
+        run: |
+          mkdir -p release-mac
+          cp -R build/bin/apm-go.app release-mac/
+          cp -R migrations release-mac/
+          cp config.example.toml release-mac/
+          cp run-mac.sh release-mac/
+          cp README.md release-mac/
+          chmod +x release-mac/run-mac.sh
+          cd release-mac
+          ditto -c -k --sequesterRsrc --keepParent . ../apm-mac-universal.zip
+          cd ..
+          ls -lh apm-mac-universal.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apm-mac-universal
+          path: apm-mac-universal.zip
+          retention-days: 7
+
+  # ============================================================
+  # Build: Windows amd64
+  # ============================================================
+  build-windows:
+    name: Build Windows amd64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Windows binary
+        run: wails build -platform windows/amd64 -clean
+        shell: pwsh
+
+      - name: Bundle release zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release-win -Force | Out-Null
+          # Wails output bisa apm-go.exe atau apm.exe — auto-detect
+          $exe = Get-ChildItem build\bin\*.exe | Select-Object -First 1
+          Copy-Item $exe.FullName "release-win\apm.exe"
+          Copy-Item -Recurse migrations release-win\
+          Copy-Item config.example.toml release-win\
+          Copy-Item run-windows.bat release-win\
+          Copy-Item README.md release-win\
+          Compress-Archive -Path release-win\* -DestinationPath apm-windows-amd64.zip -Force
+          Get-Item apm-windows-amd64.zip | Format-List Name,Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apm-windows-amd64
+          path: apm-windows-amd64.zip
+          retention-days: 7
+
+  # ============================================================
+  # Release: aggregate artifacts → GitHub Release (only on tag push)
+  # ============================================================
+  release:
+    name: Create GitHub Release
+    needs: [build-mac, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Arunihealth T.A.R.A ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          body_path: .github/RELEASE_TEMPLATE.md
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/apm-mac-universal.zip
+            artifacts/apm-windows-amd64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
