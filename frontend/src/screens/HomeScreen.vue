@@ -19,13 +19,13 @@ import {
   PhFingerprint,
   PhLifebuoy,
   PhPhone,
-  PhSparkle,
   PhCircleNotch,
   PhCaretRight,
 } from '@phosphor-icons/vue'
 
 import StatusDot from '../components/StatusDot.vue'
 import BpjsLogo from '../components/BpjsLogo.vue'
+import WelcomeIllustration from '../components/WelcomeIllustration.vue'
 
 import { I18N } from '../constants/i18n'
 import { useClock } from '../composables/useClock'
@@ -212,120 +212,137 @@ onUnmounted(() => {
              p-[clamp(16px,3vw,24px)]
              max-w-[820px] mx-auto w-full justify-center"
     >
-      <!-- Welcome banner besar dengan greeting time-aware + ilustrasi -->
+      <!-- ╔══════════════════════════════════════════════════════════╗
+           ║ Welcome banner besar — combo unDraw illustration +      ║
+           ║ greeting time-aware + soft gradient bg                   ║
+           ╚══════════════════════════════════════════════════════════╝ -->
       <div
-        class="rounded-card flex items-center gap-[clamp(16px,3vw,24px)]
-               px-[clamp(20px,3vw,32px)] py-[clamp(20px,3vw,28px)]
-               min-h-[clamp(110px,14vw,150px)]"
+        class="rounded-card flex items-center gap-[clamp(16px,3vw,28px)]
+               px-[clamp(24px,4vw,40px)] py-[clamp(20px,3vw,32px)]
+               min-h-[clamp(160px,20vw,220px)]"
         :style="{
           background: `linear-gradient(135deg, var(--color-primary-light, #E8F0FE) 0%, var(--color-accent, #DBEAFE) 100%)`,
         }"
       >
-        <div class="flex-1">
-          <div class="text-[clamp(24px,3.6vw,34px)] font-semibold text-text-primary leading-tight">
+        <div class="flex-1 min-w-0">
+          <div class="text-[clamp(28px,4.2vw,40px)] font-bold text-text-primary leading-tight">
             {{ greeting }}
           </div>
-          <p class="text-[clamp(14px,2vw,18px)] text-text-secondary mt-2 leading-relaxed">
-            Mari mulai pendaftaran Anda — pilih layanan di bawah.
+          <p class="text-[clamp(15px,2.2vw,20px)] text-text-secondary mt-2 leading-relaxed">
+            Mari mulai pendaftaran Anda<br/>
+            — pilih layanan di bawah.
           </p>
         </div>
+        <!-- Illustration unDraw style — color follow theme primary -->
         <div
-          class="flex-shrink-0 hidden sm:flex items-center justify-center
-                 w-[clamp(80px,11vw,120px)] h-[clamp(80px,11vw,120px)]
-                 rounded-full bg-white/40 backdrop-blur-sm"
+          class="flex-shrink-0 hidden md:flex"
+          :style="{ color: 'var(--color-primary, #1B4FD8)' }"
         >
-          <PhSparkle :size="48" weight="duotone" :style="{ color: 'var(--color-primary, #1B4FD8)' }" />
+          <WelcomeIllustration size="lg" />
         </div>
       </div>
 
-      <!-- Hero BPJS — primary action 60% visual weight + logo BPJS resmi -->
+      <!-- ╔══════════════════════════════════════════════════════════╗
+           ║ Hero BPJS — primary action 60% visual weight             ║
+           ║ Gradient biru korporat + BPJS logo                       ║
+           ╚══════════════════════════════════════════════════════════╝ -->
       <button
         type="button"
         class="text-left rounded-card transition-all
                border border-transparent
                hover:opacity-95 active:opacity-90
-               flex items-center gap-[clamp(14px,2.5vw,20px)]
-               px-[clamp(20px,3vw,28px)] py-[clamp(20px,3vw,28px)]
-               min-h-[clamp(110px,14vw,140px)]
-               shadow-md text-white"
-        :style="{ backgroundColor: 'var(--color-primary, #1B4FD8)' }"
+               flex items-center gap-[clamp(16px,2.5vw,24px)]
+               px-[clamp(24px,3.5vw,32px)] py-[clamp(22px,3vw,30px)]
+               min-h-[clamp(120px,15vw,150px)]
+               shadow-lg text-white"
+        :style="{
+          background: `linear-gradient(135deg, var(--color-primary, #1B4FD8) 0%, var(--color-primary-dark, #143ba8) 100%)`,
+        }"
         @click="startBPJS"
       >
         <!-- Logo BPJS Kesehatan resmi (atau dari config kalau ada) -->
         <div
-          class="bg-white rounded-[12px] p-[clamp(10px,1.5vw,14px)] flex-shrink-0
+          class="bg-white rounded-[14px] p-[clamp(10px,1.5vw,16px)] flex-shrink-0
                  flex items-center justify-center
-                 w-[clamp(72px,10vw,96px)] h-[clamp(72px,10vw,96px)]"
+                 w-[clamp(80px,11vw,108px)] h-[clamp(80px,11vw,108px)]
+                 shadow-md"
         >
           <BpjsLogo size="md" variant="icon" />
         </div>
         <div class="flex-1">
-          <div class="text-[clamp(20px,2.8vw,26px)] font-semibold leading-tight">
+          <div class="text-[clamp(22px,3vw,28px)] font-bold leading-tight">
             Pasien BPJS
           </div>
-          <p class="text-[clamp(13px,1.7vw,15px)] opacity-90 mt-1 leading-snug">
+          <p class="text-[clamp(14px,1.8vw,16px)] opacity-95 mt-1.5 leading-snug">
             Tap kartu BPJS atau ketik nomor — sistem otomatis mendeteksi jenis kunjungan
           </p>
         </div>
-        <PhCaretRight :size="32" weight="bold" class="opacity-80" />
+        <PhCaretRight :size="36" weight="bold" class="opacity-90" />
       </button>
 
-      <!-- 2 Secondary cards: Umum + Antrian Loket -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-[clamp(10px,1.5vw,14px)]">
-        <!-- Pasien Umum -->
+      <!-- ╔══════════════════════════════════════════════════════════╗
+           ║ 2 Secondary cards co-equal — gradient lembut per kategori║
+           ║ Umum (hijau lembut) · Antrian Loket (kuning hangat)      ║
+           ╚══════════════════════════════════════════════════════════╝ -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-[clamp(10px,1.5vw,16px)]">
+        <!-- Pasien Umum — gradient hijau lembut -->
         <button
           type="button"
-          class="text-left rounded-card bg-surface border border-border
-                 hover:border-border-strong active:bg-bg
-                 flex items-center gap-[clamp(12px,2vw,16px)]
-                 px-[clamp(16px,2.5vw,22px)] py-[clamp(16px,2.5vw,22px)]
-                 min-h-[clamp(86px,11vw,108px)] shadow-sm"
+          class="text-left rounded-card transition-all
+                 hover:opacity-95 active:opacity-90 border border-emerald-100
+                 flex items-center gap-[clamp(12px,2vw,18px)]
+                 px-[clamp(18px,2.5vw,24px)] py-[clamp(18px,2.5vw,24px)]
+                 min-h-[clamp(96px,12vw,118px)] shadow-sm"
+          style="background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)"
           @click="startUmum"
         >
           <div
-            class="rounded-[10px] flex items-center justify-center flex-shrink-0
-                   w-[clamp(48px,6vw,56px)] h-[clamp(48px,6vw,56px)]"
-            style="background-color: var(--color-primary-light, #E8F0FE); color: var(--color-primary, #1B4FD8)"
+            class="rounded-[12px] flex items-center justify-center flex-shrink-0
+                   w-[clamp(54px,7vw,64px)] h-[clamp(54px,7vw,64px)]
+                   bg-emerald-500 text-white shadow-sm"
           >
-            <PhUser :size="28" weight="bold" />
+            <PhUser :size="32" weight="fill" />
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-[clamp(15px,2.1vw,18px)] font-semibold text-text-primary leading-tight">
+            <div class="text-[clamp(17px,2.3vw,20px)] font-bold text-emerald-900 leading-tight">
               Pasien Umum
             </div>
-            <p class="text-[clamp(11px,1.5vw,13px)] text-text-secondary mt-1 leading-tight">
-              Tanpa kartu BPJS
+            <p class="text-[clamp(12px,1.6vw,14px)] text-emerald-800/80 mt-1 leading-tight">
+              Tanpa kartu BPJS · Bayar di kasir
             </p>
           </div>
+          <PhCaretRight :size="22" weight="bold" class="text-emerald-700/70" />
         </button>
 
-        <!-- Antrian Loket (single-tap, QW1) -->
+        <!-- Antrian Loket — gradient kuning hangat -->
         <button
           type="button"
           :disabled="antrianLoading"
-          class="text-left rounded-card bg-surface border border-border
-                 hover:border-border-strong active:bg-bg disabled:opacity-60
-                 flex items-center gap-[clamp(12px,2vw,16px)]
-                 px-[clamp(16px,2.5vw,22px)] py-[clamp(16px,2.5vw,22px)]
-                 min-h-[clamp(86px,11vw,108px)] shadow-sm"
+          class="text-left rounded-card transition-all
+                 hover:opacity-95 active:opacity-90 disabled:opacity-60 border border-amber-100
+                 flex items-center gap-[clamp(12px,2vw,18px)]
+                 px-[clamp(18px,2.5vw,24px)] py-[clamp(18px,2.5vw,24px)]
+                 min-h-[clamp(96px,12vw,118px)] shadow-sm"
+          style="background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)"
           @click="startAntrian"
         >
           <div
-            class="rounded-[10px] flex items-center justify-center flex-shrink-0
-                   w-[clamp(48px,6vw,56px)] h-[clamp(48px,6vw,56px)]
-                   bg-amber-50 text-amber-700"
+            class="rounded-[12px] flex items-center justify-center flex-shrink-0
+                   w-[clamp(54px,7vw,64px)] h-[clamp(54px,7vw,64px)]
+                   bg-amber-500 text-white shadow-sm"
           >
-            <PhCircleNotch v-if="antrianLoading" :size="28" weight="bold" class="animate-spin" />
-            <PhTicket v-else :size="28" weight="fill" />
+            <PhCircleNotch v-if="antrianLoading" :size="32" weight="bold" class="animate-spin" />
+            <PhTicket v-else :size="32" weight="fill" />
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-[clamp(15px,2.1vw,18px)] font-semibold text-text-primary leading-tight">
+            <div class="text-[clamp(17px,2.3vw,20px)] font-bold text-amber-900 leading-tight">
               Ambil Nomor Loket
             </div>
-            <p class="text-[clamp(11px,1.5vw,13px)] text-text-secondary mt-1 leading-tight">
-              {{ antrianLoading ? 'Mengambil nomor…' : 'Antrian admisi langsung' }}
+            <p class="text-[clamp(12px,1.6vw,14px)] text-amber-800/80 mt-1 leading-tight">
+              {{ antrianLoading ? 'Mengambil nomor…' : 'Antrian admisi · cetak langsung' }}
             </p>
           </div>
+          <PhCaretRight :size="22" weight="bold" class="text-amber-700/70" />
         </button>
       </div>
     </section>

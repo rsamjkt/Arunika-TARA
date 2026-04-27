@@ -2,6 +2,38 @@
 
 > Self-service kiosk for hospital outpatient registration, BPJS SEP issuance, and queue management. Direct-DB integration with SIMRS Khanza, Smart BPJS Detector with auto-classification, modern accessibility-first UI built for **multi-generation Indonesian patients** (elderly + middle-aged + young).
 
+## What's New in v1.6 ("Mahatma 1.6")
+
+### 🎨 HomeScreen Polish — Combo unDraw + Tile Gradient
+
+Refresh visual HomeScreen biar lebih warm dan inviting untuk pasien lansia + young.
+
+**Welcome banner besar** (160-220px tinggi) dengan:
+- Greeting time-aware bold 28-40px (Selamat pagi/siang/sore/malam)
+- Sub-text "Mari mulai pendaftaran Anda — pilih layanan di bawah"
+- **Illustration unDraw style** di samping kanan — `WelcomeIllustration` SVG inline component dengan scene petugas RS + kartu BPJS + kios. Color follow `--color-primary` dari config branding.
+- Background subtle gradient `--color-primary-light` → `--color-accent`
+- Hide illustration di layar kecil (<md), banner full width
+
+**Hero BPJS** (120-150px tinggi):
+- Gradient diagonal `--color-primary` → `--color-primary-dark` (lebih dimensi vs solid sebelumnya)
+- Logo BPJS Kesehatan dalam card putih shadow lift
+- Caret arrow size 36 (lebih prominent CTA)
+- Bold heading 22-28px
+
+**2 Secondary card co-equal** dengan gradient lembut per kategori:
+- **Pasien Umum**: gradient hijau lembut (`#ECFDF5` → `#D1FAE5`), ikon putih dalam circle hijau emerald-500. Subtitle "Tanpa kartu BPJS · Bayar di kasir".
+- **Antrian Loket**: gradient kuning hangat (`#FFFBEB` → `#FEF3C7`), ikon putih dalam circle amber-500. Subtitle "Antrian admisi · cetak langsung".
+
+Setiap card punya CaretRight icon kanan untuk visual affordance + tap target jelas.
+
+**Footer tidak berubah** — Bantu Saya · Aktivasi SatuSehat · Panggil Petugas (TANPA akreditasi line per request).
+
+### 📦 Komponen baru
+- `WelcomeIllustration.vue` — SVG inline dengan style unDraw (geometric clean lines, single accent color via `currentColor`). Scene petugas RS + BPJS card + kios + accent ikon medis. Dokumentasi inline cara replace dengan asset unDraw resmi (download dari undraw.co, customize color, paste ke template).
+
+---
+
 ## What's New in v1.5 ("Mahatma 1.5")
 
 ### 🖨️ Print Template Polish — Struk Profesional ESC/POS
