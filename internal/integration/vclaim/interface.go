@@ -24,10 +24,6 @@ type VClaimClient interface {
 	// jika gagal. tgl dipakai sebagai tglSEP untuk validasi periode aktif.
 	GetPeserta(ctx context.Context, identifier string, tgl time.Time) (*domain.Peserta, error)
 
-	// GetRencanaKontrol mengembalikan list surat kontrol yang masih
-	// aktif untuk noKartu pada rentang tanggal [today, tgl].
-	GetRencanaKontrol(ctx context.Context, noKartu string, tgl time.Time) ([]domain.SuratKontrol, error)
-
 	// GetRiwayatPelayanan mengembalikan riwayat kunjungan/pelayanan
 	// pasien antara tglAwal dan tglAkhir (inklusif).
 	GetRiwayatPelayanan(ctx context.Context, noKartu string, tglAwal, tglAkhir time.Time) ([]domain.RiwayatPelayanan, error)
@@ -52,12 +48,4 @@ type VClaimClient interface {
 	// yang berbeda (mis. kalau kiosk crash post-VClaim insert tapi
 	// pre-DB insert).
 	CekSEPDuplikasi(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
-
-	// BuatRencanaKontrol POST /RencanaKontrol/insert untuk schedule
-	// SKDP pasien post-discharge. Output: noSuratKontrol baru yang
-	// caller harus simpan ke bridging_surat_kontrol_bpjs.
-	//
-	// Berbeda dengan CreateSEPKontrol yang ISSUE SEP dari SKDP
-	// existing — method ini CREATE SKDP baru.
-	BuatRencanaKontrol(ctx context.Context, req domain.RencanaKontrolRequest) (*domain.RencanaKontrol, error)
 }

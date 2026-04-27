@@ -1384,42 +1384,6 @@ func (c *MySQLClient) SimpanRujukanBPJS(ctx context.Context, r domain.RujukanBPJ
 }
 
 // ============================================================
-// SimpanSuratKontrolBPJS — bridging_surat_kontrol_bpjs
-// ============================================================
-
-// SimpanSuratKontrolBPJS dipanggil setelah VClaim.BuatRencanaKontrol
-// sukses, menyimpan noSuratKontrol baru ke local DB.
-//
-// Schema bridging_surat_kontrol_bpjs (sikrsam260312):
-//   no_surat (PK), no_sep, tgl_surat, tgl_rencana,
-//   kd_dokter_bpjs, nm_dokter_bpjs, kd_poli_bpjs, nm_poli_bpjs,
-//   status_prb (default ''), + banyak field PRB optional yang kita kosongkan
-func (c *MySQLClient) SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error {
-	if sk.NoSuratKontrol == "" || sk.NoSEP == "" {
-		return errors.New("simpan surat kontrol bpjs: no_surat & no_sep wajib")
-	}
-	tglRencana := sk.TglRencana
-	if tglRencana == "" {
-		tglRencana = time.Now().Format("2006-01-02")
-	}
-	const sqlQ = `
-		REPLACE INTO bridging_surat_kontrol_bpjs (
-		  no_surat, no_sep, tgl_surat, tgl_rencana,
-		  kd_dokter_bpjs, nm_dokter_bpjs,
-		  kd_poli_bpjs, nm_poli_bpjs
-		) VALUES (?, ?, CURDATE(), ?, ?, ?, ?, ?)
-	`
-	if _, err := c.db.ExecContext(ctx, sqlQ,
-		sk.NoSuratKontrol, sk.NoSEP, tglRencana,
-		sk.KdDokter, sk.NmDokter,
-		sk.KdPoli, sk.NmPoli,
-	); err != nil {
-		return fmt.Errorf("simpan surat kontrol bpjs %s: %w", sk.NoSuratKontrol, wrapOfflineMySQL(err))
-	}
-	return nil
-}
-
-// ============================================================
 // UpdateSatuSehatID
 // ============================================================
 

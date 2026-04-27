@@ -133,25 +133,3 @@ type SEP struct {
 	AsesmenPelayanan string
 }
 
-// RencanaKontrolRequest adalah payload untuk POST /RencanaKontrol/insert
-// VClaim API. Endpoint ini berbeda dari /SEP/insert — output-nya
-// noSuratKontrol untuk disimpan di bridging_surat_kontrol_bpjs supaya
-// pasien bisa kontrol berikutnya tanpa perlu rujukan baru.
-type RencanaKontrolRequest struct {
-	NoSEP             string
-	KodeDokter        string // kd_dokter_bpjs (bukan kode RS — sudah di-translate)
-	PoliKontrol       string // kd_poli_bpjs
-	TglRencanaKontrol string // "2006-01-02"
-	User              string // operator id / petugas
-}
-
-// RencanaKontrol adalah hasil RencanaKontrol/insert sukses.
-type RencanaKontrol struct {
-	NoSuratKontrol string
-	NoSEP          string
-	TglRencana     string
-	KdPoli         string
-	NmPoli         string
-	KdDokter       string
-	NmDokter       string
-}

@@ -37,7 +37,6 @@ type MockKhanzaClient struct {
 	SimpanSEPFunc            func(ctx context.Context, sep domain.SEP) error
 	SimpanRujukMasukFunc     func(ctx context.Context, r domain.RujukMasuk) error
 	SimpanRujukanBPJSFunc    func(ctx context.Context, r domain.RujukanBPJS) error
-	SimpanSuratKontrolBPJSFunc func(ctx context.Context, sk domain.RencanaKontrol) error
 	UpdateSatuSehatIDFunc    func(ctx context.Context, noRM, ihsNumber string) error
 
 	mu        sync.Mutex
@@ -274,14 +273,6 @@ func (m *MockKhanzaClient) SimpanRujukanBPJS(ctx context.Context, r domain.Rujuk
 	m.recordCall("SimpanRujukanBPJS")
 	if m.SimpanRujukanBPJSFunc != nil {
 		return m.SimpanRujukanBPJSFunc(ctx, r)
-	}
-	return nil
-}
-
-func (m *MockKhanzaClient) SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error {
-	m.recordCall("SimpanSuratKontrolBPJS")
-	if m.SimpanSuratKontrolBPJSFunc != nil {
-		return m.SimpanSuratKontrolBPJSFunc(ctx, sk)
 	}
 	return nil
 }

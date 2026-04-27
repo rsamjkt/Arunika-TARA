@@ -18,13 +18,11 @@ import (
 // Compile-time check: var _ VClaimClient = (*MockVClaimClient)(nil)
 type MockVClaimClient struct {
 	GetPesertaFunc          func(ctx context.Context, identifier string, tgl time.Time) (*domain.Peserta, error)
-	GetRencanaKontrolFunc   func(ctx context.Context, noKartu string, tgl time.Time) ([]domain.SuratKontrol, error)
 	GetRiwayatPelayananFunc func(ctx context.Context, noKartu string, tglAwal, tglAkhir time.Time) ([]domain.RiwayatPelayanan, error)
 	ValidasiRujukanFunc     func(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error)
 	CreateSEPFunc           func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error)
 	CreateSEPKontrolFunc    func(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
 	CekSEPDuplikasiFunc     func(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
-	BuatRencanaKontrolFunc  func(ctx context.Context, req domain.RencanaKontrolRequest) (*domain.RencanaKontrol, error)
 
 	mu        sync.Mutex
 	callCount map[string]int
@@ -55,14 +53,6 @@ func (m *MockVClaimClient) GetPeserta(ctx context.Context, identifier string, tg
 	m.recordCall("GetPeserta")
 	if m.GetPesertaFunc != nil {
 		return m.GetPesertaFunc(ctx, identifier, tgl)
-	}
-	return nil, nil
-}
-
-func (m *MockVClaimClient) GetRencanaKontrol(ctx context.Context, noKartu string, tgl time.Time) ([]domain.SuratKontrol, error) {
-	m.recordCall("GetRencanaKontrol")
-	if m.GetRencanaKontrolFunc != nil {
-		return m.GetRencanaKontrolFunc(ctx, noKartu, tgl)
 	}
 	return nil, nil
 }
@@ -107,10 +97,3 @@ func (m *MockVClaimClient) CekSEPDuplikasi(ctx context.Context, noKartu, tglSEP 
 	return nil, nil
 }
 
-func (m *MockVClaimClient) BuatRencanaKontrol(ctx context.Context, req domain.RencanaKontrolRequest) (*domain.RencanaKontrol, error) {
-	m.recordCall("BuatRencanaKontrol")
-	if m.BuatRencanaKontrolFunc != nil {
-		return m.BuatRencanaKontrolFunc(ctx, req)
-	}
-	return nil, nil
-}

@@ -18,10 +18,14 @@ import (
 //	"000001"        → Peserta aktif default (RujukanBaru flow)
 //	"000002"        → Peserta aktif default (RujukanBaru flow)
 //	"MJKN" prefix   → Peserta aktif + booking MJKN (untuk test MJKN flow)
-//	"KONTROL" prefix → Peserta aktif + ada SKDP (untuk test Kontrol flow)
 //	"INACTIVE"      → Peserta tidak aktif
 //	"INVALID"       → GetPeserta error (test error path)
 //	default         → Peserta aktif minimal data
+//
+// Untuk test Kontrol flow, isi local DB `bridging_surat_kontrol_bpjs`
+// (vendor pattern). Mock VClaim TIDAK lagi punya GetRencanaKontrol /
+// BuatRencanaKontrol — vendor KhanzaHMSAnjunganSEP_RSAMXIP cuma lookup
+// local DB via `khanza.GetSuratKontrol` di detector.
 //
 // MockVClaimClient field di-set langsung supaya bisa di-tweak per-method
 // kalau test butuh override.
@@ -81,24 +85,6 @@ func NewMockPreset() *MockVClaimClient {
 		}, nil
 	}
 
-	// GetRencanaKontrol — kalau identifier mengandung "KONTROL", return 1 SKDP
-	m.GetRencanaKontrolFunc = func(ctx context.Context, noKartu string, tgl time.Time) ([]domain.SuratKontrol, error) {
-		// Mock heuristic: kalau noKartu mengandung "K" → kontrol
-		if !strings.Contains(strings.ToUpper(noKartu), "K") {
-			return nil, nil
-		}
-		return []domain.SuratKontrol{
-			{
-				NoSurat:    "0115R0500226K000449",
-				NoRM:       "078763",
-				TglRencana: tgl.Format("2006-01-02"), // hari ini
-				KdPoli:     "U0077",
-				NmPoli:     "POLI MATA",
-				KdDokter:   "D0000089",
-			},
-		}, nil
-	}
-
 	// CreateSEP — return SEP dummy dengan no_sep generated
 	m.CreateSEPFunc = func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error) {
 		return &domain.SEP{
@@ -129,17 +115,6 @@ func NewMockPreset() *MockVClaimClient {
 	// CekSEPDuplikasi — selalu nil (gak ada dup)
 	m.CekSEPDuplikasiFunc = func(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error) {
 		return nil, nil
-	}
-
-	// BuatRencanaKontrol — generate SKDP baru
-	m.BuatRencanaKontrolFunc = func(ctx context.Context, req domain.RencanaKontrolRequest) (*domain.RencanaKontrol, error) {
-		return &domain.RencanaKontrol{
-			NoSuratKontrol: fmt.Sprintf("0115R%sK%06d", time.Now().Format("0501"), randSepSuffix()),
-			NoSEP:          req.NoSEP,
-			TglRencana:     req.TglRencanaKontrol,
-			KdPoli:         req.PoliKontrol,
-			KdDokter:       req.KodeDokter,
-		}, nil
 	}
 
 	return m

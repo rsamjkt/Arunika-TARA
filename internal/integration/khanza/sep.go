@@ -53,14 +53,6 @@ func (c *Client) SimpanRujukanBPJS(ctx context.Context, r domain.RujukanBPJS) er
 	return nil
 }
 
-// SimpanSuratKontrolBPJS — REST stub. No-op di mode REST.
-func (c *Client) SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error {
-	if sk.NoSuratKontrol == "" {
-		return fmt.Errorf("simpan surat kontrol bpjs: no_surat wajib")
-	}
-	return nil
-}
-
 type satusehatBody struct {
 	IhsNumber string `json:"ihs_number"`
 }

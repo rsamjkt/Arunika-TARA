@@ -11,47 +11,6 @@ import (
 	"github.com/arunika/apm-go/internal/domain"
 )
 
-func TestVClaim_GetRencanaKontrol_ParsesList(t *testing.T) {
-	plaintext := []byte(`{
-        "list": [
-            {
-                "noSuratKontrol": "SK-001",
-                "noRekamMedis": "RM-12345",
-                "tglRencanaKontrol": "2026-04-26",
-                "poliKontrol": {"kode":"INT","nama":"Penyakit Dalam"},
-                "dokter": {"kode":"D-001"}
-            },
-            {
-                "noSuratKontrol": "SK-002",
-                "tglRencanaKontrol": "2026-04-27",
-                "poliKontrol": {"kode":"BDH","nama":"Bedah"},
-                "dokter": {"kode":"D-002"}
-            }
-        ]
-    }`)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, "/RencanaKontrol/List/") {
-			t.Errorf("path = %s", r.URL.Path)
-		}
-		w.Write(makeEnvelope(t, "200", "OK", plaintext, "rahasia-bpjs", "12345"))
-	}))
-	defer server.Close()
-
-	c := newTestClient(t, server)
-	list, err := c.GetRencanaKontrol(context.Background(), "0001234567890012",
-		time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC))
-	if err != nil {
-		t.Fatalf("GetRencanaKontrol: %v", err)
-	}
-	if len(list) != 2 {
-		t.Fatalf("expected 2 surat kontrol, got %d", len(list))
-	}
-	if list[0].NoSurat != "SK-001" || list[0].NmPoli != "Penyakit Dalam" {
-		t.Errorf("item 0 mismatch: %+v", list[0])
-	}
-}
-
 func TestVClaim_GetRiwayatPelayanan_ParsesArray(t *testing.T) {
 	plaintext := []byte(`{
         "noKartu": "0001234567890012",
@@ -189,14 +148,14 @@ func TestVClaim_Mock_CallCountAndStub(t *testing.T) {
 	}
 
 	// Method tanpa stub return zero-value
-	list, err := mock.GetRencanaKontrol(context.Background(), "X", time.Now())
+	list, err := mock.GetRiwayatPelayanan(context.Background(), "X", time.Now(), time.Now())
 	if err != nil {
 		t.Errorf("unstubbed method seharusnya return nil error")
 	}
 	if len(list) != 0 {
 		t.Errorf("unstubbed method seharusnya return empty slice")
 	}
-	if mock.CallCount("GetRencanaKontrol") != 1 {
-		t.Errorf("CallCount(GetRencanaKontrol) salah")
+	if mock.CallCount("GetRiwayatPelayanan") != 1 {
+		t.Errorf("CallCount(GetRiwayatPelayanan) salah")
 	}
 }

@@ -101,11 +101,6 @@ type KhanzaClient interface {
 	// link ke no_rawat).
 	SimpanRujukanBPJS(ctx context.Context, r domain.RujukanBPJS) error
 
-	// SimpanSuratKontrolBPJS insert ke `bridging_surat_kontrol_bpjs`
-	// setelah VClaim BuatRencanaKontrol sukses, supaya kontrol bisa
-	// di-detect Smart Detector di kunjungan berikutnya.
-	SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error
-
 	// UpdateSatuSehatID menyimpan IHS Number (Satu Sehat ID) ke master
 	// pasien Khanza setelah aktivasi sukses.
 	UpdateSatuSehatID(ctx context.Context, noRM, ihsNumber string) error
