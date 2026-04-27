@@ -25,13 +25,10 @@ import {
 } from '@phosphor-icons/vue'
 
 import StatusDot from '../components/StatusDot.vue'
-import IdleOverlay from '../components/IdleOverlay.vue'
 import BpjsLogo from '../components/BpjsLogo.vue'
 
 import { I18N } from '../constants/i18n'
-import { KIOSK } from '../constants/kiosk'
 import { useClock } from '../composables/useClock'
-import { useIdleTimeout } from '../composables/useIdleTimeout'
 import { useAudioCue } from '../composables/useAudioCue'
 import { apmService } from '../services/apm'
 import { usePatientStore } from '../stores/patient'
@@ -67,14 +64,9 @@ const greeting = computed(() => {
   return 'Selamat malam!'
 })
 
-// Idle timeout — di home, reset cuma clear store
-const { isCountingDown, secondsLeft } = useIdleTimeout({
-  totalSeconds: KIOSK.idleTimeoutSec,
-  countdownThreshold: KIOSK.idleCountdownSec,
-  onTimeout: async () => {
-    await patient.reset()
-  },
-})
+// Idle timeout di-skip di HomeScreen — pasien belum ada flow
+// in-progress, jadi countdown overlay tidak relevan dan bingungkan
+// lansia. Patient store akan di-reset saat user tap salah satu CTA.
 
 // Click handlers — semua dengan audio cue + reset session
 async function startBPJS() {
@@ -380,7 +372,5 @@ onUnmounted(() => {
         </button>
       </div>
     </footer>
-
-    <IdleOverlay :seconds-left="secondsLeft" :visible="isCountingDown" />
   </main>
 </template>

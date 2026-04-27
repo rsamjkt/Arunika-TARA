@@ -36,11 +36,14 @@ defineProps({
         {{ secondsLeft }}
       </div>
 
-      <!-- Message -->
-      <p class="text-[clamp(16px,2.5vw,22px)] font-medium">
-        {{ I18N.idle.countdown(secondsLeft) }}
+      <!-- Message — context aware: pasien sedang di flow + tidak interaksi -->
+      <p class="text-[clamp(20px,3vw,28px)] font-semibold">
+        {{ I18N.idle.title }}
       </p>
-      <p class="text-[clamp(12px,1.6vw,14px)] text-white/70">
+      <p class="text-[clamp(14px,2vw,18px)] text-white/85">
+        {{ I18N.idle.sub }}
+      </p>
+      <p class="text-[clamp(12px,1.6vw,15px)] text-white/70 mt-2">
         {{ I18N.idle.tap }}
       </p>
     </div>

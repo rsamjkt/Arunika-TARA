@@ -53,8 +53,10 @@ export const I18N = {
 
   // Idle overlay
   idle: {
-    countdown: (sec: number) => `Kembali ke awal dalam ${sec} detik`,
-    tap: 'Sentuh layar untuk melanjutkan',
+    countdown: (sec: number) => `${sec}`,
+    title: 'Anda masih di sini?',
+    sub: 'Kembali ke awal dalam beberapa detik',
+    tap: 'Sentuh layar untuk lanjut isi',
   },
 
   // Common buttons
