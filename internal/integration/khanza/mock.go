@@ -32,9 +32,11 @@ type MockKhanzaClient struct {
 	GetRujukanInternalAntarPoliFunc func(ctx context.Context, noRM string, daysBack int) ([]domain.RujukanInternalPoli, error)
 	BuatPendaftaranFunc   func(ctx context.Context, req domain.PendaftaranRequest) (*domain.Pendaftaran, error)
 	BuatAntrianFunc       func(ctx context.Context, req domain.AntrianRequest) (*domain.Ticket, error)
-	SimpanSEPFunc         func(ctx context.Context, sep domain.SEP) error
-	SimpanRujukMasukFunc  func(ctx context.Context, r domain.RujukMasuk) error
-	UpdateSatuSehatIDFunc func(ctx context.Context, noRM, ihsNumber string) error
+	SimpanSEPFunc            func(ctx context.Context, sep domain.SEP) error
+	SimpanRujukMasukFunc     func(ctx context.Context, r domain.RujukMasuk) error
+	SimpanRujukanBPJSFunc    func(ctx context.Context, r domain.RujukanBPJS) error
+	SimpanSuratKontrolBPJSFunc func(ctx context.Context, sk domain.RencanaKontrol) error
+	UpdateSatuSehatIDFunc    func(ctx context.Context, noRM, ihsNumber string) error
 
 	mu        sync.Mutex
 	callCount map[string]int
@@ -246,6 +248,22 @@ func (m *MockKhanzaClient) SimpanRujukMasuk(ctx context.Context, r domain.RujukM
 	m.recordCall("SimpanRujukMasuk")
 	if m.SimpanRujukMasukFunc != nil {
 		return m.SimpanRujukMasukFunc(ctx, r)
+	}
+	return nil
+}
+
+func (m *MockKhanzaClient) SimpanRujukanBPJS(ctx context.Context, r domain.RujukanBPJS) error {
+	m.recordCall("SimpanRujukanBPJS")
+	if m.SimpanRujukanBPJSFunc != nil {
+		return m.SimpanRujukanBPJSFunc(ctx, r)
+	}
+	return nil
+}
+
+func (m *MockKhanzaClient) SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error {
+	m.recordCall("SimpanSuratKontrolBPJS")
+	if m.SimpanSuratKontrolBPJSFunc != nil {
+		return m.SimpanSuratKontrolBPJSFunc(ctx, sk)
 	}
 	return nil
 }

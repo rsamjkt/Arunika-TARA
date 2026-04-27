@@ -2,6 +2,57 @@
 
 > Self-service kiosk for hospital outpatient registration, BPJS SEP issuance, and queue management. Direct-DB integration with SIMRS Khanza, Smart BPJS Detector with auto-classification, modern accessibility-first UI built for **multi-generation Indonesian patients** (elderly + middle-aged + young).
 
+## What's New in v1.3 ("Mahatma 1.3")
+
+Major BPJS parity push + UX completion.
+
+### 🆘 "Bantu Saya" Wizard untuk First-Time Users (BB1)
+4-screen guided wizard untuk pasien yang pertama kali pakai kiosk:
+1. **Welcome** — reassurance "Tidak masalah, saya tanya 2 hal saja"
+2. **Q: Punya kartu BPJS?** — 2 tombol besar (Ya, punya / Tidak punya) dengan ikon Phosphor + warna feedback
+3. **Q: Pertama kali di RS ini?** — 2 tombol (skip kalau punya BPJS sudah cukup)
+4. **Hasil rekomendasi** — auto-route ke flow yang sesuai dengan tombol primary "Lanjut ke Pendaftaran X" + ulangi pertanyaan
+
+Design lansia-friendly:
+- Font ≥18px body, ≥24px heading
+- Tombol 80px+ touch target
+- Audio cue tap di setiap pilihan
+- Tombol "Kembali" + "Panggil petugas" selalu visible
+- 1 instruksi per screen, tone calm/mengayomi
+
+### 🩺 BPJS Wave 1 — Critical Compliance + Anti-Fraud
+**1. SEP Duplicate Detection via VClaim** — `CekSEPDuplikasi(noKartu, tglSEP)` yang panggil `GET /SEP/{noKartu}/{tglSEP}` untuk verify server-side sebelum CreateSEP. Mencegah ghost SEP saat kiosk crash post-VClaim insert tapi pre-DB insert (billing safety).
+
+**2. `bridging_rujukan_bpjs` Audit Trail** — `SimpanRujukanBPJS()` insert ke 14-kolom audit table untuk compliance + klaim BPJS verifikasi (rujukan FKTP terlacak terpisah dari `rujuk_masuk`).
+
+### 🩺 BPJS Wave 2 — RencanaKontrol API + Conditional Fields
+**1. RencanaKontrol Endpoint** — `BuatRencanaKontrol(req)` yang panggil `POST /RencanaKontrol/insert` VClaim API untuk schedule SKDP baru pasien post-discharge. Hasil `noSuratKontrol` auto-disimpan ke `bridging_surat_kontrol_bpjs` lewat method baru `SimpanSuratKontrolBPJS()` — supaya Smart Detector kunjungan berikutnya bisa pickup kontrolnya.
+
+**2. Laka Lantas + COB + Eksekutif Conditional Fields** — `domain.SEP` extended dengan:
+- `LakaLantas` (0/1/2/3) + `TglKejadian` + `KetKecelakaan` + lokasi 4-tier (propinsi/kabupaten/kecamatan)
+- `COB` flag untuk dual-insurance pasien
+- `Eksekutif` untuk kelas naik
+- `TujuanKunjungan` dan `AsesmenPelayanan` untuk routing tariff
+
+`SimpanSEP` extended dari 18→30+ kolom — populate semua field critical dengan default safe (`0. Tidak` untuk enum). UI panel conditional untuk Laka Lantas defer ke v1.4.
+
+### 📦 Schema additions
+- `domain.RencanaKontrolRequest` + `domain.RencanaKontrol` — input/output VClaim
+- `domain.RujukanBPJS` — audit trail rujukan FKTP
+- `KhanzaClient` interface: `+SimpanRujukanBPJS`, `+SimpanSuratKontrolBPJS`
+- `VClaimClient` interface: `+CekSEPDuplikasi`, `+BuatRencanaKontrol`
+
+## Coming in v1.4
+- COB UI panel (dual-insurance handling)
+- Laka Lantas conditional UI form
+- Antrol push notification (booking BPJS muncul di Mobile JKN app)
+- Katarak/Penunjang/Asesmen detail validation
+- Multi-kiosk antrian counter (prefix per kiosk via config)
+- DPJP auto-pick from `dpjp_ranap` untuk Post-RANAP
+- Hamil → OBGYN auto-routing dari diagnosa awal
+
+---
+
 ## What's New in v1.2 ("Mahatma 1.2")
 
 Continuation of UX brainstorm implementation — addressing the remaining elderly-friendly gaps and one critical BPJS integration parity:

@@ -42,8 +42,22 @@ func (c *Client) SimpanRujukMasuk(ctx context.Context, r domain.RujukMasuk) erro
 	if r.NoRawat == "" {
 		return fmt.Errorf("simpan rujuk masuk: no_rawat wajib")
 	}
-	// REST mode: rujukan biasanya di-handle via SimpanSEP body. Kita
-	// no-op di sini supaya signature interface konsisten.
+	return nil
+}
+
+// SimpanRujukanBPJS — REST stub. No-op di mode REST (rujukan via SimpanSEP).
+func (c *Client) SimpanRujukanBPJS(ctx context.Context, r domain.RujukanBPJS) error {
+	if r.NoSEP == "" {
+		return fmt.Errorf("simpan rujukan bpjs: no_sep wajib")
+	}
+	return nil
+}
+
+// SimpanSuratKontrolBPJS — REST stub. No-op di mode REST.
+func (c *Client) SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error {
+	if sk.NoSuratKontrol == "" {
+		return fmt.Errorf("simpan surat kontrol bpjs: no_surat wajib")
+	}
 	return nil
 }
 

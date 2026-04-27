@@ -66,4 +66,53 @@ type SEP struct {
 	// PRB (Program Rujuk Balik) — kalau pasien punya program PRB
 	// (mis. Diabetes Melitus, Hipertensi, Jantung). Kosong kalau tidak.
 	PRBCode string
+
+	// Laka Lantas — kalau pasien korban kecelakaan lalu lintas.
+	// LakaLantas: "0" tidak, "1" laka, "2" KKL, "3" PAK
+	// Kalau LakaLantas != "0", wajib isi tglKejadian + keterangan + lokasi.
+	LakaLantas    string
+	TglKejadian   string // "2006-01-02" — tgl kecelakaan
+	KetKecelakaan string // deskripsi singkat
+	KdPropinsi    string // kode propinsi lokasi kejadian (BPJS reference)
+	NmPropinsi    string
+	KdKabupaten   string
+	NmKabupaten   string
+	KdKecamatan   string
+	NmKecamatan   string
+
+	// COB (Coordination of Benefit) — pasien dengan asuransi tambahan
+	// "0" tidak, "1" ada COB. Kalau "1", peserta harus klaim dual.
+	COB string
+
+	// Eksekutif (kelas naik) — "0" reguler, "1" eksekutif
+	Eksekutif string
+
+	// Tujuan kunjungan — "0" Konsultasi, "1" Tindakan, "2" Pemeriksaan, "3" Observasi
+	TujuanKunjungan string
+
+	// Asesmen pelayanan — kode internal BPJS untuk assessment level
+	AsesmenPelayanan string
+}
+
+// RencanaKontrolRequest adalah payload untuk POST /RencanaKontrol/insert
+// VClaim API. Endpoint ini berbeda dari /SEP/insert — output-nya
+// noSuratKontrol untuk disimpan di bridging_surat_kontrol_bpjs supaya
+// pasien bisa kontrol berikutnya tanpa perlu rujukan baru.
+type RencanaKontrolRequest struct {
+	NoSEP             string
+	KodeDokter        string // kd_dokter_bpjs (bukan kode RS — sudah di-translate)
+	PoliKontrol       string // kd_poli_bpjs
+	TglRencanaKontrol string // "2006-01-02"
+	User              string // operator id / petugas
+}
+
+// RencanaKontrol adalah hasil RencanaKontrol/insert sukses.
+type RencanaKontrol struct {
+	NoSuratKontrol string
+	NoSEP          string
+	TglRencana     string
+	KdPoli         string
+	NmPoli         string
+	KdDokter       string
+	NmDokter       string
 }

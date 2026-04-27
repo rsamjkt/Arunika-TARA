@@ -23,6 +23,8 @@ type MockVClaimClient struct {
 	ValidasiRujukanFunc     func(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error)
 	CreateSEPFunc           func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error)
 	CreateSEPKontrolFunc    func(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
+	CekSEPDuplikasiFunc     func(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
+	BuatRencanaKontrolFunc  func(ctx context.Context, req domain.RencanaKontrolRequest) (*domain.RencanaKontrol, error)
 
 	mu        sync.Mutex
 	callCount map[string]int
@@ -93,6 +95,22 @@ func (m *MockVClaimClient) CreateSEPKontrol(ctx context.Context, req domain.SEPK
 	m.recordCall("CreateSEPKontrol")
 	if m.CreateSEPKontrolFunc != nil {
 		return m.CreateSEPKontrolFunc(ctx, req)
+	}
+	return nil, nil
+}
+
+func (m *MockVClaimClient) CekSEPDuplikasi(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error) {
+	m.recordCall("CekSEPDuplikasi")
+	if m.CekSEPDuplikasiFunc != nil {
+		return m.CekSEPDuplikasiFunc(ctx, noKartu, tglSEP)
+	}
+	return nil, nil
+}
+
+func (m *MockVClaimClient) BuatRencanaKontrol(ctx context.Context, req domain.RencanaKontrolRequest) (*domain.RencanaKontrol, error) {
+	m.recordCall("BuatRencanaKontrol")
+	if m.BuatRencanaKontrolFunc != nil {
+		return m.BuatRencanaKontrolFunc(ctx, req)
 	}
 	return nil, nil
 }

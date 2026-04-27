@@ -1124,7 +1124,36 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 		namaPasien = sql.NullString{String: sep.NamaPasien, Valid: true}
 	}
 
-	// REPLACE INTO supaya re-issue SEP idempoten.
+	// Default value untuk field laka/COB/eksekutif/tujuan/asesmen
+	lakaLantas := sep.LakaLantas
+	if lakaLantas == "" {
+		lakaLantas = "0"
+	}
+	cob := sep.COB
+	if cob == "" {
+		cob = "0. Tidak"
+	} else if cob == "1" {
+		cob = "1.Ya"
+	} else if cob == "0" {
+		cob = "0. Tidak"
+	}
+	eksekutif := sep.Eksekutif
+	if eksekutif == "" {
+		eksekutif = "0. Tidak"
+	} else if eksekutif == "1" {
+		eksekutif = "1.Ya"
+	} else if eksekutif == "0" {
+		eksekutif = "0. Tidak"
+	}
+	tujuan := sep.TujuanKunjungan
+	if tujuan == "" {
+		tujuan = "0" // konsultasi default
+	}
+	asesmen := sep.AsesmenPelayanan
+
+	// REPLACE INTO supaya re-issue SEP idempoten — sekarang full
+	// 30+ kolom critical termasuk laka lantas, COB, eksekutif,
+	// tujuan kunjungan, asesmen pelayanan.
 	const sqlQ = `
 		REPLACE INTO bridging_sep (
 		  no_sep, no_rawat, tglsep,
@@ -1134,7 +1163,11 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 		  kdpolitujuan, nmpolitujuan,
 		  asal_rujukan, no_kartu,
 		  nomr, nama_pasien, tanggal_lahir, jkel,
-		  noskdp, kddpjp, nmdpdjp
+		  noskdp, kddpjp, nmdpdjp,
+		  lakalantas, tglkkl, keterangankkl,
+		  kdprop, nmprop, kdkab, nmkab, kdkec, nmkec,
+		  cob, eksekutif,
+		  tujuankunjungan, asesmenpelayanan
 		) VALUES (
 		  ?,?,?,
 		  NULLIF(?, ''), ?, ?, ?,
@@ -1143,7 +1176,11 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 		  ?, ?,
 		  ?, ?,
 		  ?, ?, NULLIF(?, ''), ?,
-		  ?, ?, ?
+		  ?, ?, ?,
+		  ?, NULLIF(?, ''), ?,
+		  ?, ?, ?, ?, ?, ?,
+		  ?, ?,
+		  ?, ?
 		)
 	`
 	if _, err := c.db.ExecContext(ctx, sqlQ,
@@ -1155,6 +1192,10 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 		asalRujukan, sep.NoKartu,
 		nomr.String, namaPasien.String, tglLahirPasien.String, jkPasien.String,
 		sep.NoSKDP, valueOr(sep.KdDPJP, sep.KdDokter), valueOr(sep.NmDPJP, sep.NmDokter),
+		lakaLantas, sep.TglKejadian, sep.KetKecelakaan,
+		sep.KdPropinsi, sep.NmPropinsi, sep.KdKabupaten, sep.NmKabupaten, sep.KdKecamatan, sep.NmKecamatan,
+		cob, eksekutif,
+		tujuan, asesmen,
 	); err != nil {
 		return fmt.Errorf("simpan sep %s: %w", sep.NoSEP, wrapOfflineMySQL(err))
 	}
@@ -1229,6 +1270,87 @@ func (c *MySQLClient) SimpanRujukMasuk(ctx context.Context, r domain.RujukMasuk)
 		r.DokterPerujuk, r.KdPenyakit, kategori, r.Keterangan,
 	); err != nil {
 		return fmt.Errorf("simpan rujuk masuk %s: %w", r.NoRawat, wrapOfflineMySQL(err))
+	}
+	return nil
+}
+
+// ============================================================
+// SimpanRujukanBPJS — bridging_rujukan_bpjs audit trail
+// ============================================================
+
+func (c *MySQLClient) SimpanRujukanBPJS(ctx context.Context, r domain.RujukanBPJS) error {
+	if r.NoSEP == "" || r.NoRujukan == "" {
+		return errors.New("simpan rujukan bpjs: no_sep & no_rujukan wajib")
+	}
+	jns := r.JnsPelayanan
+	if jns == "" {
+		jns = "2"
+	}
+	tipe := r.TipeRujukan
+	if tipe == "" {
+		tipe = "0. Penuh"
+	}
+	user := r.User
+	if user == "" {
+		user = "kiosk-tara"
+	}
+	const sqlQ = `
+		REPLACE INTO bridging_rujukan_bpjs (
+		  no_sep, tglRujukan, tglRencanaKunjungan,
+		  ppkDirujuk, nm_ppkDirujuk, jnsPelayanan,
+		  catatan, diagRujukan, nama_diagRujukan,
+		  tipeRujukan, poliRujukan, nama_poliRujukan,
+		  no_rujukan, user
+		) VALUES (?,?, NULLIF(?, ''),
+		          ?, ?, ?,
+		          ?, ?, ?,
+		          ?, ?, ?,
+		          ?, ?)
+	`
+	if _, err := c.db.ExecContext(ctx, sqlQ,
+		r.NoSEP, r.TglRujukan, r.TglRencana,
+		r.PPKDirujuk, r.NmPPKDirujuk, jns,
+		r.Catatan, r.DiagRujukan, r.NmDiagRujukan,
+		tipe, r.PoliRujukan, r.NmPoliRujukan,
+		r.NoRujukan, user,
+	); err != nil {
+		return fmt.Errorf("simpan rujukan bpjs %s: %w", r.NoRujukan, wrapOfflineMySQL(err))
+	}
+	return nil
+}
+
+// ============================================================
+// SimpanSuratKontrolBPJS — bridging_surat_kontrol_bpjs
+// ============================================================
+
+// SimpanSuratKontrolBPJS dipanggil setelah VClaim.BuatRencanaKontrol
+// sukses, menyimpan noSuratKontrol baru ke local DB.
+//
+// Schema bridging_surat_kontrol_bpjs (sikrsam260312):
+//   no_surat (PK), no_sep, tgl_surat, tgl_rencana,
+//   kd_dokter_bpjs, nm_dokter_bpjs, kd_poli_bpjs, nm_poli_bpjs,
+//   status_prb (default ''), + banyak field PRB optional yang kita kosongkan
+func (c *MySQLClient) SimpanSuratKontrolBPJS(ctx context.Context, sk domain.RencanaKontrol) error {
+	if sk.NoSuratKontrol == "" || sk.NoSEP == "" {
+		return errors.New("simpan surat kontrol bpjs: no_surat & no_sep wajib")
+	}
+	tglRencana := sk.TglRencana
+	if tglRencana == "" {
+		tglRencana = time.Now().Format("2006-01-02")
+	}
+	const sqlQ = `
+		REPLACE INTO bridging_surat_kontrol_bpjs (
+		  no_surat, no_sep, tgl_surat, tgl_rencana,
+		  kd_dokter_bpjs, nm_dokter_bpjs,
+		  kd_poli_bpjs, nm_poli_bpjs
+		) VALUES (?, ?, CURDATE(), ?, ?, ?, ?, ?)
+	`
+	if _, err := c.db.ExecContext(ctx, sqlQ,
+		sk.NoSuratKontrol, sk.NoSEP, tglRencana,
+		sk.KdDokter, sk.NmDokter,
+		sk.KdPoli, sk.NmPoli,
+	); err != nil {
+		return fmt.Errorf("simpan surat kontrol bpjs %s: %w", sk.NoSuratKontrol, wrapOfflineMySQL(err))
 	}
 	return nil
 }

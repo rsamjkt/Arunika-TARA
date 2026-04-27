@@ -111,9 +111,7 @@ async function startSatuSehat() {
 }
 function startBantuSaya() {
   audio.tap()
-  // Phase 4 — Bantu Saya wizard. Sementara navigate ke /input mode=bpjs
-  // sebagai fallback. Akan diganti ke /bantu-saya saat Phase 4 siap.
-  router.push({ name: 'input', query: { mode: 'bpjs' } })
+  router.push({ name: 'bantu-saya' })
 }
 function callStaff() {
   audio.notify()

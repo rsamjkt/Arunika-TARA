@@ -31,6 +31,11 @@ const routes = [
     component: () => import('./screens/RegistrasiUmumScreen.vue'),
   },
   {
+    path: '/bantu-saya',
+    name: 'bantu-saya',
+    component: () => import('./screens/BantuSayaScreen.vue'),
+  },
+  {
     path: '/result',
     name: 'result',
     component: () => import('./screens/ResultScreen.vue'),
