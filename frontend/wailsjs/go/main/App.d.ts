@@ -34,6 +34,8 @@ export function GetPendingSEPs():Promise<Array<store.PendingSep>>;
 
 export function GetPoliklinikAktif():Promise<Array<domain.Poliklinik>>;
 
+export function GetBranding():Promise<main.Branding>;
+
 export function GetRecentLogs(arg1:number):Promise<Array<main.AdminLogEntry>>;
 
 export function GetSystemStatus():Promise<main.SystemStatus>;

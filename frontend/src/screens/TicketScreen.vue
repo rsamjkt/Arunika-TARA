@@ -161,6 +161,17 @@ const lokasiPoli = computed(() => {
   return ''
 })
 
+// QW3: progress percentage untuk visual ring
+const countdownProgress = computed(() => {
+  const total = KIOSK.ticketAutoBackSec
+  return Math.max(0, Math.min(100, (secondsLeft.value / total) * 100))
+})
+
+// QW3: reset countdown saat user tap di mana saja di main area
+function onMainTap() {
+  resetCountdown()
+}
+
 onMounted(startCountdown)
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
@@ -168,7 +179,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-bg flex flex-col">
+  <main class="min-h-screen bg-bg flex flex-col" @click="onMainTap">
     <!-- Body center -->
     <section
       class="flex-1 flex flex-col items-center justify-center
@@ -265,10 +276,26 @@ onUnmounted(() => {
         <p class="mt-1">Nomor Anda akan dipanggil di layar display</p>
       </div>
 
-      <!-- Countdown -->
-      <p class="text-[clamp(10px,1.3vw,12px)] text-text-muted">
-        Kembali ke awal dalam {{ secondsLeft }} detik
-      </p>
+      <!-- QW3: Countdown dengan visual progress ring + reset hint -->
+      <div class="flex items-center gap-3 text-[clamp(13px,1.7vw,15px)] text-text-secondary">
+        <!-- Progress ring SVG -->
+        <svg class="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="16" fill="none" stroke="#E4E6EA" stroke-width="3"/>
+          <circle
+            cx="18" cy="18" r="16" fill="none"
+            stroke="var(--color-primary, #1B4FD8)"
+            stroke-width="3"
+            stroke-linecap="round"
+            :stroke-dasharray="100"
+            :stroke-dashoffset="100 - countdownProgress"
+            style="transition: stroke-dashoffset 1s linear"
+          />
+        </svg>
+        <div>
+          <div class="font-medium text-text-primary">Kembali otomatis dalam {{ secondsLeft }} detik</div>
+          <div class="text-[clamp(11px,1.4vw,12px)] text-text-muted">Tap layar untuk reset</div>
+        </div>
+      </div>
 
       <!-- Cetak ulang button -->
       <button

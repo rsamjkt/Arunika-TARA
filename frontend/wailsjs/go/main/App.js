@@ -62,6 +62,10 @@ export function GetPoliklinikAktif() {
   return window['go']['main']['App']['GetPoliklinikAktif']();
 }
 
+export function GetBranding() {
+  return window['go']['main']['App']['GetBranding']();
+}
+
 export function GetRecentLogs(arg1) {
   return window['go']['main']['App']['GetRecentLogs'](arg1);
 }

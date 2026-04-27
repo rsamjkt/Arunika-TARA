@@ -35,11 +35,9 @@ const routes = [
     name: 'result',
     component: () => import('./screens/ResultScreen.vue'),
   },
-  {
-    path: '/antrian',
-    name: 'antrian',
-    component: () => import('./screens/AntrianScreen.vue'),
-  },
+  // /antrian removed (QW1) — Antrian Loket sekarang single-tap di HomeScreen
+  // langsung navigate ke /tiket. AntrianScreen file di-keep untuk reference,
+  // tapi tidak ter-route.
   {
     path: '/tiket',
     name: 'tiket',

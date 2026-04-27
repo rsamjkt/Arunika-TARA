@@ -363,7 +363,36 @@ export namespace domain {
 }
 
 export namespace main {
-	
+
+	export class Branding {
+	    hospital_name: string;
+	    hospital_tagline: string;
+	    logo_path: string;
+	    logo_data_url: string;
+	    primary_color: string;
+	    primary_color_dark: string;
+	    accent_color: string;
+	    audio_enabled: boolean;
+	    audio_volume: number;
+
+	    static createFrom(source: any = {}) {
+	        return new Branding(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hospital_name = source["hospital_name"];
+	        this.hospital_tagline = source["hospital_tagline"];
+	        this.logo_path = source["logo_path"];
+	        this.logo_data_url = source["logo_data_url"];
+	        this.primary_color = source["primary_color"];
+	        this.primary_color_dark = source["primary_color_dark"];
+	        this.accent_color = source["accent_color"];
+	        this.audio_enabled = source["audio_enabled"];
+	        this.audio_volume = source["audio_volume"];
+	    }
+	}
+
 	export class AdminLogEntry {
 	    id: number;
 	    table_name: string;

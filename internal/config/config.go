@@ -18,6 +18,7 @@ import (
 // dipetakan ke satu sub-struct.
 type Config struct {
 	App         AppConfig         `mapstructure:"app"`
+	Branding    BrandingConfig    `mapstructure:"branding"`
 	Server      ServerConfig      `mapstructure:"server"`
 	BPJS        BPJSConfig        `mapstructure:"bpjs"`
 	Fingerprint FingerprintConfig `mapstructure:"fingerprint"`
@@ -25,6 +26,7 @@ type Config struct {
 	Printer     PrinterConfig     `mapstructure:"printer"`
 	Antrian     AntrianConfig     `mapstructure:"antrian"`
 	Admin       AdminConfig       `mapstructure:"admin"`
+	Audio       AudioConfig       `mapstructure:"audio"`
 	Dev         DevConfig         `mapstructure:"dev"`
 }
 
@@ -148,6 +150,39 @@ type AntrianConfig struct {
 	PoliPrefix  string `mapstructure:"poli_prefix"`
 	UmumPrefix  string `mapstructure:"umum_prefix"`
 	ResetTime   string `mapstructure:"reset_time"` // "HH:MM" WIB
+}
+
+// BrandingConfig — identitas visual RS yang ditampilkan di kiosk.
+//
+// LogoPath: path absolut ke file logo (PNG/SVG/JPG). Kalau kosong,
+// pakai default mark "T" generik di header.
+//
+// HospitalName + HospitalTagline: di-render di header HomeScreen.
+//
+// PrimaryColor: warna utama tombol/aksen (CSS hex). Default biru
+// korporat #1B4FD8 — ganti ke teal RS Anggrek Mas (#00897B) atau
+// warna RS-mu sendiri.
+//
+// PrimaryColorDark: hover/active state (default = darken 12% dari Primary).
+//
+// AccentColor: warna sekunder untuk badges, info banners (default
+// turunan dari Primary).
+type BrandingConfig struct {
+	LogoPath          string `mapstructure:"logo_path"`
+	HospitalName      string `mapstructure:"hospital_name"`
+	HospitalTagline   string `mapstructure:"hospital_tagline"`
+	PrimaryColor      string `mapstructure:"primary_color"`
+	PrimaryColorDark  string `mapstructure:"primary_color_dark"`
+	AccentColor       string `mapstructure:"accent_color"`
+}
+
+// AudioConfig — kontrol audio cue (tap/success/error sound).
+//
+// Enabled: master switch. False = silent kiosk.
+// Volume: 0.0–1.0 (default 0.6).
+type AudioConfig struct {
+	Enabled bool    `mapstructure:"enabled"`
+	Volume  float64 `mapstructure:"volume"`
 }
 
 // AdminConfig — pengaturan akses admin panel.

@@ -21,12 +21,14 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -457,6 +459,93 @@ func (a *App) GetPoliklinikAktif() ([]domain.Poliklinik, error) {
 		return nil, errors.New("khanza client belum diinisialisasi")
 	}
 	return a.khanza.GetPoliklinikAktif(a.ctx)
+}
+
+// ============================================================
+// Branding (UI theming dari config.toml)
+// ============================================================
+
+// Branding adalah snapshot konfig branding RS yang dikonsumsi Vue
+// untuk render header/logo + apply theme color via CSS variables.
+type Branding struct {
+	HospitalName    string `json:"hospital_name"`
+	HospitalTagline string `json:"hospital_tagline"`
+	LogoPath        string `json:"logo_path"`        // server-side absolute path
+	LogoDataURL     string `json:"logo_data_url"`    // base64 data URL — Vue tampilkan langsung
+	PrimaryColor    string `json:"primary_color"`
+	PrimaryColorDark string `json:"primary_color_dark"`
+	AccentColor     string `json:"accent_color"`
+	AudioEnabled    bool   `json:"audio_enabled"`
+	AudioVolume     float64 `json:"audio_volume"`
+}
+
+// GetBranding — return current branding config + logo as data URL kalau
+// LogoPath di-set (Vue tinggal pakai di <img :src="branding.LogoDataURL">).
+func (a *App) GetBranding() Branding {
+	if a.cfg == nil {
+		return defaultBranding()
+	}
+	b := a.cfg.Branding
+	au := a.cfg.Audio
+
+	out := Branding{
+		HospitalName:    valueOrDefault(b.HospitalName, "Rumah Sakit"),
+		HospitalTagline: valueOrDefault(b.HospitalTagline, "Anjungan Pasien Mandiri"),
+		LogoPath:        b.LogoPath,
+		PrimaryColor:    valueOrDefault(b.PrimaryColor, "#1B4FD8"),
+		PrimaryColorDark: valueOrDefault(b.PrimaryColorDark, ""),
+		AccentColor:     valueOrDefault(b.AccentColor, ""),
+		AudioEnabled:    au.Enabled,
+		AudioVolume:     au.Volume,
+	}
+	if out.AudioVolume <= 0 || out.AudioVolume > 1 {
+		out.AudioVolume = 0.6
+	}
+
+	// Load logo file kalau ada
+	if b.LogoPath != "" {
+		if data, mime, err := readLogoAsDataURL(b.LogoPath); err == nil {
+			out.LogoDataURL = "data:" + mime + ";base64," + data
+		} else {
+			a.logger.Warn("branding: gagal load logo", "path", b.LogoPath, "err", err.Error())
+		}
+	}
+	return out
+}
+
+func defaultBranding() Branding {
+	return Branding{
+		HospitalName:    "Rumah Sakit",
+		HospitalTagline: "Anjungan Pasien Mandiri",
+		PrimaryColor:    "#1B4FD8",
+		AudioEnabled:    true,
+		AudioVolume:     0.6,
+	}
+}
+
+func valueOrDefault(s, fallback string) string {
+	if s == "" {
+		return fallback
+	}
+	return s
+}
+
+// readLogoAsDataURL baca file logo, return base64 + MIME type.
+func readLogoAsDataURL(path string) (string, string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", "", err
+	}
+	mime := "image/png"
+	switch ext := strings.ToLower(filepath.Ext(path)); ext {
+	case ".jpg", ".jpeg":
+		mime = "image/jpeg"
+	case ".svg":
+		mime = "image/svg+xml"
+	case ".webp":
+		mime = "image/webp"
+	}
+	return base64.StdEncoding.EncodeToString(data), mime, nil
 }
 
 // ============================================================

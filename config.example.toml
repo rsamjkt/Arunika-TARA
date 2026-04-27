@@ -15,6 +15,31 @@ log_dir          = "./logs"
 timezone         = "Asia/Jakarta"
 version          = "1.0.0"
 
+[branding]
+# Identitas visual RS yang ditampilkan di kiosk.
+# Logo: file PNG/SVG/JPG/WebP. Path absolut atau relatif ke working dir.
+# Kosongkan logo_path → pakai default mark "T" generik.
+logo_path          = ""             # mis. "./assets/logo-rs.png"
+hospital_name      = "Rumah Sakit Anggrek Mas"
+hospital_tagline   = "Anjungan Pasien Mandiri"
+
+# Theme color CSS (hex). Default biru korporat T.A.R.A — ganti ke
+# warna identitas RS-mu. Dipakai untuk hero buttons, badges, accent.
+# Contoh:
+#   biru korporat: "#1B4FD8"  (default)
+#   teal RS Anggrek Mas: "#00897B"
+#   hijau medis: "#0F766E"
+#   merah RS: "#DC2626"
+primary_color      = "#1B4FD8"
+primary_color_dark = ""             # kosong = auto-darken 12%
+accent_color       = ""             # kosong = derive dari primary
+
+[audio]
+# Audio cue (tap sound, success chime, error tone).
+# Disable kalau kiosk di environment yang sudah ramai (audio bukan tambahan info).
+enabled = true
+volume  = 0.6                       # 0.0 (mute) – 1.0 (max)
+
 [server]
 # SIMRS Khanza — Direct MySQL mode (mengikuti pola anjunganmandiriSEP).
 # Kosongkan khanza_url; isi khanza_dsn dengan Go MySQL DSN.

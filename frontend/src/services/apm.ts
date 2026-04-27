@@ -21,6 +21,8 @@ import {
   BuatPendaftaran,
   GetJadwalDokter,
   GetPoliklinikAktif,
+  // Branding (theme + logo + audio)
+  GetBranding,
   // Hardware status
   GetHardwareStatus,
   GetSystemStatus,
@@ -56,6 +58,7 @@ export type JadwalDokter = domain.JadwalDokter
 export type Poliklinik = domain.Poliklinik
 export type HardwareStatus = main.HardwareStatus
 export type SystemStatus = main.SystemStatus
+export type Branding = main.Branding
 export type PendingSep = store.PendingSep
 export type AdminStats = main.AdminStats
 export type AdminLogEntry = main.AdminLogEntry
@@ -117,6 +120,9 @@ export const apmService = {
   getJadwalDokter: (kdPoli: string): Promise<JadwalDokter[]> =>
     GetJadwalDokter(kdPoli),
   getPoliklinikAktif: (): Promise<Poliklinik[]> => GetPoliklinikAktif(),
+
+  // Branding
+  getBranding: (): Promise<Branding> => GetBranding(),
 
   // Hardware status
   getHardwareStatus: (): Promise<HardwareStatus> => GetHardwareStatus(),

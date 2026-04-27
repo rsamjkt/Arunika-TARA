@@ -71,9 +71,22 @@ async function startUmum() {
   await patient.reset()
   router.push({ name: 'input', query: { mode: 'umum' } })
 }
+// QW1: Antrian Loket = single-tap → langsung create Loket ticket + navigate ke /tiket
+const antrianLoading = ref(false)
 async function startAntrian() {
-  await patient.reset()
-  router.push({ name: 'antrian' })
+  if (antrianLoading.value) return
+  antrianLoading.value = true
+  try {
+    await patient.reset()
+    const ticket = await apmService.createAntrian('LOKET', 'WALKIN')
+    patient.setLastTicket(ticket)
+    router.push({ name: 'tiket' })
+  } catch (e) {
+    // fallback: kalau gagal, balik ke /antrian (kalau masih ada) atau alert
+    alert('Gagal mengambil nomor antrian. Silakan hubungi petugas.')
+  } finally {
+    antrianLoading.value = false
+  }
 }
 async function startSatuSehat() {
   await patient.reset()

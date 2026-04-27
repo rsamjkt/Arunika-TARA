@@ -72,3 +72,8 @@ Desktop.ini
 
 # Claude Code local
 .claude/
+
+# Java reference implementation (besar — clone manual kalau butuh)
+KhanzaHMSAnjunganSEP_RSAMXIP/
+KhanzaHMSAnjunganSEP_RSAMXIP.zip
+*.zip

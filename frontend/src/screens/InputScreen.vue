@@ -155,6 +155,25 @@ onUnmounted(() => {
       <!-- Display -->
       <InputDisplay :value="input" :max-length="MAX_LENGTH" />
 
+      <!-- QW5: Progress text "X dari N angka" — kasih sense of progress untuk lansia -->
+      <p
+        class="text-center text-[clamp(13px,1.7vw,15px)]"
+        :class="canSubmit ? 'text-emerald-700 font-medium' : 'text-text-secondary'"
+      >
+        <template v-if="input.length === 0">
+          Silakan ketik nomor Anda
+        </template>
+        <template v-else-if="canSubmit && input.length >= MAX_LENGTH">
+          Sudah lengkap — silakan tekan CARI
+        </template>
+        <template v-else-if="canSubmit">
+          {{ input.length }} angka — siap cari
+        </template>
+        <template v-else>
+          Anda mengetik {{ input.length }} angka — minimal {{ MIN_LENGTH }}
+        </template>
+      </p>
+
       <!-- Chip hints -->
       <div class="flex flex-wrap items-center gap-[clamp(6px,1vw,10px)]
                   justify-center">
