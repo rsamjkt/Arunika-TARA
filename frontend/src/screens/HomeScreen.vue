@@ -10,7 +10,7 @@
     - Footer: "Pertama kali? Bantu Saya" + "Panggil Petugas"
 -->
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -118,7 +118,40 @@ function callStaff() {
   // TODO: emit Wails event 'staff:call' untuk admin panel notification
 }
 
-onMounted(refreshStatus)
+// Hidden admin trigger — tap 5x cepat (≤2s) di logo header RS = buka /admin.
+// Pasien biasa tidak akan accidentally trigger karena pattern ini deliberate.
+// Pin gate (`config.toml [admin] pin`) tetap aktif setelah masuk.
+const adminTapCount = ref(0)
+let adminTapTimer = null
+function onAdminTap() {
+  adminTapCount.value++
+  if (adminTapTimer) clearTimeout(adminTapTimer)
+  adminTapTimer = setTimeout(() => { adminTapCount.value = 0 }, 2000)
+  if (adminTapCount.value >= 5) {
+    adminTapCount.value = 0
+    if (adminTapTimer) clearTimeout(adminTapTimer)
+    audio.tap()
+    router.push({ name: 'admin' })
+  }
+}
+
+// Keyboard shortcut Ctrl+Alt+A (Cmd+Alt+A di Mac) — staff dengan keyboard.
+function onKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'a') {
+    e.preventDefault()
+    audio.tap()
+    router.push({ name: 'admin' })
+  }
+}
+
+onMounted(() => {
+  refreshStatus()
+  window.addEventListener('keydown', onKeydown)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  if (adminTapTimer) clearTimeout(adminTapTimer)
+})
 </script>
 
 <template>
@@ -129,8 +162,12 @@ onMounted(refreshStatus)
              flex items-center justify-between
              px-[clamp(16px,3vw,28px)] py-[clamp(10px,1.8vw,16px)]"
     >
-      <!-- Kiri: logo (dari config) atau fallback "T" mark + nama RS + tagline -->
-      <div class="flex items-center gap-[clamp(10px,1.5vw,14px)] min-w-0">
+      <!-- Kiri: logo (dari config) atau fallback "T" mark + nama RS + tagline.
+           Tap logo 5x cepat = hidden admin trigger. -->
+      <div
+        class="flex items-center gap-[clamp(10px,1.5vw,14px)] min-w-0 cursor-pointer select-none"
+        @click="onAdminTap"
+      >
         <img
           v-if="branding.logoDataURL"
           :src="branding.logoDataURL"
