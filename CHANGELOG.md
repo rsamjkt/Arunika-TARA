@@ -6,6 +6,77 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/) sederhana — s
 
 ---
 
+## [v1.7.0-mahatma] — Vendor Scope Alignment (SKDP Kontrol)
+
+> **Konteks:** vendor referensi `KhanzaHMSAnjunganSEP_RSAMXIP` (Java desktop SIMRS Khanza versi RS Anggrek Mas) tidak pernah create SKDP via VClaim — `DlgCekSKDPKontrol.java` hanya **LOOKUP** dari local DB `bridging_surat_kontrol_bpjs`. APM punya kapabilitas create-SKDP yang gak match vendor scope dan zero caller di service layer → dead code dengan resiko misleading kalau dipanggil future. Hapus semua, tetap selaras vendor.
+
+### Removed
+- **`vclaim.BuatRencanaKontrol`** — POST `/RencanaKontrol/insert` (creation endpoint VClaim 2.0). Vendor pakai endpoint UPDATE saja (link no_sep ke surat existing), tidak pernah insert.
+- **`vclaim.GetRencanaKontrol`** — GET `/RencanaKontrol/List/{noKartu}/{tglAwal}/{tglAkhir}`. Vendor query langsung `bridging_surat_kontrol_bpjs` lokal, tidak panggil VClaim list.
+- **`khanza.SimpanSuratKontrolBPJS`** — REPLACE INTO `bridging_surat_kontrol_bpjs`. Kiosk APM **bukan** entry-point penulisan SKDP (poli yang isi via Khanza desktop pasca-konsul). Helper hanya ada untuk pasca-`BuatRencanaKontrol` yang sekarang dihapus.
+- **`internal/integration/vclaim/kontrol.go`** — file utuh dihapus (cuma berisi GetRencanaKontrol + wire structs).
+- **`domain.RencanaKontrolRequest`** + **`domain.RencanaKontrol`** — payload + response types khusus jalur create yang dibuang.
+- **Tests** — `TestVClaim_GetRencanaKontrol_ParsesList` + `CallCount("GetRencanaKontrol")` di `MockVClaimClient_StubAndCount`.
+
+### Unchanged (= persis vendor)
+- `khanza.GetSuratKontrol(noRM)` → query `bridging_surat_kontrol_bpjs` (mirror `Sequel.cariIsi("select ... from bridging_surat_kontrol_bpjs where no_surat=...")`).
+- `domain.SuratKontrol.IsTodayOrPast()` validasi tanggal kontrol (mirror `DATEDIFF(tgl_rencana, CURRENT_DATE) > 0` → "Jadwal kontrol tidak boleh maju").
+- `vclaim.CreateSEPKontrol(req)` → POST `/SEP/2.0/insert` pakai `noSuratKontrol` existing dari local lookup.
+- `service/sep/service.go::BuatSEPKontrol` flow 6-step (lookup → validasi → preflight → biometrik → reg_periksa → CreateSEP → persist).
+- `detector/kontrol_check.go` classify "Jadwal Kontrol" via `khanza.GetSuratKontrol` — bukan pakai VClaim.
+
+### Stats
+- 11 files changed, 8 insertions(+), 303 deletions(-) — net **−295 LOC**.
+- Build & full test suite hijau (`go test ./...`).
+
+### Migration Notes
+- `config.toml` & `config.example.toml` — `[bpjs]` section tidak berubah (key `mock` tetap supported).
+- Future RS yang butuh APM bantu schedule kontrol post-konsul: tambah ulang `BuatRencanaKontrol` + `SimpanSuratKontrolBPJS` di branch terpisah, jangan di-merge ke main sebelum vendor Java juga support.
+
+---
+
+## [v1.6.1-mahatma] — Mock VClaim + UX Fixes
+
+### Added
+- **Mock VClaim Preset** (`internal/integration/vclaim/mock_preset.go`) — `NewMockPreset()` return `*MockVClaimClient` dengan canned response varied per identifier prefix:
+  | Prefix     | Scenario detector                      |
+  |------------|----------------------------------------|
+  | `INVALID…` | GetPeserta error (test error path)     |
+  | `INACTIVE…`| Peserta `StatusAktif=0` (rejected flow)|
+  | `MJKN…`    | Peserta aktif "PASIEN MJKN (DEMO)"     |
+  | _default_  | Peserta aktif "BUDI SUPRAYOGI (DEMO)"  |
+  Plus mock untuk `ValidasiRujukan` (selalu valid), `CreateSEP` & `CreateSEPKontrol` (generate dummy NoSEP), `CekSEPDuplikasi` (selalu nil).
+- **`BPJSConfig.Mock`** field di `internal/config/config.go`. Set `[bpjs] mock = true` di `config.toml` → `app.initialize()` wire `vclaim.NewMockPreset()` instead of `vclaim.New(cfg.BPJS)` + log warning `"vclaim: MOCK mode aktif — semua call BPJS pakai canned response (jangan dipakai di production!)"`.
+- **`config.example.toml`** dokumentasi field `mock` lengkap dengan scenario mapping inline.
+
+### Why
+Test full Smart Detector flow tanpa hit BPJS dvlp endpoint yang return HTTP 500 karena IP whitelist (`read tcp 192.168.1.252:57780->160.25.179.55:443: read: connection reset by peer`). Dev iterasi kiosk UI cepat tanpa setup VPN ke BPJS dev.
+
+### Fixed
+- **BackButton tidak bisa diklik** (`frontend/src/components/BackButton.vue`) — Vue 3 multi-root template (`<button>` + `<ConfirmBackModal>` sibling) trigger attribute inheritance / event listener glitch di Wails webview. Fix: wrap single-root `<div class="inline-block">`, tambah `relative z-10` di button supaya gak ke-cover overlay parent, `event.stopPropagation()` di `handleTap` supaya container parent click tidak ikut trigger.
+- **WelcomeIllustration awkward** (`frontend/src/components/WelcomeIllustration.vue`) — figur manusia inline-SVG susah di-tweak rapi tanpa download asset. Replace komposisi: kios tablet centered (T.A.R.A logo big-friendly) + 4 floating badges medis (plus cross, heart, ID card, ticket "A1") + sparkle dots. Drop human figure entirely. Color tetap follow `--color-primary` via `currentColor`.
+
+### Verified
+- `make dev` → Wails compile clean, Vite ready 230ms, app initialized darwin, log mock-mode aktif, tap card → detector classify "Jadwal Kontrol" via mock pipeline tanpa network error, clean shutdown.
+
+---
+
+## [v1.6.0-mahatma] — HomeScreen Polish (Welcome Banner + Hero)
+
+### Added
+- **`WelcomeIllustration.vue` v1** — SVG inline ala unDraw style untuk welcome banner HomeScreen. Color follow `--color-primary` theme dari `useBrandingStore`. Props `size: "md" | "lg" | "xl"` (240/320/400px). _(Direplace di v1.6.1 karena figur manusia susah di-tweak rapi.)_
+- **Welcome banner** di HomeScreen (160-220px height) — greeting time-aware bold 28-40px ("Selamat pagi" / "Selamat siang" / "Selamat sore" / "Selamat malam"), illustration di sebelah kanan, background gradient subtle primary-light → accent. Hidden `<md` breakpoint, full-width banner di layar kecil.
+
+### Changed
+- **Hero BPJS card** — gradient diagonal `primary → primary-dark` (was flat solid). Logo BPJS card putih `shadow-md` lift, caret arrow 36px lebih prominent, label "Saya Pasien BPJS Kesehatan" 22-26px.
+- **Secondary tiles** — gradient mengikuti kategori: Pasien Umum hijau `emerald-500 → emerald-600`, Antrian Loket amber `amber-400 → amber-500`. Icon Phosphor Duotone 32px white di pojok kanan-atas tile.
+- **Footer ribbon** — 3 tile mini (Bantu Saya / Aktivasi SatuSehat / Panggil Petugas), removed "Akreditasi" line per user request.
+
+### Removed
+- **`IdleOverlay`** dari HomeScreen (sudah di v1.5.x sebelumnya, tracked here for completeness) — confusing untuk pasien lansia.
+
+---
+
 ## [v1.5.0-mahatma] — Print Templates Polish
 
 ### Added
