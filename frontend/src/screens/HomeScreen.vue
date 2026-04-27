@@ -1,46 +1,51 @@
 <!--
-  HomeScreen — entry point kiosk APM (T.A.R.A).
+  HomeScreen — landing kiosk APM (T.A.R.A) v1.1 "Mahatma".
 
-  Layout (sesuai DESIGN_SYSTEM.md spec ketat):
-    - Background #F5F6F8
-    - Header putih, border-bottom 0.5px #E4E6EA
-        kiri: logo mark biru 30x30 + nama RS + tagline
-        kanan: status dots (BPJS + Sistem) + jam digital live
-    - Body: 4 button area, padding clamp(12px,2.5vw,20px)
-        Hero BPJS (full width, primary)
-        Grid 2 col: Pasien Umum + Ambil Antrian
-        Hero Aktivasi Satu Sehat (full width, secondary style)
-    - Footer border-top: "Butuh bantuan?" + tombol "Panggil petugas"
-
-  Idle timeout: 60 detik → reset ke /. 10 detik terakhir muncul
-  IdleOverlay dengan countdown.
-
-  Frista event listener di-handle global di App.vue (auto-redirect
-  ke /detect kalau di home/input).
+  Layout baru (post BB3 + C16):
+    - Header: logo (dari config.toml) + nama RS + status dots + jam digital
+    - Welcome banner BESAR: greeting time-aware + 1 ilustrasi medis SVG
+    - Hero "Pasien BPJS" (60% visual weight — mayoritas user RS pemerintah)
+    - 2 Secondary cards setara: "Pasien Umum" + "Antrian Loket"
+    - Aktivasi Satu Sehat → footer link kecil (niche action)
+    - Footer: "Pertama kali? Bantu Saya" + "Panggil Petugas"
 -->
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import {
+  PhIdentificationCard,
+  PhUser,
+  PhTicket,
+  PhFingerprint,
+  PhLifebuoy,
+  PhPhone,
+  PhSparkle,
+  PhCircleNotch,
+} from '@phosphor-icons/vue'
+
 import StatusDot from '../components/StatusDot.vue'
-import HeroButton from '../components/HeroButton.vue'
-import SecondaryCard from '../components/SecondaryCard.vue'
 import IdleOverlay from '../components/IdleOverlay.vue'
 
 import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
 import { useClock } from '../composables/useClock'
 import { useIdleTimeout } from '../composables/useIdleTimeout'
+import { useAudioCue } from '../composables/useAudioCue'
 import { apmService } from '../services/apm'
 import { usePatientStore } from '../stores/patient'
+import { useBrandingStore } from '../stores/branding'
 
 const router = useRouter()
 const patient = usePatientStore()
+const branding = useBrandingStore()
+const audio = useAudioCue()
 const { time, date } = useClock()
 
-// Status dots — refresh dari backend setiap mount + event hardware:status
+// Status dots
 const bpjsStatus = ref('online')
 const sistemStatus = ref('online')
+const antrianLoading = ref(false)
 
 async function refreshStatus() {
   try {
@@ -48,53 +53,70 @@ async function refreshStatus() {
     bpjsStatus.value = sys.Online ? 'online' : 'offline'
     sistemStatus.value = sys.Hardware?.Frista || sys.Hardware?.Printer ? 'online' : 'warning'
   } catch {
-    // Backend belum siap di first load — biarkan default 'online'
+    // backend belum siap — biarkan default
   }
 }
 
-// Idle timeout — auto-reset ke home (di home, reset hanya clear store)
+// Greeting time-aware
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 11) return 'Selamat pagi!'
+  if (h < 15) return 'Selamat siang!'
+  if (h < 18) return 'Selamat sore!'
+  return 'Selamat malam!'
+})
+
+// Idle timeout — di home, reset cuma clear store
 const { isCountingDown, secondsLeft } = useIdleTimeout({
   totalSeconds: KIOSK.idleTimeoutSec,
   countdownThreshold: KIOSK.idleCountdownSec,
   onTimeout: async () => {
     await patient.reset()
-    // Sudah di home — cukup reload state, tidak perlu navigate
   },
 })
 
-// Click handlers
+// Click handlers — semua dengan audio cue + reset session
 async function startBPJS() {
+  audio.tap()
   await patient.reset()
   router.push({ name: 'input', query: { mode: 'bpjs' } })
 }
 async function startUmum() {
+  audio.tap()
   await patient.reset()
   router.push({ name: 'input', query: { mode: 'umum' } })
 }
-// QW1: Antrian Loket = single-tap → langsung create Loket ticket + navigate ke /tiket
-const antrianLoading = ref(false)
 async function startAntrian() {
   if (antrianLoading.value) return
+  audio.tap()
   antrianLoading.value = true
   try {
     await patient.reset()
     const ticket = await apmService.createAntrian('LOKET', 'WALKIN')
     patient.setLastTicket(ticket)
+    audio.success()
     router.push({ name: 'tiket' })
   } catch (e) {
-    // fallback: kalau gagal, balik ke /antrian (kalau masih ada) atau alert
+    audio.error()
     alert('Gagal mengambil nomor antrian. Silakan hubungi petugas.')
   } finally {
     antrianLoading.value = false
   }
 }
 async function startSatuSehat() {
+  audio.tap()
   await patient.reset()
   router.push({ name: 'input', query: { mode: 'satusehat' } })
 }
+function startBantuSaya() {
+  audio.tap()
+  // Phase 4 — Bantu Saya wizard. Sementara navigate ke /input mode=bpjs
+  // sebagai fallback. Akan diganti ke /bantu-saya saat Phase 4 siap.
+  router.push({ name: 'input', query: { mode: 'bpjs' } })
+}
 function callStaff() {
-  // P-046 admin panel akan handle. Sementara ini no-op visual.
-  // Bisa juga emit event "staff:call" yang Wails App handle (audible alert).
+  audio.notify()
+  // TODO: emit Wails event 'staff:call' untuk admin panel notification
 }
 
 onMounted(refreshStatus)
@@ -108,28 +130,34 @@ onMounted(refreshStatus)
              flex items-center justify-between
              px-[clamp(16px,3vw,28px)] py-[clamp(10px,1.8vw,16px)]"
     >
-      <!-- Kiri: logo + nama RS + tagline -->
+      <!-- Kiri: logo (dari config) atau fallback "T" mark + nama RS + tagline -->
       <div class="flex items-center gap-[clamp(10px,1.5vw,14px)] min-w-0">
+        <img
+          v-if="branding.logoDataURL"
+          :src="branding.logoDataURL"
+          :alt="branding.hospitalName"
+          class="object-contain flex-shrink-0
+                 w-[clamp(36px,5vw,44px)] h-[clamp(36px,5vw,44px)]"
+        />
         <div
-          class="bg-blue rounded-[8px] flex items-center justify-center flex-shrink-0
-                 w-[clamp(28px,4vw,34px)] h-[clamp(28px,4vw,34px)]"
+          v-else
+          class="rounded-[8px] flex items-center justify-center flex-shrink-0
+                 w-[clamp(36px,5vw,44px)] h-[clamp(36px,5vw,44px)]"
+          style="background-color: var(--color-primary, #1B4FD8)"
         >
-          <!-- Logo mark: huruf "T" untuk T.A.R.A -->
-          <span class="text-white font-bold text-[clamp(15px,2vw,18px)] leading-none">
-            T
-          </span>
+          <span class="text-white font-bold text-[clamp(18px,2.5vw,22px)] leading-none">T</span>
         </div>
         <div class="min-w-0">
-          <div class="text-[clamp(13px,1.8vw,16px)] font-medium text-text-primary leading-tight truncate">
-            {{ KIOSK.defaultRSName }}
+          <div class="text-[clamp(14px,1.9vw,17px)] font-semibold text-text-primary leading-tight truncate">
+            {{ branding.hospitalName }}
           </div>
-          <div class="text-[clamp(10px,1.2vw,12px)] text-text-muted leading-tight">
-            {{ I18N.app.tagline }}
+          <div class="text-[clamp(11px,1.3vw,13px)] text-text-muted leading-tight">
+            {{ branding.hospitalTagline }}
           </div>
         </div>
       </div>
 
-      <!-- Kanan: status + jam -->
+      <!-- Kanan: status + jam digital -->
       <div class="flex items-center gap-[clamp(8px,1.5vw,14px)] flex-shrink-0">
         <StatusDot
           :label="`${I18N.status.bpjs} ${bpjsStatus === 'online' ? I18N.status.online : I18N.status.offline}`"
@@ -140,195 +168,178 @@ onMounted(refreshStatus)
           :variant="sistemStatus"
         />
         <div class="hidden sm:flex flex-col items-end">
-          <div class="text-[clamp(13px,1.8vw,16px)] font-medium text-text-primary tabular-nums leading-tight">
+          <div class="text-[clamp(15px,2vw,18px)] font-semibold text-text-primary tabular-nums leading-tight">
             {{ time }}
           </div>
-          <div class="text-[clamp(9px,1.1vw,11px)] text-text-muted leading-tight">
+          <div class="text-[clamp(10px,1.2vw,12px)] text-text-muted leading-tight">
             {{ date }}
           </div>
         </div>
       </div>
     </header>
 
-    <!-- ============ Body — 4 button area ============ -->
+    <!-- ============ Body ============ -->
     <section
-      class="flex-1 flex flex-col gap-[clamp(10px,2vw,16px)]
-             p-[clamp(12px,2.5vw,20px)]
-             max-w-[680px] mx-auto w-full justify-center"
+      class="flex-1 flex flex-col gap-[clamp(12px,2vw,18px)]
+             p-[clamp(16px,3vw,24px)]
+             max-w-[820px] mx-auto w-full justify-center"
     >
-      <!-- Welcome heading -->
-      <div class="mb-[clamp(8px,1.5vw,12px)]">
-        <h1 class="text-[clamp(20px,3.5vw,28px)] font-medium text-text-primary leading-tight">
-          Selamat datang
-        </h1>
-        <p class="text-[clamp(11px,1.6vw,14px)] text-text-secondary mt-1">
-          Pilih layanan yang Anda butuhkan
-        </p>
-      </div>
-
-      <!-- Hero BPJS -->
-      <HeroButton
-        :title="I18N.home.bpjs.title"
-        :subtitle="I18N.home.bpjs.subtitle"
-        :tag="I18N.home.bpjs.tag"
-        @click="startBPJS"
+      <!-- Welcome banner besar dengan greeting time-aware + ilustrasi -->
+      <div
+        class="rounded-card flex items-center gap-[clamp(16px,3vw,24px)]
+               px-[clamp(20px,3vw,32px)] py-[clamp(20px,3vw,28px)]
+               min-h-[clamp(110px,14vw,150px)]"
+        :style="{
+          background: `linear-gradient(135deg, var(--color-primary-light, #E8F0FE) 0%, var(--color-accent, #DBEAFE) 100%)`,
+        }"
       >
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="w-[clamp(20px,3vw,26px)] h-[clamp(20px,3vw,26px)]"
-          >
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <line x1="2" y1="10" x2="22" y2="10" />
-            <line x1="6" y1="15" x2="10" y2="15" />
-          </svg>
-        </template>
-      </HeroButton>
-
-      <!-- Grid 2 kolom: Umum + Antrian -->
-      <div class="grid grid-cols-2 gap-[clamp(8px,1.5vw,12px)]">
-        <SecondaryCard
-          :title="I18N.home.umum.title"
-          :subtitle="I18N.home.umum.subtitle"
-          variant="blue"
-          @click="startUmum"
+        <div class="flex-1">
+          <div class="text-[clamp(24px,3.6vw,34px)] font-semibold text-text-primary leading-tight">
+            {{ greeting }}
+          </div>
+          <p class="text-[clamp(14px,2vw,18px)] text-text-secondary mt-2 leading-relaxed">
+            Mari mulai pendaftaran Anda — pilih layanan di bawah.
+          </p>
+        </div>
+        <div
+          class="flex-shrink-0 hidden sm:flex items-center justify-center
+                 w-[clamp(80px,11vw,120px)] h-[clamp(80px,11vw,120px)]
+                 rounded-full bg-white/40 backdrop-blur-sm"
         >
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="w-[clamp(16px,2.4vw,20px)] h-[clamp(16px,2.4vw,20px)]"
-            >
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" />
-            </svg>
-          </template>
-        </SecondaryCard>
-
-        <SecondaryCard
-          :title="I18N.home.antrian.title"
-          :subtitle="I18N.home.antrian.subtitle"
-          variant="gray"
-          @click="startAntrian"
-        >
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="w-[clamp(16px,2.4vw,20px)] h-[clamp(16px,2.4vw,20px)]"
-            >
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <circle cx="4" cy="6" r="1" />
-              <circle cx="4" cy="12" r="1" />
-              <circle cx="4" cy="18" r="1" />
-            </svg>
-          </template>
-        </SecondaryCard>
+          <PhSparkle :size="48" weight="duotone" :style="{ color: 'var(--color-primary, #1B4FD8)' }" />
+        </div>
       </div>
 
-      <!-- Aktivasi Satu Sehat (full width, gaya secondary) -->
+      <!-- Hero BPJS — primary action 60% visual weight -->
       <button
         type="button"
-        class="w-full text-left rounded-card transition-colors
-               bg-surface border border-border hover:border-border-strong active:bg-[#FAFBFC]
-               flex items-center gap-[clamp(10px,2vw,16px)]
-               p-[clamp(14px,2.2vw,18px)]
-               min-h-[clamp(64px,9vw,84px)]"
-        @click="startSatuSehat"
+        class="text-left rounded-card transition-all
+               border border-transparent
+               hover:opacity-95 active:opacity-90
+               flex items-center gap-[clamp(14px,2.5vw,20px)]
+               px-[clamp(20px,3vw,28px)] py-[clamp(20px,3vw,28px)]
+               min-h-[clamp(100px,13vw,130px)]
+               shadow-md text-white"
+        :style="{ backgroundColor: 'var(--color-primary, #1B4FD8)' }"
+        @click="startBPJS"
       >
-        <div
-          class="bg-emerald-50 text-emerald-700 rounded-[10px] flex items-center justify-center flex-shrink-0
-                 w-[clamp(38px,5.5vw,48px)] h-[clamp(38px,5.5vw,48px)]"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="w-[clamp(18px,2.6vw,22px)] h-[clamp(18px,2.6vw,22px)]"
-          >
-            <rect x="5" y="2" width="14" height="20" rx="2" />
-            <line x1="12" y1="18" x2="12" y2="18" />
-          </svg>
+        <div class="bg-white/20 rounded-[12px] p-[clamp(12px,1.8vw,16px)] flex-shrink-0">
+          <PhIdentificationCard :size="40" weight="fill" />
         </div>
         <div class="flex-1">
-          <div class="text-[clamp(13px,2vw,16px)] font-medium text-text-primary leading-tight">
-            {{ I18N.home.satusehat.title }}
+          <div class="text-[clamp(20px,2.8vw,26px)] font-semibold leading-tight">
+            Pasien BPJS
           </div>
-          <div class="text-[clamp(10px,1.4vw,13px)] text-text-muted mt-1 leading-tight">
-            {{ I18N.home.satusehat.subtitle }}
-          </div>
+          <p class="text-[clamp(13px,1.7vw,15px)] opacity-90 mt-1 leading-snug">
+            Tap kartu BPJS atau ketik nomor — sistem otomatis mendeteksi jenis kunjungan
+          </p>
         </div>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="w-[clamp(14px,2vw,18px)] h-[clamp(14px,2vw,18px)] text-text-muted"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
+        <PhSparkle :size="32" weight="bold" class="opacity-70" />
       </button>
+
+      <!-- 2 Secondary cards: Umum + Antrian Loket -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-[clamp(10px,1.5vw,14px)]">
+        <!-- Pasien Umum -->
+        <button
+          type="button"
+          class="text-left rounded-card bg-surface border border-border
+                 hover:border-border-strong active:bg-bg
+                 flex items-center gap-[clamp(12px,2vw,16px)]
+                 px-[clamp(16px,2.5vw,22px)] py-[clamp(16px,2.5vw,22px)]
+                 min-h-[clamp(86px,11vw,108px)] shadow-sm"
+          @click="startUmum"
+        >
+          <div
+            class="rounded-[10px] flex items-center justify-center flex-shrink-0
+                   w-[clamp(48px,6vw,56px)] h-[clamp(48px,6vw,56px)]"
+            style="background-color: var(--color-primary-light, #E8F0FE); color: var(--color-primary, #1B4FD8)"
+          >
+            <PhUser :size="28" weight="bold" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[clamp(15px,2.1vw,18px)] font-semibold text-text-primary leading-tight">
+              Pasien Umum
+            </div>
+            <p class="text-[clamp(11px,1.5vw,13px)] text-text-secondary mt-1 leading-tight">
+              Tanpa kartu BPJS
+            </p>
+          </div>
+        </button>
+
+        <!-- Antrian Loket (single-tap, QW1) -->
+        <button
+          type="button"
+          :disabled="antrianLoading"
+          class="text-left rounded-card bg-surface border border-border
+                 hover:border-border-strong active:bg-bg disabled:opacity-60
+                 flex items-center gap-[clamp(12px,2vw,16px)]
+                 px-[clamp(16px,2.5vw,22px)] py-[clamp(16px,2.5vw,22px)]
+                 min-h-[clamp(86px,11vw,108px)] shadow-sm"
+          @click="startAntrian"
+        >
+          <div
+            class="rounded-[10px] flex items-center justify-center flex-shrink-0
+                   w-[clamp(48px,6vw,56px)] h-[clamp(48px,6vw,56px)]
+                   bg-amber-50 text-amber-700"
+          >
+            <PhCircleNotch v-if="antrianLoading" :size="28" weight="bold" class="animate-spin" />
+            <PhTicket v-else :size="28" weight="fill" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[clamp(15px,2.1vw,18px)] font-semibold text-text-primary leading-tight">
+              Ambil Nomor Loket
+            </div>
+            <p class="text-[clamp(11px,1.5vw,13px)] text-text-secondary mt-1 leading-tight">
+              {{ antrianLoading ? 'Mengambil nomor…' : 'Antrian admisi langsung' }}
+            </p>
+          </div>
+        </button>
+      </div>
     </section>
 
     <!-- ============ Footer ============ -->
     <footer
       class="bg-surface border-t border-border
-             flex items-center justify-between
-             px-[clamp(16px,3vw,28px)] py-[clamp(8px,1.5vw,12px)]"
+             flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2
+             px-[clamp(16px,3vw,28px)] py-[clamp(10px,1.8vw,14px)]"
     >
-      <span class="text-[clamp(11px,1.4vw,13px)] text-text-secondary">
-        {{ I18N.footer.needHelp }}
-      </span>
       <button
         type="button"
-        class="text-[clamp(11px,1.4vw,13px)] font-medium text-blue
-               px-[clamp(10px,1.5vw,14px)] py-[clamp(6px,1vw,8px)]
-               rounded-btn hover:bg-blue-light active:bg-blue-light/80
-               flex items-center gap-2"
-        @click="callStaff"
+        class="flex items-center gap-2 text-[clamp(13px,1.7vw,15px)] font-medium
+               px-[clamp(12px,1.8vw,16px)] py-[clamp(8px,1.3vw,12px)]
+               rounded-btn hover:bg-bg active:bg-border"
+        :style="{ color: 'var(--color-primary, #1B4FD8)' }"
+        @click="startBantuSaya"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="w-[clamp(14px,1.8vw,16px)] h-[clamp(14px,1.8vw,16px)]"
-        >
-          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-        </svg>
-        {{ I18N.footer.callStaff }}
+        <PhLifebuoy :size="20" weight="bold" />
+        <span>Pertama kali? Bantu saya</span>
       </button>
+
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="flex items-center gap-2 text-[clamp(12px,1.5vw,14px)] text-text-muted
+                 hover:text-text-primary px-3 py-2"
+          @click="startSatuSehat"
+        >
+          <PhFingerprint :size="18" weight="bold" />
+          <span class="hidden sm:inline">Aktivasi Satu Sehat</span>
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-2 text-[clamp(13px,1.7vw,15px)] font-medium
+                 px-[clamp(12px,1.8vw,16px)] py-[clamp(10px,1.5vw,12px)]
+                 rounded-btn hover:bg-bg active:bg-border
+                 min-h-[clamp(48px,6vw,56px)]"
+          :style="{ color: 'var(--color-primary, #1B4FD8)' }"
+          @click="callStaff"
+        >
+          <PhPhone :size="20" weight="bold" />
+          <span>Panggil petugas</span>
+        </button>
+      </div>
     </footer>
 
-    <!-- Idle countdown overlay (visible saat 10 detik terakhir) -->
     <IdleOverlay :seconds-left="secondsLeft" :visible="isCountingDown" />
   </main>
 </template>
