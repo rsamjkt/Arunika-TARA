@@ -113,33 +113,37 @@ type FingerprintConfig struct {
 	StartupDelaySec     int    `mapstructure:"startup_delay_sec"` // wait setelah spawn sebelum inject (default 3s)
 }
 
-// FristaConfig — card reader Frista (BPJS desktop app).
+// FristaConfig — Frista (BPJS desktop app) untuk verifikasi SIDIK WAJAH.
 //
-// Pola interaksi (mirror DlgRegistrasiSEPPertama.java reference repo):
-//  1. Spawn frista.exe (CREATE_NO_WINDOW kalau supported)
+// Posisinya sejajar dengan FingerprintConfig — Frista untuk face,
+// fingerprint untuk sidik jari. Keduanya sama-sama biometric verifier
+// yang menghasilkan token untuk dilampirkan ke SEP.
+//
+// Pola interaksi target (mirror BukaFrista() di
+// KhanzaHMSAnjunganSEP_RSAMXIP/src/khanzahmsanjungan/
+// DlgRegistrasiSEPPertama.java line 3764):
+//  1. Spawn frista.exe (CREATE_NO_WINDOW)
 //  2. Auto-login: inject UsernameEnc + PasswordEnc via Win32 UI Automation
-//  3. Pasien tap KTP/kartu BPJS → Frista taruh JSON di clipboard
-//  4. APM polling clipboard → parse → emit ke CardRead channel
+//  3. POST /api/face?noPeserta=... → start scan
+//  4. Poll GET /api/face/status → SUCCESS/FAILED
+//  5. Token dari response dilampirkan ke SEP payload
 //
 // Field WindowClass* opsional — Frista pakai class name Delphi VCL
 // standar (TfrmLogin/TEdit/TButton). Override hanya kalau versi beda.
-//
-// PollIntervalMs: berapa sering polling clipboard (default 500ms).
 type FristaConfig struct {
 	ExePath        string `mapstructure:"exe_path"`
+	RestURL        string `mapstructure:"rest_url"`
 	UsernameEnc    string `mapstructure:"username_enc"`
 	PasswordEnc    string `mapstructure:"password_enc"`
-	ReadTimeoutMs  int    `mapstructure:"read_timeout_ms"`
-	RestartOnCrash bool   `mapstructure:"restart_on_crash"`
+	ScanTimeoutSec int    `mapstructure:"scan_timeout_sec"`
+	PollIntervalMs int    `mapstructure:"poll_interval_ms"`
 
-	// UI Automation — class names dialog login Frista.
+	// Class names dialog login Frista untuk auto-login injection.
+	// Default Delphi VCL: TfrmLogin / TEdit / TButton.
 	WindowClassLogin  string `mapstructure:"window_class_login"`
 	WindowClassEdit   string `mapstructure:"window_class_edit"`
 	WindowClassButton string `mapstructure:"window_class_button"`
 	StartupDelaySec   int    `mapstructure:"startup_delay_sec"` // wait setelah spawn (default 5s — Frista lebih lambat dari After.exe)
-
-	// Clipboard polling untuk capture card data.
-	PollIntervalMs int `mapstructure:"poll_interval_ms"` // default 500ms
 }
 
 // PrinterConfig — thermal printer.

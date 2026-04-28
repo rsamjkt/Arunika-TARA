@@ -14,6 +14,7 @@ var (
 	ErrDuplikasiSEP               = errors.New("SEP untuk tanggal ini sudah pernah dibuat")
 	ErrSudahTerdaftarHariIni      = errors.New("Anda sudah terdaftar di poli & dokter ini hari ini — silakan ke loket bila ada perubahan")
 	ErrBiometrikDiperlukan        = errors.New("verifikasi sidik jari diperlukan untuk pasien ini")
+	ErrBiometrikDibutuhkan        = errors.New("biometrik diperlukan: panggil VerifikasiWajah atau VerifikasiSidikJari dulu, sertakan token di req.BiometrikToken")
 	ErrSuratKontrolTidakDitemukan = errors.New("surat kontrol tidak ditemukan")
 	ErrDokterCuti                 = errors.New("dokter sedang cuti pada tanggal yang dipilih")
 	ErrKuotaPenuh                 = errors.New("kuota dokter pada hari ini sudah penuh")

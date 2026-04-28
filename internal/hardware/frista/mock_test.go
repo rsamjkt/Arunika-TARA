@@ -2,104 +2,118 @@ package frista
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestMockReader_StartEmitConsume(t *testing.T) {
-	r := NewMock(0)
-	if err := r.Start(context.Background()); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer r.Stop()
+func TestMockVerifier_VerifySuccess(t *testing.T) {
+	m := NewMock()
+	m.SetScanDelay(0) // test cepat
 
-	want := CardData{
-		NIK:      "3271234567890001",
-		Nama:     "Budi Santoso",
-		TglLahir: "1980-05-15",
-		NoKartu:  "0001234567890012",
+	res, err := m.Verify(context.Background(), "0001234567890012")
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
 	}
-	if err := r.EmitCard(want); err != nil {
-		t.Fatalf("EmitCard: %v", err)
+	if !res.Success {
+		t.Errorf("Success = false, want true")
 	}
-
-	select {
-	case got := <-r.CardRead():
-		if got.NIK != want.NIK || got.NoKartu != want.NoKartu {
-			t.Errorf("CardData mismatch: got %+v", got)
-		}
-		if got.Timestamp.IsZero() {
-			t.Error("Timestamp seharusnya auto-fill")
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timeout menunggu CardRead")
+	if res.Token == "" {
+		t.Errorf("Token kosong")
+	}
+	if !strings.Contains(res.Token, "MOCK_FACE") {
+		t.Errorf("Token harus mengandung MOCK_FACE prefix, got %q", res.Token)
+	}
+	if !strings.Contains(res.Token, "0001234567890012") {
+		t.Errorf("Token harus include noPeserta, got %q", res.Token)
+	}
+	if res.Timestamp.IsZero() {
+		t.Errorf("Timestamp seharusnya auto-fill")
 	}
 }
 
-func TestMockReader_EmitSebelumStart_Error(t *testing.T) {
-	r := NewMock(0)
-	if err := r.EmitCard(CardData{NIK: "X"}); err == nil {
-		t.Fatal("EmitCard sebelum Start harus error")
+func TestMockVerifier_SetNextFail(t *testing.T) {
+	m := NewMock()
+	m.SetScanDelay(0)
+	m.SetNextFail()
+
+	// Verify pertama harus gagal
+	_, err := m.Verify(context.Background(), "X")
+	if err == nil {
+		t.Fatal("expected error setelah SetNextFail")
+	}
+	if !strings.Contains(err.Error(), "simulasi") {
+		t.Errorf("error message harus mention simulasi, got: %v", err)
+	}
+
+	// Verify kedua harus sukses lagi (flag direset setelah 1 fail)
+	res, err := m.Verify(context.Background(), "X")
+	if err != nil {
+		t.Errorf("Verify kedua harus sukses, got: %v", err)
+	}
+	if !res.Success {
+		t.Errorf("Success setelah fail-once seharusnya kembali true")
 	}
 }
 
-func TestMockReader_StopMenutupChannel(t *testing.T) {
-	r := NewMock(0)
-	r.Start(context.Background())
-	r.Stop()
+func TestMockVerifier_ContextCancel(t *testing.T) {
+	m := NewMock()
+	m.SetScanDelay(2 * time.Second) // delay panjang
 
-	// Channel harus closed — read return zero value + ok=false
-	_, ok := <-r.CardRead()
-	if ok {
-		t.Error("channel seharusnya closed setelah Stop")
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	_, err := m.Verify(ctx, "X")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected error karena ctx cancel")
 	}
-	if r.IsAvailable() {
-		t.Error("setelah Stop seharusnya tidak available")
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("Verify tidak respect ctx.Done() cepat, elapsed=%v", elapsed)
 	}
 }
 
-func TestMockReader_StopIdempotent(t *testing.T) {
-	r := NewMock(0)
-	r.Start(context.Background())
-	if err := r.Stop(); err != nil {
-		t.Fatalf("Stop pertama: %v", err)
-	}
-	if err := r.Stop(); err != nil {
-		t.Fatalf("Stop kedua harus no-op, got: %v", err)
-	}
-}
-
-func TestMockReader_ChannelPenuh_ErrorBackpressure(t *testing.T) {
-	r := NewMock(0)
-	r.Start(context.Background())
-	defer r.Stop()
-
-	// Buffer = 5, fill it up
-	for i := 0; i < 5; i++ {
-		if err := r.EmitCard(CardData{NIK: "X"}); err != nil {
-			t.Fatalf("emit ke-%d: %v", i, err)
-		}
-	}
-	// 6th emit should error (channel full)
-	if err := r.EmitCard(CardData{NIK: "X"}); err == nil {
-		t.Error("emit ke-6 ke channel penuh harus error")
-	}
-}
-
-func TestMockReader_SetAvailable(t *testing.T) {
-	r := NewMock(0)
-	if !r.IsAvailable() {
+func TestMockVerifier_SetAvailable(t *testing.T) {
+	m := NewMock()
+	if !m.IsAvailable() {
 		t.Error("default available")
 	}
-	r.SetAvailable(false)
-	if r.IsAvailable() {
+	m.SetAvailable(false)
+	if m.IsAvailable() {
 		t.Error("setelah SetAvailable(false) harus false")
 	}
 }
 
-func TestMockReader_ServerPortAccessor(t *testing.T) {
-	r := NewMock(9090)
-	if r.ServerPort() != 9090 {
-		t.Errorf("ServerPort = %d, want 9090", r.ServerPort())
+func TestMockVerifier_TokenUnik(t *testing.T) {
+	m := NewMock()
+	m.SetScanDelay(0)
+
+	// Token harus include timestamp HHMMSS — 2 verify dalam waktu
+	// berbeda harus hasilkan token berbeda. Pakai sleep 1.1s untuk
+	// memastikan format HHMMSS berubah (resolusi detik).
+	r1, _ := m.Verify(context.Background(), "X")
+	time.Sleep(1100 * time.Millisecond)
+	r2, _ := m.Verify(context.Background(), "X")
+
+	if r1.Token == r2.Token {
+		t.Errorf("token seharusnya unik antar Verify (timestamp HHMMSS)")
+	}
+}
+
+func TestMockVerifier_InterfaceCompliance(t *testing.T) {
+	// Compile-time assertion juga ada di mock.go (`var _ FaceVerifier = ...`).
+	// Test ini double-check supaya kalau interface berubah signature, test
+	// gagal di sini lebih dulu (dan eror message-nya jelas).
+	var v FaceVerifier = NewMock()
+	if v == nil {
+		t.Fatal("NewMock seharusnya return non-nil")
+	}
+	if !v.IsAvailable() {
+		t.Error("default IsAvailable harus true")
 	}
 }

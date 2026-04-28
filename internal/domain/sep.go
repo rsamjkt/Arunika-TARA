@@ -19,6 +19,15 @@ type SEPRequest struct {
 	CatatanPelayanan string
 	FPToken          string
 
+	// BiometrikToken adalah token biometrik (hasil VerifikasiWajah ATAU
+	// VerifikasiSidikJari yang sudah dilakukan frontend lebih dulu).
+	// Kalau diisi → SEP service skip internal verify dan langsung
+	// pakai token ini sebagai field "finger" di payload VClaim.
+	// Kalau kosong DAN biometrik diperlukan (perluBiometrik=true) →
+	// service return ErrBiometrikDibutuhkan supaya frontend tahu
+	// harus panggil VerifikasiWajah / VerifikasiSidikJari dulu.
+	BiometrikToken string
+
 	// Detail rujukan FKTP (untuk SEP dari rujukan baru)
 	TglRujukan   string
 	KdPPKRujukan string
@@ -66,6 +75,10 @@ type SEPKontrolRequest struct {
 	KelasRawat     string // "1", "2", "3"
 	JnsPelayanan   string // biasanya "1" untuk kontrol RJ
 	FPToken        string
+
+	// BiometrikToken — sama seperti SEPRequest.BiometrikToken.
+	// Kalau diisi, override FPToken sebagai biometrik proof.
+	BiometrikToken string
 }
 
 // SEP adalah Surat Eligibilitas Peserta yang berhasil di-issue oleh BPJS.

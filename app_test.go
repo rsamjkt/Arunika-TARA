@@ -15,6 +15,7 @@ import (
 	"github.com/arunika/apm-go/internal/domain"
 	"github.com/arunika/apm-go/internal/hardware"
 	"github.com/arunika/apm-go/internal/hardware/fingerprint"
+	"github.com/arunika/apm-go/internal/hardware/frista"
 	"github.com/arunika/apm-go/internal/integration/antrol"
 	"github.com/arunika/apm-go/internal/integration/khanza"
 	"github.com/arunika/apm-go/internal/integration/vclaim"
@@ -57,8 +58,11 @@ func newTestApp(t *testing.T) (*App, *vclaim.MockVClaimClient, *khanza.MockKhanz
 	k := khanza.NewMock()
 	a := antrol.NewMock()
 
+	// Frista (face verifier) sekarang call-based — sama interface
+	// dengan fingerprint, hanya beda hardware. Wire mock supaya
+	// VerifikasiWajah test path bisa dieksekusi.
 	hw := &hardware.Provider{
-		Frista:      nil, // skip — frista test terpisah
+		Frista:      frista.NewMock(),
 		Fingerprint: fingerprint.NewMock(),
 		Printer:     nil,
 	}
@@ -77,6 +81,9 @@ func newTestApp(t *testing.T) (*App, *vclaim.MockVClaimClient, *khanza.MockKhanz
 
 	if mfp, ok := hw.Fingerprint.(*fingerprint.MockVerifier); ok {
 		mfp.SetScanDelay(0)
+	}
+	if mfr, ok := hw.Frista.(*frista.MockVerifier); ok {
+		mfr.SetScanDelay(0)
 	}
 	return app, v, k, a
 }
@@ -304,9 +311,9 @@ func TestApp_GetHardwareStatus(t *testing.T) {
 	app, _, _, _ := newTestApp(t)
 
 	st := app.GetHardwareStatus()
-	// Frista nil → false; Fingerprint mock → true; Printer nil → false
-	if st.Frista {
-		t.Errorf("Frista nil seharusnya false")
+	// Frista mock → true; Fingerprint mock → true; Printer nil → false
+	if !st.Frista {
+		t.Errorf("Frista mock seharusnya available")
 	}
 	if !st.Fingerprint {
 		t.Errorf("Fingerprint mock seharusnya available")
@@ -444,4 +451,85 @@ func TestApp_emitEvent_NilCtx_NoOp(t *testing.T) {
 	app.ctx = nil
 	// Tidak panic
 	app.emitEvent("test", "data")
+}
+
+// ============================================================
+// Biometrik (call-based)
+// ============================================================
+
+func TestApp_VerifikasiWajah_Sukses(t *testing.T) {
+	app, _, _, _ := newTestApp(t)
+
+	token, err := app.VerifikasiWajah("0001234567890012")
+	if err != nil {
+		t.Fatalf("VerifikasiWajah: %v", err)
+	}
+	if token == "" {
+		t.Error("token kosong")
+	}
+	if !contains(token, "MOCK_FACE") {
+		t.Errorf("token harus mengandung MOCK_FACE prefix, got %q", token)
+	}
+}
+
+func TestApp_VerifikasiWajah_NoPesertaKosong_Error(t *testing.T) {
+	app, _, _, _ := newTestApp(t)
+
+	_, err := app.VerifikasiWajah("")
+	if err == nil {
+		t.Error("noPeserta kosong harus error")
+	}
+}
+
+func TestApp_VerifikasiWajah_FristaUnavail_Error(t *testing.T) {
+	app, _, _, _ := newTestApp(t)
+	if mfr, ok := app.hw.Frista.(*frista.MockVerifier); ok {
+		mfr.SetAvailable(false)
+	}
+
+	_, err := app.VerifikasiWajah("X")
+	if err == nil {
+		t.Error("frista unavail harus error supaya frontend bisa fallback ke sidik jari")
+	}
+}
+
+func TestApp_VerifikasiSidikJari_Sukses(t *testing.T) {
+	app, _, _, _ := newTestApp(t)
+
+	token, err := app.VerifikasiSidikJari("0001234567890012")
+	if err != nil {
+		t.Fatalf("VerifikasiSidikJari: %v", err)
+	}
+	if token == "" {
+		t.Error("token kosong")
+	}
+	if !contains(token, "MOCK_FP") {
+		t.Errorf("token harus mengandung MOCK_FP prefix, got %q", token)
+	}
+}
+
+func TestApp_VerifikasiSidikJari_FpUnavail_Error(t *testing.T) {
+	app, _, _, _ := newTestApp(t)
+	if mfp, ok := app.hw.Fingerprint.(*fingerprint.MockVerifier); ok {
+		mfp.SetAvailable(false)
+	}
+
+	_, err := app.VerifikasiSidikJari("X")
+	if err == nil {
+		t.Error("fingerprint unavail harus error supaya frontend bisa fallback ke wajah")
+	}
+}
+
+// contains: helper string-search (test helpers package tidak tersedia
+// di scope ini supaya tetap zero-import).
+func contains(s, sub string) bool {
+	if sub == "" {
+		return true
+	}
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }

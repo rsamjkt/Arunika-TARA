@@ -26,8 +26,11 @@ import (
 )
 
 // Provider menyatukan 3 hardware layer + lifecycle management.
+//
+// Frista & Fingerprint sama-sama biometric verifier (call-based),
+// frontend pilih salah satu (atau dua-duanya) sesuai preferensi pasien.
 type Provider struct {
-	Frista      frista.CardReader
+	Frista      frista.FaceVerifier
 	Fingerprint fingerprint.FingerprintVerifier
 	Printer     printer.ThermalPrinter
 }
@@ -57,13 +60,13 @@ func NewProvider(cfg config.Config, db *sql.DB) *Provider {
 	switch runtime.GOOS {
 	case "windows":
 		return &Provider{
-			Frista:      frista.NewWindowsReader(cfg.Frista),
+			Frista:      frista.NewWindowsHeadless(cfg.Frista),
 			Fingerprint: fingerprint.NewWindowsHeadless(cfg.Fingerprint),
 			Printer:     printerImpl,
 		}
 	default: // darwin (Mac), linux
 		return &Provider{
-			Frista:      frista.NewMock(cfg.Dev.MockServerPort),
+			Frista:      frista.NewMock(),
 			Fingerprint: fingerprint.NewMock(),
 			Printer:     printerImpl,
 		}

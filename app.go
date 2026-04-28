@@ -38,8 +38,6 @@ import (
 	"github.com/arunika/apm-go/internal/config"
 	"github.com/arunika/apm-go/internal/domain"
 	"github.com/arunika/apm-go/internal/hardware"
-	"github.com/arunika/apm-go/internal/hardware/fingerprint"
-	"github.com/arunika/apm-go/internal/hardware/frista"
 	"github.com/arunika/apm-go/internal/integration/antrol"
 	"github.com/arunika/apm-go/internal/integration/khanza"
 	"github.com/arunika/apm-go/internal/integration/vclaim"
@@ -116,8 +114,13 @@ func (a *App) shutdown(ctx context.Context) {
 		a.cron.Stop()
 	}
 	if a.hw != nil {
+		// Frista (face verifier) call-based — tidak ada Stop lifecycle.
+		// Real Windows impl punya Stop() untuk kill frista.exe; di-call
+		// via interface assertion supaya tidak butuh Stop di interface.
 		if a.hw.Frista != nil {
-			_ = a.hw.Frista.Stop()
+			if stopper, ok := a.hw.Frista.(interface{ Stop() error }); ok {
+				_ = stopper.Stop()
+			}
 		}
 		if a.hw.Printer != nil {
 			if stopper, ok := a.hw.Printer.(interface{ Stop() error }); ok {
@@ -191,17 +194,11 @@ func (a *App) initialize(ctx context.Context) error {
 		a.khanza = khanza.New(cfg.Server)
 	}
 
-	// Hardware provider — Mac dev: mocks; Windows: real impl
+	// Hardware provider — Mac dev: mocks; Windows: real impl.
+	// Frista (face) & Fingerprint sama-sama call-based biometric verifier
+	// — tidak ada Start/Stop atau channel forward; frontend panggil
+	// VerifikasiWajah / VerifikasiSidikJari saat dibutuhkan.
 	a.hw = hardware.NewProvider(*cfg, db)
-	if err := a.hw.Frista.Start(ctx); err != nil {
-		a.logger.Warn("frista start failed", "err", err.Error())
-	}
-
-	// Wire fp-fail callback (Mac dev: HTTP /mock/fp-fail → fpMock.SetNextFail)
-	a.wireMockFpFailHook()
-
-	// Goroutine forward frista CardRead → Wails event
-	go a.forwardFristaEvents()
 
 	// Services
 	a.detectorSvc = detector.New(a.vclaim, a.antrol, a.khanza)
@@ -229,30 +226,6 @@ func (a *App) initialize(ctx context.Context) error {
 		"platform", a.hw.Platform(),
 		"real_hardware", a.hw.IsRealHardware())
 	return nil
-}
-
-// wireMockFpFailHook — kalau frista & fingerprint sama-sama mock,
-// wire callback supaya HTTP /mock/fp-fail trigger fp.SetNextFail.
-// Type-assert: kalau bukan mock, no-op.
-func (a *App) wireMockFpFailHook() {
-	mockReader, ok1 := a.hw.Frista.(*frista.MockReader)
-	mockFp, ok2 := a.hw.Fingerprint.(*fingerprint.MockVerifier)
-	if ok1 && ok2 {
-		mockReader.SetOnFPFail(mockFp.SetNextFail)
-		a.logger.Info("dev mock: fp-fail hook wired")
-	}
-}
-
-// forwardFristaEvents goroutine — baca dari Frista CardRead channel,
-// emit ke Wails event "frista:card_read" supaya Vue dapat real-time
-// auto-fill form.
-func (a *App) forwardFristaEvents() {
-	if a.hw == nil || a.hw.Frista == nil {
-		return
-	}
-	for card := range a.hw.Frista.CardRead() {
-		a.emitEvent("frista:card_read", card)
-	}
 }
 
 // emitEvent helper — emit Wails event dengan safe-guard ctx nil
@@ -427,6 +400,96 @@ func (a *App) requirePeserta() (*domain.Peserta, error) {
 		return nil, errors.New("peserta belum di-detect — panggil DetectPatient dulu")
 	}
 	return p, nil
+}
+
+// ============================================================
+// Biometrik (call-based) — frontend pilih wajah ATAU sidik jari
+// ============================================================
+
+// VerifikasiWajah memicu verifikasi sidik wajah via Frista (BPJS face
+// recognition app). Blocking — frontend tampilkan modal "hadap kamera"
+// sampai method return. Hasil token dilampirkan oleh frontend ke
+// req.BiometrikToken di BuatSEP* berikutnya.
+//
+// Return:
+//   - token (string non-kosong) + nil error → sukses
+//   - "" + error → gagal (kamera tidak respon, pasien batal, dll)
+//
+// Frontend dapat menampilkan tombol "Coba lagi" atau switch ke
+// VerifikasiSidikJari kalau wajah gagal.
+func (a *App) VerifikasiWajah(noPeserta string) (string, error) {
+	if a.hw == nil || a.hw.Frista == nil {
+		return "", errors.New("frista (face verifier) belum diinisialisasi")
+	}
+	if !a.hw.Frista.IsAvailable() {
+		return "", errors.New("frista (face verifier) tidak tersedia — coba VerifikasiSidikJari atau hubungi operator")
+	}
+	if strings.TrimSpace(noPeserta) == "" {
+		return "", errors.New("noPeserta wajib diisi untuk VerifikasiWajah")
+	}
+
+	res, err := a.hw.Frista.Verify(a.ctx, noPeserta)
+	if err != nil {
+		a.logger.Warn("VerifikasiWajah gagal",
+			"no_peserta_masked", maskCardForLog(noPeserta),
+			"err", err.Error())
+		return "", fmt.Errorf("verifikasi wajah: %w", err)
+	}
+	if !res.Success || res.Token == "" {
+		return "", errors.New("verifikasi wajah tidak menghasilkan token")
+	}
+	a.logger.Info("VerifikasiWajah sukses",
+		"no_peserta_masked", maskCardForLog(noPeserta),
+		"token_len", len(res.Token))
+	return res.Token, nil
+}
+
+// VerifikasiSidikJari memicu verifikasi sidik jari via After.exe (BPJS
+// fingerprint app). Sama pattern dengan VerifikasiWajah. Return token
+// untuk dilampirkan ke req.BiometrikToken di BuatSEP* berikutnya.
+func (a *App) VerifikasiSidikJari(noPeserta string) (string, error) {
+	if a.hw == nil || a.hw.Fingerprint == nil {
+		return "", errors.New("fingerprint verifier belum diinisialisasi")
+	}
+	if !a.hw.Fingerprint.IsAvailable() {
+		return "", errors.New("fingerprint verifier tidak tersedia — coba VerifikasiWajah atau hubungi operator")
+	}
+	if strings.TrimSpace(noPeserta) == "" {
+		return "", errors.New("noPeserta wajib diisi untuk VerifikasiSidikJari")
+	}
+
+	res, err := a.hw.Fingerprint.Verify(a.ctx, noPeserta)
+	if err != nil {
+		a.logger.Warn("VerifikasiSidikJari gagal",
+			"no_peserta_masked", maskCardForLog(noPeserta),
+			"err", err.Error())
+		return "", fmt.Errorf("verifikasi sidik jari: %w", err)
+	}
+	if !res.Success || res.Token == "" {
+		return "", errors.New("verifikasi sidik jari tidak menghasilkan token")
+	}
+	a.logger.Info("VerifikasiSidikJari sukses",
+		"no_peserta_masked", maskCardForLog(noPeserta),
+		"token_len", len(res.Token))
+	return res.Token, nil
+}
+
+// maskCardForLog memendekkan no_kartu jadi "************XXXX" untuk
+// log (PHI safety). Duplikat kecil dari helper di paket lain — App
+// tidak import dari service/ supaya menghindari cycle.
+func maskCardForLog(s string) string {
+	if len(s) < 8 {
+		return "***"
+	}
+	out := make([]byte, len(s))
+	for i := range out {
+		if i >= len(s)-4 {
+			out[i] = s[i]
+		} else {
+			out[i] = '*'
+		}
+	}
+	return string(out)
 }
 
 // ============================================================
