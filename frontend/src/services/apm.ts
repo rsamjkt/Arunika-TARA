@@ -26,6 +26,7 @@ import {
   // Hardware status
   GetHardwareStatus,
   GetSystemStatus,
+  RunStartupChecks,
   // Reprint
   Reprint,
   // Admin
@@ -58,6 +59,7 @@ export type JadwalDokter = domain.JadwalDokter
 export type Poliklinik = domain.Poliklinik
 export type HardwareStatus = main.HardwareStatus
 export type SystemStatus = main.SystemStatus
+export type CheckResult = main.CheckResult
 export type Branding = main.Branding
 export type PendingSep = store.PendingSep
 export type AdminStats = main.AdminStats
@@ -127,6 +129,7 @@ export const apmService = {
   // Hardware status
   getHardwareStatus: (): Promise<HardwareStatus> => GetHardwareStatus(),
   getSystemStatus: (): Promise<SystemStatus> => GetSystemStatus(),
+  runStartupChecks: (): Promise<CheckResult[]> => RunStartupChecks(),
 
   // Reprint
   reprint: (printHistoryID: number): Promise<void> => Reprint(printHistoryID),

@@ -618,6 +618,127 @@ func (a *App) GetSystemStatus() SystemStatus {
 }
 
 // ============================================================
+// Startup self-test
+// ============================================================
+
+// CheckResult — hasil satu probe yang ditampilkan di SplashScreen.
+type CheckResult struct {
+	Component  string `json:"component"`   // label user-facing ("Database lokal", "Khanza", ...)
+	Status     string `json:"status"`      // "ok" | "warn" | "fail" | "skip"
+	Message    string `json:"message"`     // detail pendek (1-line)
+	Critical   bool   `json:"critical"`    // true = blokir lanjut ke HomeScreen kalau status=fail
+	DurationMs int64  `json:"duration_ms"` // berapa lama probe selesai
+}
+
+// RunStartupChecks menjalankan probe semua dependency dan return
+// list result. Dipanggil SplashScreen di Vue saat boot.
+//
+// Probes (urutan tampilan):
+//  1. Database lokal (SQLite)         — critical
+//  2. SIMRS Khanza                    — critical
+//  3. BPJS VClaim                     — info-only (mock vs real)
+//  4. Card reader (Frista)            — non-critical
+//  5. Fingerprint (After.exe)         — non-critical
+//  6. Thermal printer                 — non-critical
+//
+// Probes berjalan paralel — total wall-time umumnya <1 detik di Mac dev,
+// <3 detik di Windows produksi (DB ping yang dominan).
+func (a *App) RunStartupChecks() []CheckResult {
+	ctx, cancel := context.WithTimeout(a.ctx, 5*time.Second)
+	defer cancel()
+
+	type slot struct {
+		idx int
+		res CheckResult
+	}
+	results := make([]CheckResult, 6)
+	ch := make(chan slot, 6)
+
+	probe := func(idx int, label string, critical bool, fn func() (string, string, string)) {
+		start := time.Now()
+		status, msg, _ := fn()
+		ch <- slot{idx, CheckResult{
+			Component:  label,
+			Status:     status,
+			Message:    msg,
+			Critical:   critical,
+			DurationMs: time.Since(start).Milliseconds(),
+		}}
+	}
+
+	go probe(0, "Database lokal", true, func() (string, string, string) {
+		if a.db == nil {
+			return "fail", "DB belum diinisialisasi", ""
+		}
+		if err := a.db.PingContext(ctx); err != nil {
+			return "fail", "ping gagal: " + err.Error(), ""
+		}
+		return "ok", "siap", ""
+	})
+
+	go probe(1, "SIMRS Khanza", true, func() (string, string, string) {
+		if a.khanza == nil {
+			return "fail", "client belum diinisialisasi", ""
+		}
+		if hc, ok := a.khanza.(interface {
+			HealthCheck(context.Context) error
+		}); ok {
+			if err := hc.HealthCheck(ctx); err != nil {
+				return "fail", "MySQL unreachable: " + err.Error(), ""
+			}
+			return "ok", "MySQL terhubung", ""
+		}
+		return "ok", "REST mode (no ping)", ""
+	})
+
+	go probe(2, "BPJS VClaim", false, func() (string, string, string) {
+		if a.cfg != nil && a.cfg.BPJS.Mock {
+			return "warn", "MOCK aktif (canned response)", ""
+		}
+		if a.cfg == nil || a.cfg.BPJS.ConsID == "" || a.cfg.BPJS.ConsumerSecret == "" {
+			return "warn", "credential belum di-set", ""
+		}
+		return "ok", "credential ter-load", ""
+	})
+
+	go probe(3, "Card reader (Frista)", false, func() (string, string, string) {
+		if a.hw == nil || a.hw.Frista == nil {
+			return "skip", "tidak terpasang", ""
+		}
+		if a.hw.Frista.IsAvailable() {
+			return "ok", "siap baca kartu", ""
+		}
+		return "warn", "offline — pasien input manual via NumPad", ""
+	})
+
+	go probe(4, "Fingerprint BPJS", false, func() (string, string, string) {
+		if a.hw == nil || a.hw.Fingerprint == nil {
+			return "skip", "tidak terpasang", ""
+		}
+		if a.hw.Fingerprint.IsAvailable() {
+			return "ok", "siap verifikasi", ""
+		}
+		return "warn", "offline — biometrik akan di-skip", ""
+	})
+
+	go probe(5, "Thermal printer", false, func() (string, string, string) {
+		if a.hw == nil || a.hw.Printer == nil {
+			return "skip", "tidak terpasang", ""
+		}
+		if a.hw.Printer.IsAvailable() {
+			return "ok", "siap cetak", ""
+		}
+		return "warn", "offline — periksa kertas/koneksi USB", ""
+	})
+
+	for i := 0; i < 6; i++ {
+		s := <-ch
+		results[s.idx] = s.res
+	}
+	return results
+}
+
+// ============================================================
 // Reprint
 // ============================================================
 

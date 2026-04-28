@@ -48,6 +48,8 @@ export function ResetCounters():Promise<void>;
 
 export function ResetSession():Promise<void>;
 
+export function RunStartupChecks():Promise<Array<main.CheckResult>>;
+
 export function TestPrint():Promise<void>;
 
 export function VerifyAdminPIN(arg1:string):Promise<boolean>;

@@ -6,6 +6,46 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/) sederhana — s
 
 ---
 
+## [v1.8.0-mahatma] — Startup Self-Test (Splash Screen)
+
+> **Konteks:** kiosk produksi sering kena masalah operasional yang baru ketahuan saat pasien sudah mulai dipakai (Frista belum login, printer kehabisan kertas, Khanza unreachable). Self-test di startup kasih petugas snapshot kondisi kiosk sebelum operasional, plus pasien yang dateng pas boot tidak bingung kenapa kiosk gak respon.
+
+### Added
+- **`App.RunStartupChecks() []CheckResult`** Wails-bound method (`app.go`) — paralel probe 6 dependency:
+  | # | Component         | Critical | Probe                                     |
+  |---|-------------------|----------|-------------------------------------------|
+  | 1 | Database lokal    | ✅       | `db.PingContext(ctx)` SQLite              |
+  | 2 | SIMRS Khanza      | ✅       | `khanza.HealthCheck(ctx)` (MySQL ping)    |
+  | 3 | BPJS VClaim       | —        | Mock-mode warn / credential presence info |
+  | 4 | Card reader Frista| —        | `IsAvailable()` snapshot                  |
+  | 5 | Fingerprint BPJS  | —        | `IsAvailable()` snapshot                  |
+  | 6 | Thermal printer   | —        | `IsAvailable()` snapshot                  |
+  - Total wall-time `<1s` di Mac dev, `<3s` di Windows produksi (DB ping dominan).
+  - Probes berjalan paralel via goroutines, hasil aggregate di array fix-position.
+  - Critical fail → block UI di splash dengan tombol recovery; non-critical → warn-only, lanjut ke home.
+
+- **`SplashScreen.vue`** (`frontend/src/screens/`) — boot self-test screen sebelum kiosk siap:
+  - Header branding (logo "T" + nama RS) + tagline "Memeriksa kesiapan kiosk…"
+  - Card list 6 check, animasi staggered fade-in (80ms per item)
+  - Per-row: Phosphor icon (`PhCheckCircle` ok / `PhWarningCircle` warn / `PhXCircle` fail / `PhMinusCircle` skip), label + message, status uppercase + duration ms
+  - Summary footer: tally OK / Perhatian / Gagal / Skip + "Mengarahkan ke layar utama…"
+  - Auto-navigate ke `/home` setelah 600ms kalau no critical fail
+  - Critical fail → recovery panel: tombol "Coba Lagi" + "Buka Admin Panel"
+
+- **Router gate** (`frontend/src/router.js`) — `/` sekarang ke SplashScreen (`name: 'splash'`), `/home` jadi route HomeScreen explicit. Catch-all 404 tetap redirect ke `home` untuk safety.
+
+- **`apmService.runStartupChecks()`** TypeScript wrapper di `services/apm.ts`, plus type re-export `CheckResult = main.CheckResult`.
+
+### Why
+- Kasi petugas + pasien feedback visual immediate "kiosk lagi cek hardware" instead of blank screen 1-3 detik saat boot.
+- Surface masalah operasional (printer disconnect, Frista belum login, Khanza unreachable) sebelum pasien tap kartu — bukan saat tengah-tengah flow registrasi.
+- Critical fail (DB / Khanza) tetap di splash dengan tombol admin panel → petugas bisa diagnose tanpa restart.
+
+### Verified
+- `make dev` → splash render → 6 check appear staggered → summary OK/warn → auto-nav ke `/home` → user tap card → detector classify "Jadwal Kontrol" → clean shutdown. Zero error log.
+
+---
+
 ## [v1.7.0-mahatma] — Vendor Scope Alignment (SKDP Kontrol)
 
 > **Konteks:** vendor referensi `KhanzaHMSAnjunganSEP_RSAMXIP` (Java desktop SIMRS Khanza versi RS Anggrek Mas) tidak pernah create SKDP via VClaim — `DlgCekSKDPKontrol.java` hanya **LOOKUP** dari local DB `bridging_surat_kontrol_bpjs`. APM punya kapabilitas create-SKDP yang gak match vendor scope dan zero caller di service layer → dead code dengan resiko misleading kalau dipanggil future. Hapus semua, tetap selaras vendor.

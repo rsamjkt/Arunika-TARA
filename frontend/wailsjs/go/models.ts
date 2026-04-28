@@ -524,6 +524,26 @@ export namespace main {
 	        this.audio_volume = source["audio_volume"];
 	    }
 	}
+	export class CheckResult {
+	    component: string;
+	    status: string;
+	    message: string;
+	    critical: boolean;
+	    duration_ms: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.component = source["component"];
+	        this.status = source["status"];
+	        this.message = source["message"];
+	        this.critical = source["critical"];
+	        this.duration_ms = source["duration_ms"];
+	    }
+	}
 	export class HardwareStatus {
 	    frista: boolean;
 	    fingerprint: boolean;

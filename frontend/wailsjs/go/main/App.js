@@ -90,6 +90,10 @@ export function ResetSession() {
   return window['go']['main']['App']['ResetSession']();
 }
 
+export function RunStartupChecks() {
+  return window['go']['main']['App']['RunStartupChecks']();
+}
+
 export function TestPrint() {
   return window['go']['main']['App']['TestPrint']();
 }

@@ -6,7 +6,15 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 
 const routes = [
   {
+    // Splash = initial route. Run startup self-test → kalau ok navigate
+    // replace ke /home. Kalau critical fail tetap di splash dengan
+    // recovery option.
     path: '/',
+    name: 'splash',
+    component: () => import('./screens/SplashScreen.vue'),
+  },
+  {
+    path: '/home',
     name: 'home',
     component: () => import('./screens/HomeScreen.vue'),
   },
