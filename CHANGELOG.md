@@ -6,6 +6,81 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/) sederhana — s
 
 ---
 
+## [v2.0.0-mahatma] — Frista jadi FaceVerifier + BiometrikChoiceModal
+
+> **BREAKING.** Konsep awal salah: package `frista` di-design sebagai card reader hardware (baca KTP/kartu BPJS dengan channel-based event ke UI). **Realitanya** Frista adalah aplikasi BPJS untuk **face recognition / sidik wajah** — sama posisinya dengan After.exe (BPJS fingerprint app), bukan reader. RS Anggrek Mas tidak punya card reader sama sekali; pasien identify via NumPad.
+>
+> Vendor pattern (`KhanzaHMSAnjunganSEP_RSAMXIP/DlgRegistrasiSEPPertama.java`): saat SEP butuh biometrik (umur ≥17, non-IGD), modal `WindowBiometrik` kasih 2 tombol — `btnFingerPrint1` (`BukaFrista`, spawn Frista.exe untuk face recog) dan `btnFingerPrint2` (`BukaFingerPrint`, spawn After.exe untuk fingerprint). Pasien pilih.
+>
+> Refactor ini buang konsep card reader, ganti Frista jadi `FaceVerifier` mirror `FingerprintVerifier`, plus tambah modal pilihan biometrik di kiosk.
+
+### Backend (Go)
+
+**Removed:**
+- `frista.CardReader` interface — channel-based `Start()/Stop()/CardRead() <-chan CardData`
+- `frista.CardData{NIK, Nama, TglLahir, Alamat, NoKartu, Timestamp}` struct — itu bukan output Frista
+- `frista.MockReader.EmitCard()` + http_server.go (mock HTTP card-tap injection)
+- `frista/windows.go` + `windows_ui.go` (lama channel-based)
+- `app.go::forwardFristaEvents` goroutine + Wails event `"frista:card_read"`
+- `app.go::wireMockFpFailHook` (legacy hook ke `*MockReader`)
+- `app.go::Frista.Start(ctx)` di startup (call-based now, tidak ada lifecycle Start/Stop di interface)
+- `frontend/src/components/FristaBar.vue` (status bar reader)
+- `frontend/src/services/apm.ts::CardData` interface + `onCardRead` helper + listener di `App.vue`
+
+**Added:**
+- `frista.FaceVerifier` interface — mirror `fingerprint.FingerprintVerifier`:
+  ```go
+  type FaceVerifier interface {
+      Verify(ctx context.Context, noPeserta string) (FRResult, error)
+      IsAvailable() bool
+  }
+  type FRResult struct { Success bool; Token string; Timestamp time.Time }
+  ```
+- `frista.MockVerifier` — call-based: `SetNextFail`, `SetScanDelay`, `SetAvailable` untuk dev tooling parity dengan fingerprint mock.
+- `frista/windows_real.go::WindowsHeadlessVerifier` — stub-level, pattern mirror `fingerprint/windows_real.go` (real impl P-031+: spawn frista.exe + UI Automation + REST polling).
+- `domain.SEPRequest.BiometrikToken` + `domain.SEPKontrolRequest.BiometrikToken` — field opsional. Frontend isi setelah panggil `VerifikasiWajah` / `VerifikasiSidikJari`.
+- `domain.ErrBiometrikDibutuhkan` — sentinel error. Backend return ini kalau biometrik perlu dan token kosong.
+- `App.VerifikasiWajah(noPeserta) (string, error)` — Wails-bound, call `a.hw.Frista.Verify`, return token.
+- `App.VerifikasiSidikJari(noPeserta) (string, error)` — Wails-bound, call `a.hw.Fingerprint.Verify`.
+
+**Changed:**
+- `service/sep/service.go::maybeBiometrik(externalToken)` — kontrak baru: external token > internal verify > `ErrBiometrikDibutuhkan`. Sebelumnya: kalau verifier unavailable, silently skip (return empty token, SEP tetap issue). Sekarang: return error supaya frontend show modal pilihan.
+- `service/sep::BuatSEPRujukan` pass `req.BiometrikToken` ke `maybeBiometrik`. Kontrol/PostRANAP/PostRAJAL legacy signature (no req struct) — masih internal-verify path, TODO P-031+ refactor signature.
+- `config.FristaConfig` — replace `ReadTimeoutMs`/`RestartOnCrash` dengan `RestURL`/`ScanTimeoutSec` (mirror `FingerprintConfig` field set).
+- `provider.go` — `Frista frista.FaceVerifier` (was `CardReader`).
+
+### Frontend (Vue)
+
+**Added:**
+- `BiometrikChoiceModal.vue` — modal Teleport-to-body, 2 tombol big setara dengan Phosphor icon `PhCamera` (Sidik Wajah) + `PhFingerprint` (Sidik Jari), masking `***1234` last4 dari noPeserta, click-outside cancel, backdrop semi-transparent + blur.
+- `apm.ts::verifikasiWajah(noPeserta)` + `verifikasiSidikJari(noPeserta)` wrappers + `BIOMETRIK_REQUIRED_HINT` const + `BiometrikMethod` type.
+
+**Changed (copy update):**
+- `HomeScreen.vue` — ~~"Tap kartu BPJS atau ketik nomor"~~ → "Ketik No. Kartu BPJS atau NIK"
+- `InputScreen.vue` — full rewrite single-channel typing (`PhKeyboard` icon), hapus state `fristaAvailable` + `refreshHardware`. Subtitle ~~"Tap KTP atau kartu BPJS di reader"~~ → "Ketik NIK atau No. Kartu BPJS untuk mulai"
+- `BantuSayaScreen.vue` — ~~"tap kartu atau ketik nomor"~~ → "ketik No. Kartu BPJS atau NIK"
+- `AdminScreen.vue` — label "Frista card reader" → "Sidik Wajah BPJS (Frista)" + mock-info teks `face-verify` / `fp-verify`
+- `i18n.ts` — subtitle update ~~"Tap kartu BPJS"~~ → "Ketik No. Kartu BPJS atau NIK untuk mulai"
+- `App.vue` — hapus `unsubCard` / `events.onCardRead(...)` block (auto-fill behavior)
+
+**Integration di SEP flow (`ResultScreen.vue`):**
+- `onIssueSEPRujukan` preemptive trigger modal kalau `perluBiometrik` (umur ≥17, non-IGD) — UX optimal (tidak round-trip dulu)
+- `onIssueSEPKontrol` catch error backend, kalau `err.message.includes(BIOMETRIK_REQUIRED_HINT)` → trigger modal (defensive fallback)
+- User pick method → call `verifikasiWajah` atau `verifikasiSidikJari` → token → re-call SEP backend dengan `req.biometrik_token = token`
+- On verify error (timeout / cancel) → `AlertModal` toast error
+
+### Stats
+- 30 files changed, 1059 insertions(+), 1664 deletions(-) — net **−605 LOC**
+- 16 Go test packages hijau, build clean Mac + Windows cross-compile
+- Verified end-to-end di `make dev` sebelum tag
+
+### Known TODO (di-defer, bukan blocker)
+- **Real Windows Frista impl** (`windows_real.go`) — stub-level, return `errors.New("belum di-implement (P-031)")`. Akan port pattern UI Automation dari `fingerprint/windows_ui.go` (auto-login flow identik).
+- **`BuatSEPKontrol/PostRANAP/PostRAJAL` BiometrikToken plumbing** — legacy signature `(noSurat, kdDokter)` belum extend dengan token. Sekarang masih internal-verify path. P-031+: refactor jadi struct param atau add token arg.
+- **MJKN flow biometric integration** — handler current navigate ke `/tiket` tanpa SEP backend call. Tinggal copy-paste pattern `onIssueSEPKontrol` saat backend di-wire.
+
+---
+
 ## [v1.8.0-mahatma] — Startup Self-Test (Splash Screen)
 
 > **Konteks:** kiosk produksi sering kena masalah operasional yang baru ketahuan saat pasien sudah mulai dipakai (Frista belum login, printer kehabisan kertas, Khanza unreachable). Self-test di startup kasih petugas snapshot kondisi kiosk sebelum operasional, plus pasien yang dateng pas boot tidak bingung kenapa kiosk gak respon.
