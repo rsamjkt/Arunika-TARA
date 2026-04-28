@@ -98,19 +98,14 @@ export function TestPrint() {
   return window['go']['main']['App']['TestPrint']();
 }
 
-export function VerifyAdminPIN(arg1) {
-  return window['go']['main']['App']['VerifyAdminPIN'](arg1);
+export function VerifikasiSidikJari(arg1) {
+  return window['go']['main']['App']['VerifikasiSidikJari'](arg1);
 }
 
-// STUB — akan di-overwrite saat Wails regen bindings (backend agent menambah
-// method VerifikasiWajah & VerifikasiSidikJari di app.go). Stub ini memastikan
-// frontend build tidak gagal selama backend belum siap; runtime akan crash
-// kalau dipanggil sebelum backend ready, jadi pasangan SEP modal harus
-// dijalankan setelah `wails dev` regen bindings.
 export function VerifikasiWajah(arg1) {
   return window['go']['main']['App']['VerifikasiWajah'](arg1);
 }
 
-export function VerifikasiSidikJari(arg1) {
-  return window['go']['main']['App']['VerifikasiSidikJari'](arg1);
+export function VerifyAdminPIN(arg1) {
+  return window['go']['main']['App']['VerifyAdminPIN'](arg1);
 }

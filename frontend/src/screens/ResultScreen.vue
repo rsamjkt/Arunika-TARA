@@ -14,7 +14,8 @@
   Spec ketat P-043 (legacy):
     - PatientCard dengan 4 pill warna (per kategori).
     - Kontrol: surat kontrol detail + DokterPicker (default idx 0) +
-      CTA "Buat surat layanan" (await BuatSEPKontrol).
+      CTA "Cetak SEP & Daftar Kontrol" (await BuatSEPKontrol — yang
+      ISSUE SEP dari SKDP existing, BUKAN create SKDP baru).
     - RujukanBaru: detail rujukan + info bar biometrik CONDITIONAL
       (hanya kalau perluBiometrik = umur>=17 + non-IGD).
     - TidakAktif: info bar merah + CTA "Daftar pasien umum" + ghost
@@ -512,7 +513,7 @@ const infoBarClass = (v) => {
         @confirm="onConfirmMJKN"
       />
 
-      <!-- Kontrol: dokter picker + CTA buat surat layanan (inline,
+      <!-- Kontrol: dokter picker + CTA cetak SEP & daftar (inline,
            preserve flow existing) -->
       <template v-else-if="ptype === PatientType.Kontrol">
         <div class="flex flex-col gap-[clamp(8px,1.2vw,10px)]">
@@ -544,7 +545,7 @@ const infoBarClass = (v) => {
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"
                       fill="none" stroke-dasharray="40" stroke-dashoffset="20" />
             </svg>
-            {{ ctaLoading ? 'Memproses...' : 'Buat surat layanan kontrol dan cetak' }}
+            {{ ctaLoading ? 'Memproses...' : 'Cetak SEP & Daftar Kontrol' }}
           </span>
           <svg
             v-if="!ctaLoading"

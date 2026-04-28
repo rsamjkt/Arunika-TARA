@@ -52,10 +52,8 @@ export function RunStartupChecks():Promise<Array<main.CheckResult>>;
 
 export function TestPrint():Promise<void>;
 
-export function VerifyAdminPIN(arg1:string):Promise<boolean>;
+export function VerifikasiSidikJari(arg1:string):Promise<string>;
 
-// STUB declarations — akan di-overwrite saat Wails CLI regen bindings.
-// Backend agent (paralel) menambah method ini di app.go.
 export function VerifikasiWajah(arg1:string):Promise<string>;
 
-export function VerifikasiSidikJari(arg1:string):Promise<string>;
+export function VerifyAdminPIN(arg1:string):Promise<boolean>;

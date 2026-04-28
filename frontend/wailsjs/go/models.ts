@@ -313,6 +313,7 @@ export namespace domain {
 	    NoRujukan: string;
 	    CatatanPelayanan: string;
 	    FPToken: string;
+	    BiometrikToken: string;
 	    TglRujukan: string;
 	    KdPPKRujukan: string;
 	    NmPPKRujukan: string;
@@ -358,6 +359,7 @@ export namespace domain {
 	        this.NoRujukan = source["NoRujukan"];
 	        this.CatatanPelayanan = source["CatatanPelayanan"];
 	        this.FPToken = source["FPToken"];
+	        this.BiometrikToken = source["BiometrikToken"];
 	        this.TglRujukan = source["TglRujukan"];
 	        this.KdPPKRujukan = source["KdPPKRujukan"];
 	        this.NmPPKRujukan = source["NmPPKRujukan"];
