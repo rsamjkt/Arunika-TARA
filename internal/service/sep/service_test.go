@@ -389,22 +389,79 @@ func TestBuatSEPPostRANAP_KdPoliKosong_Error(t *testing.T) {
 }
 
 // ============================================================
-// FP not available → SEP tetap issued (degradasi)
+// FP not available + token tidak disediakan → ErrBiometrikDibutuhkan
+// (kontrak baru pasca refactor frista→face verifier)
 // ============================================================
 
-func TestSEPService_FPVerifierTidakAvailable_SEPTetapIssue(t *testing.T) {
+// TestSEPService_FPUnavail_NoToken_ReturnErrBiometrikDibutuhkan: kalau
+// fingerprint verifier tidak tersedia DAN frontend tidak supply
+// BiometrikToken, service explicit gagal supaya frontend tahu harus
+// panggil VerifikasiWajah / VerifikasiSidikJari dulu (ada path biometrik
+// alternatif: Frista face).
+func TestSEPService_FPUnavail_NoToken_ReturnErrBiometrikDibutuhkan(t *testing.T) {
 	svc, m := setupSEP(t)
 	stubVClaimSuccess(m, "SEP-NO-FP")
 	m.fp.SetAvailable(false)
 
-	got, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
+	_, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
 		NoRujukan: "RUJ-001", KdPoli: "INT", KdDokter: "D",
 	})
-	if err != nil {
-		t.Fatalf("FP unavailable tidak boleh blokir SEP, got: %v", err)
+	if err == nil {
+		t.Fatal("expected ErrBiometrikDibutuhkan saat FP unavail & no token")
 	}
-	if got.NoSEP != "SEP-NO-FP" {
-		t.Errorf("SEP harus tetap di-issue")
+	if !errors.Is(err, domain.ErrBiometrikDibutuhkan) {
+		t.Errorf("err harus wrap ErrBiometrikDibutuhkan, got: %v", err)
+	}
+}
+
+// TestSEPService_BiometrikTokenDariFrontend_SkipInternalVerify: kalau
+// frontend sudah panggil VerifikasiWajah/VerifikasiSidikJari dan supply
+// token via req.BiometrikToken, service skip internal verify (supaya
+// pasien tidak prompt 2x) dan langsung pakai token.
+func TestSEPService_BiometrikTokenDariFrontend_SkipInternalVerify(t *testing.T) {
+	svc, m := setupSEP(t)
+	stubVClaimSuccess(m, "SEP-EXT")
+	m.fp.SetNextFail() // kalau internal verify dipanggil → akan fail
+
+	got, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
+		NoRujukan:      "RUJ-001",
+		KdPoli:         "INT",
+		KdDokter:       "D",
+		BiometrikToken: "MOCK_FACE_0001234567890012_120000",
+	})
+	if err != nil {
+		t.Fatalf("expected sukses (token dari frontend), got: %v", err)
+	}
+	if got.NoSEP != "SEP-EXT" {
+		t.Errorf("SEP harus issued dengan token frontend")
+	}
+
+	// Pastikan token disampaikan ke VClaim CreateSEP via FPToken
+	// (mock CreateSEPFunc capture-able? Lihat req yang masuk).
+	// stubVClaimSuccess sudah override CreateSEPFunc, kita tidak punya
+	// hook capture — cukup verifikasi via behavior: kalau internal verify
+	// dipanggil (m.fp.SetNextFail), akan return error; kalau test sukses,
+	// berarti internal verify TIDAK dipanggil → externalToken dipakai.
+}
+
+// TestSEPService_FPUnavail_DenganToken_TetapSukses: backup path —
+// kalau frontend supply token DAN verifier unavail, tetap sukses.
+func TestSEPService_FPUnavail_DenganToken_TetapSukses(t *testing.T) {
+	svc, m := setupSEP(t)
+	stubVClaimSuccess(m, "SEP-OK")
+	m.fp.SetAvailable(false)
+
+	got, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
+		NoRujukan:      "RUJ-001",
+		KdPoli:         "INT",
+		KdDokter:       "D",
+		BiometrikToken: "MOCK_FACE_TOKEN_123",
+	})
+	if err != nil {
+		t.Fatalf("token frontend harus override unavail check, got: %v", err)
+	}
+	if got.NoSEP != "SEP-OK" {
+		t.Errorf("SEP harus issued: %+v", got)
 	}
 }
 

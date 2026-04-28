@@ -39,10 +39,11 @@ poll_interval_ms   = 500
 
 [frista]
 exe_path          = "C:\\Frista\\frista.exe"
+rest_url          = "https://frista.bpjs-kesehatan.go.id/face-rest/"
 username_enc      = "frista-user"
 password_enc      = "frista-pass"
-read_timeout_ms   = 1000
-restart_on_crash  = true
+scan_timeout_sec  = 30
+poll_interval_ms  = 500
 
 [printer]
 mode      = "console"
@@ -100,8 +101,11 @@ func TestLoad_ValidTOML(t *testing.T) {
 	if cfg.BPJS.DetectorTimeoutMs != 5000 {
 		t.Errorf("bpjs.detector_timeout_ms = %d, want 5000", cfg.BPJS.DetectorTimeoutMs)
 	}
-	if !cfg.Frista.RestartOnCrash {
-		t.Errorf("frista.restart_on_crash harus true")
+	if cfg.Frista.ScanTimeoutSec != 30 {
+		t.Errorf("frista.scan_timeout_sec = %d, want 30", cfg.Frista.ScanTimeoutSec)
+	}
+	if cfg.Frista.RestURL != "https://frista.bpjs-kesehatan.go.id/face-rest/" {
+		t.Errorf("frista.rest_url = %q", cfg.Frista.RestURL)
 	}
 	if cfg.Printer.WidthMm != 58 {
 		t.Errorf("printer.width_mm = %d, want 58", cfg.Printer.WidthMm)

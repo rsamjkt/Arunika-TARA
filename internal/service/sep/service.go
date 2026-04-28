@@ -107,8 +107,10 @@ func (s *SEPService) BuatSEPRujukan(
 		return nil, err
 	}
 
-	// Step 2: biometrik kalau perlu (umur >=17 + non-IGD)
-	fpToken, err := s.maybeBiometrik(ctx, *peserta, req.KdPoli)
+	// Step 2: biometrik kalau perlu (umur >=17 + non-IGD).
+	// Kalau caller (Wails frontend) sudah panggil VerifikasiWajah /
+	// VerifikasiSidikJari dan pasok req.BiometrikToken, pakai langsung.
+	fpToken, err := s.maybeBiometrik(ctx, *peserta, req.KdPoli, req.BiometrikToken)
 	if err != nil {
 		return nil, err
 	}
@@ -257,8 +259,14 @@ func (s *SEPService) BuatSEPKontrol(
 		return nil, err
 	}
 
-	// Step 3: biometrik kalau perlu (poli kontrol)
-	fpToken, err := s.maybeBiometrik(ctx, *peserta, sk.KdPoli)
+	// Step 3: biometrik kalau perlu (poli kontrol).
+	// BuatSEPKontrol di Wails app ambil BiometrikToken dari cache
+	// (di-set saat VerifikasiWajah / VerifikasiSidikJari) — saat ini
+	// signature method tidak terima req langsung, jadi kita pakai
+	// internal verify (degradasi ke fingerprint mock kalau ada).
+	// TODO P-031+: refactor signature kontrol terima domain.SEPKontrolRequest
+	// supaya frontend bisa supply BiometrikToken seperti SEPRujukan.
+	fpToken, err := s.maybeBiometrik(ctx, *peserta, sk.KdPoli, "")
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +360,11 @@ func (s *SEPService) buatSEPPasca(
 		return nil, err
 	}
 
-	fpToken, err := s.maybeBiometrik(ctx, *peserta, kdPoli)
+	// POST_RANAP/POST_RAJAL signature lama tidak terima BiometrikToken
+	// dari frontend — pakai internal verify (degradasi: fingerprint mock).
+	// TODO P-031+: ubah signature menerima req struct supaya frontend
+	// bisa supply token sebagaimana SEPRujukan.
+	fpToken, err := s.maybeBiometrik(ctx, *peserta, kdPoli, "")
 	if err != nil {
 		return nil, err
 	}
@@ -402,23 +414,55 @@ func (s *SEPService) buatSEPPasca(
 // Helpers
 // ============================================================
 
-// maybeBiometrik menjalankan fingerprint.Verify() bila perluBiometrik()
-// return true. Mengembalikan token (kosong kalau tidak perlu biometrik
-// atau verifier tidak available) atau ErrBiometrikDiperlukan kalau
-// verifikasi gagal.
+// maybeBiometrik menentukan token biometrik untuk dilampirkan ke SEP.
 //
-// Behavior degradasi: kalau verifier tidak available (mis. After.exe
-// crash), TIDAK gagalkan SEP — log warning + lanjut tanpa token.
-// Operator BPJS akan reject SEP saat klaim kalau token kurang, tapi
-// itu masalah audit yang lebih baik daripada blokir pasien di kiosk.
-func (s *SEPService) maybeBiometrik(ctx context.Context, peserta domain.Peserta, kdPoli string) (string, error) {
+// Prioritas:
+//
+//  1. Kalau perluBiometrik() = false (anak-anak / IGD) → return "" tanpa
+//     verify, FPToken di payload BPJS akan kosong.
+//  2. Kalau caller pasok externalToken (dari req.BiometrikToken — hasil
+//     VerifikasiWajah/VerifikasiSidikJari yang sudah dilakukan frontend
+//     lebih dulu) → pakai langsung, skip internal verify.
+//  3. Kalau externalToken kosong DAN biometrik diperlukan → return
+//     ErrBiometrikDibutuhkan supaya frontend tahu harus panggil
+//     VerifikasiWajah / VerifikasiSidikJari dulu sebelum BuatSEP.
+//
+// CATATAN soal degradasi: dulu saat verifier tidak available kita
+// log warning + skip biometrik (return ""). Sekarang flow biometrik
+// sepenuhnya digerakkan frontend (panggil method khusus → pasok token),
+// jadi service layer cukup percaya externalToken atau gagal cepat.
+// Kalau hardware Frista/After.exe down, frontend akan tahu dari error
+// VerifikasiWajah/VerifikasiSidikJari dan bisa pilih path manual
+// (operator override) atau cancel.
+func (s *SEPService) maybeBiometrik(
+	ctx context.Context,
+	peserta domain.Peserta,
+	kdPoli string,
+	externalToken string,
+) (string, error) {
 	if !perluBiometrik(peserta, kdPoli) {
 		return "", nil
 	}
+
+	// Path 1: frontend sudah pasok token (dari Wails VerifikasiWajah
+	// atau VerifikasiSidikJari). Pakai langsung — tidak ada internal
+	// verify lagi, supaya tidak ada double-prompt ke pasien.
+	if externalToken != "" {
+		s.logger.Info("sep: biometrik token diterima dari frontend",
+			"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli,
+			"token_len", len(externalToken))
+		return externalToken, nil
+	}
+
+	// Path 2: tidak ada token external — fallback ke internal fingerprint
+	// verifier (legacy path; flow ini akan jadi fallback saat frontend
+	// belum migrasi ke VerifikasiWajah/VerifikasiSidikJari pattern).
+	// Kalau verifier tidak available, return ErrBiometrikDibutuhkan
+	// supaya frontend explicit handle (panggil method biometrik).
 	if s.fp == nil || !s.fp.IsAvailable() {
-		s.logger.Warn("sep: biometrik diperlukan tapi verifier tidak available",
+		s.logger.Warn("sep: biometrik diperlukan & token belum disediakan frontend",
 			"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli)
-		return "", nil
+		return "", domain.ErrBiometrikDibutuhkan
 	}
 
 	res, err := s.fp.Verify(ctx, peserta.NoKartu)
