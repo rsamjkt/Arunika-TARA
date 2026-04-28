@@ -39,6 +39,13 @@ import {
   TestPrint,
 } from '../../wailsjs/go/main/App'
 
+// Biometrik verifikasi — SEP butuh token validasi (umur >=17, non-IGD).
+// Backend agent (paralel) akan bind methods ini di Go side; bindings
+// `wailsjs/go/main/App.d.ts` akan re-generate di run berikutnya `wails dev`.
+// Sementara: stub declarations ditambahkan manual di App.js + App.d.ts
+// supaya import-nya resolve. Wails regen akan overwrite stub itu.
+import { VerifikasiWajah, VerifikasiSidikJari } from '../../wailsjs/go/main/App'
+
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 
 import type { domain, main, store } from '../../wailsjs/go/models'
@@ -65,18 +72,6 @@ export type PendingSep = store.PendingSep
 export type AdminStats = main.AdminStats
 export type AdminLogEntry = main.AdminLogEntry
 
-// CardData yang di-emit lewat event "frista:card_read".
-// Field nama mengikuti Go struct domain.CardData (snake_case → camelCase
-// auto-converted oleh Wails JSON marshal).
-export interface CardData {
-  NIK: string
-  Nama: string
-  TglLahir: string
-  Alamat: string
-  NoKartu: string
-  Timestamp: string
-}
-
 // PatientType enum mirror dari domain/detection.go (urut iota).
 export const PatientType = {
   Unknown: 0,
@@ -90,6 +85,15 @@ export const PatientType = {
 } as const
 
 export type PatientTypeValue = typeof PatientType[keyof typeof PatientType]
+
+// Method biometrik yang dipilih user di BiometrikChoiceModal.
+// face        → Frista (kamera)
+// fingerprint → After.exe (sensor)
+export type BiometrikMethod = 'face' | 'fingerprint'
+
+// Sentinel string yang di-emit backend kalau SEP butuh biometrik.
+// Vue match pakai err.message.includes(BIOMETRIK_REQUIRED_HINT).
+export const BIOMETRIK_REQUIRED_HINT = 'biometrik diperlukan'
 
 // ============================================================
 // apmService — wrapper functional untuk semua call backend
@@ -114,6 +118,13 @@ export const apmService = {
     BuatSEPPostRANAP(kdPoli, kdDokter),
   buatSEPPostRAJAL: (kdPoli: string, kdDokter: string): Promise<SEP> =>
     BuatSEPPostRAJAL(kdPoli, kdDokter),
+
+  // Biometrik — return token string (dipakai di field SEPRequest.BiometrikToken /
+  // FPToken sesuai backend wiring). Method berbeda per provider:
+  //   verifikasiWajah     → trigger Frista (kamera)
+  //   verifikasiSidikJari → trigger After.exe (sensor sidik jari)
+  verifikasiWajah: (noPeserta: string): Promise<string> => VerifikasiWajah(noPeserta),
+  verifikasiSidikJari: (noPeserta: string): Promise<string> => VerifikasiSidikJari(noPeserta),
 
   // Pendaftaran umum
   cariPasien: (q: string): Promise<Pasien> => CariPasien(q),
@@ -159,12 +170,6 @@ export interface DetectStepUpdate {
 }
 
 export const useWailsEvents = () => ({
-  // Frista card read — auto-fill form ketika user tap KTP/kartu BPJS.
-  onCardRead: (handler: (data: CardData) => void): Unsubscribe => {
-    EventsOn('frista:card_read', handler)
-    return () => EventsOff('frista:card_read')
-  },
-
   // Smart Detector step progress (P-011 emit dari Go saat tiap check selesai).
   onDetectStep: (handler: (data: DetectStepUpdate) => void): Unsubscribe => {
     EventsOn('detect:step_update', handler)

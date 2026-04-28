@@ -49,7 +49,9 @@ async function refreshStatus() {
   try {
     const sys = await apmService.getSystemStatus()
     bpjsStatus.value = sys.Online ? 'online' : 'offline'
-    sistemStatus.value = sys.Hardware?.Frista || sys.Hardware?.Printer ? 'online' : 'warning'
+    // Sistem dot reflect kondisi hardware penting: printer + biometrik (Frista wajah / After.exe).
+    // RS Anggrek Mas tidak punya card reader; Frista di sini = aplikasi sidik wajah BPJS.
+    sistemStatus.value = sys.Hardware?.Printer || sys.Hardware?.Frista || sys.Hardware?.Fingerprint ? 'online' : 'warning'
   } catch {
     // backend belum siap — biarkan default
   }
@@ -274,7 +276,7 @@ onUnmounted(() => {
             Pasien BPJS
           </div>
           <p class="text-[clamp(14px,1.8vw,16px)] opacity-95 mt-1.5 leading-snug">
-            Tap kartu BPJS atau ketik nomor — sistem otomatis mendeteksi jenis kunjungan
+            Ketik No. Kartu BPJS atau NIK — sistem otomatis mendeteksi jenis kunjungan
           </p>
         </div>
         <PhCaretRight :size="36" weight="bold" class="opacity-90" />

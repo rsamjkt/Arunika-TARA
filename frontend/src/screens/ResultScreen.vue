@@ -30,6 +30,7 @@ import PatientCard from '../components/PatientCard.vue'
 import IdleOverlay from '../components/IdleOverlay.vue'
 import AlertModal from '../components/AlertModal.vue'
 import DokterPicker from '../components/DokterPicker.vue'
+import BiometrikChoiceModal from '../components/BiometrikChoiceModal.vue'
 import PathwayMJKN from '../components/PathwayMJKN.vue'
 import PathwayPostRANAP from '../components/PathwayPostRANAP.vue'
 import PathwayPostRAJAL from '../components/PathwayPostRAJAL.vue'
@@ -38,7 +39,7 @@ import PathwayTidakAktif from '../components/PathwayTidakAktif.vue'
 import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
 import { useIdleTimeout } from '../composables/useIdleTimeout'
-import { apmService, PatientType } from '../services/apm'
+import { apmService, PatientType, BIOMETRIK_REQUIRED_HINT } from '../services/apm'
 import { usePatientStore } from '../stores/patient'
 
 const router = useRouter()
@@ -56,6 +57,13 @@ const ptype = computed(() => result.value?.Type ?? PatientType.Unknown)
 const ctaLoading = ref(false)
 const errorVisible = ref(false)
 const errorMsg = ref('')
+
+// Biometrik modal state — muncul saat backend return error "biometrik diperlukan".
+// Tipe: 'kontrol' | 'rujukan' | null. Menentukan flow retry mana yang dipanggil
+// setelah token didapat.
+const showBiometrikModal = ref(false)
+const biometrikContext = ref(null) // 'kontrol' | 'rujukan' | null
+const biometrikLoading = ref(false)
 
 // Dokter picker state (untuk Kontrol)
 const dokterList = ref([]) // JadwalDokter[]
@@ -204,6 +212,14 @@ async function onConfirmMJKN() {
   }
 }
 
+// Helper: detect kalau error message dari backend mengindikasikan biometrik
+// diperlukan (sentinel BIOMETRIK_REQUIRED_HINT). Backend agent emit pesan
+// yang contains substring "biometrik diperlukan".
+function isBiometrikRequiredErr(e) {
+  const msg = String(e?.message ?? e ?? '').toLowerCase()
+  return msg.includes(BIOMETRIK_REQUIRED_HINT.toLowerCase())
+}
+
 async function onIssueSEPKontrol() {
   if (ctaLoading.value) return
   ctaLoading.value = true
@@ -220,8 +236,15 @@ async function onIssueSEPKontrol() {
     patient.setLastSEP(sep)
     router.push({ name: 'tiket', query: { from: 'kontrol' } })
   } catch (e) {
-    errorMsg.value = e?.message ?? String(e)
-    errorVisible.value = true
+    // Jika backend bilang biometrik dibutuhkan, buka modal pilihan;
+    // jangan tampilkan error modal — UX pasien tidak perlu lihat pesan teknis.
+    if (isBiometrikRequiredErr(e)) {
+      biometrikContext.value = 'kontrol'
+      showBiometrikModal.value = true
+    } else {
+      errorMsg.value = e?.message ?? String(e)
+      errorVisible.value = true
+    }
   } finally {
     ctaLoading.value = false
   }
@@ -262,13 +285,95 @@ async function onIssueSEPRujukan() {
   ctaLoading.value = true
   try {
     // P-046+ akan punya DokterPickerScreen tersendiri untuk RujukanBaru.
+    // Sementara: kalau perluBiometrik = true, kita preemptive buka modal
+    // (pasien dewasa non-IGD selalu butuh biometrik per spec). Hindari
+    // round-trip ke backend hanya untuk dapat error "biometrik diperlukan".
+    if (perluBiometrik.value) {
+      biometrikContext.value = 'rujukan'
+      showBiometrikModal.value = true
+      return
+    }
     router.push({ name: 'tiket', query: { from: 'rujukan' } })
   } catch (e) {
-    errorMsg.value = e?.message ?? String(e)
-    errorVisible.value = true
+    if (isBiometrikRequiredErr(e)) {
+      biometrikContext.value = 'rujukan'
+      showBiometrikModal.value = true
+    } else {
+      errorMsg.value = e?.message ?? String(e)
+      errorVisible.value = true
+    }
   } finally {
     ctaLoading.value = false
   }
+}
+
+// =====================================================================
+// Biometrik modal — handler pick & cancel
+// =====================================================================
+
+async function onPickBiometrik(method) {
+  // method: 'face' | 'fingerprint'
+  if (biometrikLoading.value) return
+  if (!peserta.value?.NoKartu) {
+    errorMsg.value = 'Data peserta tidak lengkap untuk verifikasi biometrik.'
+    errorVisible.value = true
+    showBiometrikModal.value = false
+    return
+  }
+
+  biometrikLoading.value = true
+  try {
+    const noKartu = peserta.value.NoKartu
+    const token = method === 'face'
+      ? await apmService.verifikasiWajah(noKartu)
+      : await apmService.verifikasiSidikJari(noKartu)
+    if (!token) {
+      throw new Error('Verifikasi tidak menghasilkan token. Silakan coba lagi.')
+    }
+
+    // Tutup modal lalu retry SEP creation dengan token.
+    showBiometrikModal.value = false
+
+    if (biometrikContext.value === 'kontrol') {
+      const list = result.value?.Data ?? []
+      const sk = Array.isArray(list) ? list[0] : list
+      if (!sk?.NoSurat) throw new Error('Surat kontrol tidak ditemukan')
+      // BuatSEPKontrol signature saat ini: (noSurat, kdDokter). Backend
+      // agent akan inject FPToken via session cache (keset oleh
+      // VerifikasiWajah/VerifikasiSidikJari) sehingga signature tidak
+      // perlu berubah. Kalau signature berubah jadi (noSurat, kdDokter, token),
+      // tinggal forward token di sini.
+      ctaLoading.value = true
+      try {
+        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value)
+        patient.setLastSEP(sep)
+        router.push({ name: 'tiket', query: { from: 'kontrol' } })
+      } finally {
+        ctaLoading.value = false
+      }
+    } else if (biometrikContext.value === 'rujukan') {
+      // P-046+: SEPRequest construction lengkap masih TBD — sementara
+      // navigate ke tiket; backend simpan token untuk dipakai saat builder
+      // SEP rujukan jalan.
+      router.push({ name: 'tiket', query: { from: 'rujukan' } })
+    }
+
+    biometrikContext.value = null
+  } catch (e) {
+    // Verify gagal (timeout / cancel hardware) — tutup modal, tampilkan error toast
+    showBiometrikModal.value = false
+    biometrikContext.value = null
+    errorMsg.value = e?.message ?? String(e)
+    errorVisible.value = true
+  } finally {
+    biometrikLoading.value = false
+  }
+}
+
+function onCancelBiometrik() {
+  if (biometrikLoading.value) return
+  showBiometrikModal.value = false
+  biometrikContext.value = null
 }
 
 async function onDaftarUmum() {
@@ -319,7 +424,7 @@ const showFooterGhost = computed(() =>
 const rujukanInfoBar = computed(() => {
   if (ptype.value !== PatientType.RujukanBaru) return null
   if (perluBiometrik.value) {
-    return { variant: 'warning', text: 'Verifikasi sidik jari diperlukan setelah pilih dokter.' }
+    return { variant: 'warning', text: 'Verifikasi biometrik (sidik wajah atau sidik jari) diperlukan setelah pilih dokter.' }
   }
   return null
 })
@@ -581,6 +686,18 @@ const infoBarClass = (v) => {
       close-label="Tutup"
       @primary="errorVisible = false"
       @close="errorVisible = false"
+    />
+
+    <!-- Biometrik choice modal — muncul saat SEP butuh validasi biometrik
+         (umur >=17, non-IGD). Pasien pilih Sidik Wajah (Frista) atau
+         Sidik Jari (After.exe) — mirror UX vendor Khanza WindowBiometrik. -->
+    <BiometrikChoiceModal
+      :visible="showBiometrikModal"
+      :no-peserta="peserta?.NoKartu ?? ''"
+      title="Verifikasi Biometrik Diperlukan"
+      subtitle="Sebelum SEP dibuat, mohon verifikasi identitas dengan salah satu metode di bawah."
+      @select="onPickBiometrik"
+      @cancel="onCancelBiometrik"
     />
   </main>
 </template>

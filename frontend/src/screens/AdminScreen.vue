@@ -79,9 +79,9 @@ const statusItems = computed(() => {
     { label: 'BPJS VClaim API', status: sys?.Online ? 'online' : 'offline' },
     { label: 'BPJS Antrol', status: sys?.Online ? 'online' : 'offline' },
     { label: 'SIMRS Khanza', status: sys?.Online ? 'online' : 'offline' },
-    { label: 'Frista card reader', status: hw?.Frista ? 'online' : 'offline',
-      detail: hw?.Frista ? 'Terhubung' : 'Tidak terhubung' },
-    { label: 'Fingerprint BPJS', status: hw?.Fingerprint ? 'online' : 'offline',
+    { label: 'Sidik Wajah BPJS (Frista)', status: hw?.Frista ? 'online' : 'offline',
+      detail: hw?.Frista ? 'Aplikasi siap' : 'Aplikasi tidak aktif' },
+    { label: 'Sidik Jari BPJS (After.exe)', status: hw?.Fingerprint ? 'online' : 'offline',
       detail: hw?.Fingerprint ? 'Headless aktif' : 'Tidak aktif' },
     { label: 'Printer thermal', status: hw?.Printer ? 'online' : 'offline',
       detail: hw?.Printer ? 'OK' : 'Tidak terhubung' },
@@ -197,8 +197,8 @@ function openMockInfo() {
   // sebagai navigation, atau show inline modal.
   successModal.value = {
     visible: true,
-    message: 'Frista mock server: http://localhost:9090\n' +
-             'Endpoint: /mock/card-read, /mock/card-read-delay, /mock/fp-fail',
+    message: 'Mock biometrik server: http://localhost:9090\n' +
+             'Endpoint: /mock/face-verify, /mock/fp-verify, /mock/fp-fail',
   }
 }
 

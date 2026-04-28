@@ -1,32 +1,30 @@
 <!--
-  InputScreen v1.2 — dual-channel input layout (BB2 dari UX brainstorm).
+  InputScreen v1.3 — single-channel input layout.
+
+  History: v1.2 punya dual-channel "Tap Kartu" + "Ketik". Setelah audit
+  ke RS Anggrek Mas, ternyata RS tidak punya card reader sama sekali —
+  "Frista" yang di-anggap sebelumnya adalah aplikasi BPJS sidik wajah,
+  bukan card reader. Channel "Tap Kartu" dihapus; pasien input via
+  NumPad saja. Verifikasi biometrik (wajah/sidik jari) hanya muncul
+  saat SEP butuh, via BiometrikChoiceModal di flow SEP.
 
   Layout (landscape kiosk monitor 22"+):
     +--------------------------------+
     | Header                         |
     +--------------------------------+
-    |  TAP KARTU      |  KETIK       |
-    |  [card icon     |  [Display]   |
-    |   pulse anim]   |              |
-    |                 |  [progress]  |
-    |  Tempel kartu   |              |
-    |  KTP / BPJS     |  [chip hints]|
-    |  di reader      |              |
-    |                 |  [NumPad 3x4]|
-    |  ✓ Reader aktif |              |
+    |  KETIK NIK / NO. KARTU BPJS    |
+    |  [Display]                     |
+    |  [progress hint]               |
+    |  [NumPad 3x4]                  |
     +--------------------------------+
     | [← Kembali]   [Panggil Petugas]|
     +--------------------------------+
-
-  Setiap channel input setara visual weight — bukan banner kecil di atas
-  numpad. Lansia yang punya kartu lebih sering tap (5 detik) vs ketik
-  16 digit (60+ detik dengan typo risk).
 -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { PhCreditCard, PhPhone, PhCheckCircle, PhWarningCircle } from '@phosphor-icons/vue'
+import { PhPhone, PhKeyboard } from '@phosphor-icons/vue'
 
 import NumPad from '../components/NumPad.vue'
 import InputDisplay from '../components/InputDisplay.vue'
@@ -38,7 +36,6 @@ import { I18N } from '../constants/i18n'
 import { KIOSK } from '../constants/kiosk'
 import { useIdleTimeout } from '../composables/useIdleTimeout'
 import { useAudioCue } from '../composables/useAudioCue'
-import { apmService } from '../services/apm'
 import { usePatientStore } from '../stores/patient'
 
 const route = useRoute()
@@ -47,7 +44,6 @@ const patient = usePatientStore()
 const audio = useAudioCue()
 
 const input = ref(patient.input || '')
-const fristaAvailable = ref(true)
 const MIN_LENGTH = 6
 const MAX_LENGTH = 16
 
@@ -59,23 +55,15 @@ const title = computed(() => {
     default: return 'Pendaftaran Pasien BPJS'
   }
 })
-const cardHint = computed(() => {
+// Hint utama: instruksi singkat untuk pasien — apa yang harus diketik.
+const inputHint = computed(() => {
   switch (mode.value) {
-    case 'umum': return 'Tap KTP elektronik di reader'
-    case 'satusehat': return 'Tap KTP atau kartu BPJS di reader'
-    default: return 'Tap kartu BPJS atau KTP di reader'
+    case 'umum': return 'Ketik NIK KTP atau No. Rekam Medis untuk mulai'
+    case 'satusehat': return 'Ketik NIK atau No. Kartu BPJS untuk mulai'
+    default: return 'Ketik NIK atau No. Kartu BPJS untuk mulai'
   }
 })
 const canSubmit = computed(() => input.value.length >= MIN_LENGTH)
-
-async function refreshHardware() {
-  try {
-    const hw = await apmService.getHardwareStatus()
-    fristaAvailable.value = hw.frista
-  } catch {
-    fristaAvailable.value = false
-  }
-}
 
 function appendDigit(d) {
   if (input.value.length >= MAX_LENGTH) return
@@ -126,7 +114,6 @@ const { isCountingDown, secondsLeft } = useIdleTimeout({
 })
 
 onMounted(() => {
-  refreshHardware()
   window.addEventListener('keydown', onKeydown)
 })
 onUnmounted(() => {
@@ -151,83 +138,43 @@ onUnmounted(() => {
       />
     </header>
 
-    <!-- Body — dual-channel split -->
+    <!-- Body — single-channel keypad -->
     <section
-      class="flex-1 grid grid-cols-1 lg:grid-cols-2
-             gap-[clamp(12px,2vw,20px)]
+      class="flex-1 flex flex-col items-center justify-center
+             gap-[clamp(14px,2vw,20px)]
              p-[clamp(16px,3vw,24px)]
-             max-w-[1100px] mx-auto w-full content-center"
+             max-w-[640px] mx-auto w-full"
     >
-      <!-- ============ Channel 1: TAP KARTU ============ -->
+      <!-- Hint header -->
       <div
-        class="bg-surface border-2 rounded-card
-               p-[clamp(20px,3vw,28px)]
-               flex flex-col items-center justify-center
-               text-center gap-[clamp(14px,2vw,18px)]
-               min-h-[clamp(280px,38vw,440px)]
-               transition-colors"
-        :class="fristaAvailable ? 'border-emerald-200' : 'border-border'"
-        :style="fristaAvailable ? { backgroundColor: 'var(--color-primary-light, #E8F0FE)' } : {}"
+        class="bg-surface border border-border rounded-card
+               px-[clamp(20px,3vw,28px)] py-[clamp(16px,2.5vw,22px)]
+               flex items-center gap-[clamp(12px,2vw,16px)] w-full"
       >
         <div
-          class="rounded-full flex items-center justify-center
-                 w-[clamp(80px,11vw,120px)] h-[clamp(80px,11vw,120px)]
-                 transition-all"
-          :class="fristaAvailable ? 'animate-pulse' : 'opacity-40'"
-          :style="{ backgroundColor: fristaAvailable ? 'var(--color-primary, #1B4FD8)' : '#9CA3AF', color: 'white' }"
+          class="rounded-full flex items-center justify-center flex-shrink-0
+                 w-[clamp(48px,6.5vw,64px)] h-[clamp(48px,6.5vw,64px)]
+                 text-white"
+          :style="{ backgroundColor: 'var(--color-primary, #1B4FD8)' }"
         >
-          <PhCreditCard :size="56" weight="fill" />
+          <PhKeyboard :size="32" weight="fill" />
         </div>
-
-        <div class="space-y-2">
-          <div class="text-[clamp(20px,2.6vw,26px)] font-semibold text-text-primary leading-tight">
-            {{ cardHint }}
+        <div class="flex-1 min-w-0">
+          <div class="text-[clamp(17px,2.3vw,20px)] font-semibold text-text-primary leading-tight">
+            {{ inputHint }}
           </div>
-          <p class="text-[clamp(13px,1.7vw,15px)] text-text-secondary">
-            Lebih cepat — tidak perlu mengetik
+          <p class="text-[clamp(11px,1.4vw,13px)] text-text-muted mt-1 leading-tight">
+            No. JKN / NIK KTP / No. Rekam Medis &middot; minimal {{ MIN_LENGTH }} angka
           </p>
-        </div>
-
-        <ul class="text-left text-[clamp(13px,1.6vw,15px)] text-text-secondary space-y-1">
-          <li class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 rounded-full bg-text-muted"></span>
-            Kartu BPJS / JKN
-          </li>
-          <li class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 rounded-full bg-text-muted"></span>
-            KTP elektronik
-          </li>
-        </ul>
-
-        <div
-          class="text-[clamp(12px,1.5vw,14px)] font-medium flex items-center gap-2
-                 px-3 py-1.5 rounded-tag"
-          :class="fristaAvailable
-            ? 'bg-emerald-100 text-emerald-700'
-            : 'bg-amber-50 text-amber-700'"
-        >
-          <PhCheckCircle v-if="fristaAvailable" :size="16" weight="fill" />
-          <PhWarningCircle v-else :size="16" weight="fill" />
-          {{ fristaAvailable ? 'Reader aktif — silakan tap' : 'Reader tidak aktif — silakan ketik' }}
         </div>
       </div>
 
-      <!-- ============ Channel 2: KETIK ============ -->
+      <!-- Display + numpad -->
       <div
         class="bg-surface border border-border rounded-card
                p-[clamp(16px,2.5vw,24px)]
-               flex flex-col gap-[clamp(12px,1.8vw,16px)]
-               min-h-[clamp(280px,38vw,440px)]"
+               flex flex-col gap-[clamp(12px,1.8vw,16px)] w-full"
       >
-        <div class="text-center">
-          <div class="text-[clamp(16px,2.2vw,20px)] font-semibold text-text-primary">
-            Atau ketik nomor di sini
-          </div>
-          <p class="text-[clamp(11px,1.4vw,13px)] text-text-muted mt-1">
-            No. JKN / NIK KTP / No. Rekam Medis
-          </p>
-        </div>
-
         <InputDisplay :value="input" :max-length="MAX_LENGTH" />
 
         <!-- Progress text -->

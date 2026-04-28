@@ -71,7 +71,7 @@ const recommendation = computed(() => {
   if (punyaBPJS.value === true) {
     return {
       title: 'Daftar sebagai Pasien BPJS',
-      desc: 'Sistem akan otomatis mendeteksi rujukan, kontrol, atau booking Mobile JKN Anda. Cukup tap kartu atau ketik nomor.',
+      desc: 'Sistem akan otomatis mendeteksi rujukan, kontrol, atau booking Mobile JKN Anda. Cukup ketik No. Kartu BPJS atau NIK.',
       icon: 'bpjs',
       action: () => {
         patient.reset()

@@ -28,7 +28,7 @@ export const I18N = {
   home: {
     bpjs: {
       title: 'Pasien BPJS',
-      subtitle: 'Tap kartu BPJS atau ketik nomor untuk mulai',
+      subtitle: 'Ketik No. Kartu BPJS atau NIK untuk mulai',
       tag: 'Otomatis mendeteksi jenis kunjungan',
     },
     umum: {
