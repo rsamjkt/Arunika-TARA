@@ -24,6 +24,8 @@ type MockVClaimClient struct {
 	CreateSEPKontrolFunc     func(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
 	CekSEPDuplikasiFunc      func(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
 	CekFingerprintStatusFunc func(ctx context.Context, noKartu string, tgl time.Time) (*FingerprintStatus, error)
+	AprovalSEPFunc           func(ctx context.Context, req FPFallbackRequest) (*FPFallbackResponse, error)
+	PengajuanSEPFunc         func(ctx context.Context, req FPFallbackRequest) (*FPFallbackResponse, error)
 
 	mu        sync.Mutex
 	callCount map[string]int
@@ -105,5 +107,21 @@ func (m *MockVClaimClient) CekFingerprintStatus(ctx context.Context, noKartu str
 	}
 	// Default: belum verifikasi (frontend akan prompt modal).
 	return &FingerprintStatus{Verified: false}, nil
+}
+
+func (m *MockVClaimClient) AprovalSEP(ctx context.Context, req FPFallbackRequest) (*FPFallbackResponse, error) {
+	m.recordCall("AprovalSEP")
+	if m.AprovalSEPFunc != nil {
+		return m.AprovalSEPFunc(ctx, req)
+	}
+	return &FPFallbackResponse{Sukses: true, Message: "OK"}, nil
+}
+
+func (m *MockVClaimClient) PengajuanSEP(ctx context.Context, req FPFallbackRequest) (*FPFallbackResponse, error) {
+	m.recordCall("PengajuanSEP")
+	if m.PengajuanSEPFunc != nil {
+		return m.PengajuanSEPFunc(ctx, req)
+	}
+	return &FPFallbackResponse{Sukses: true, Message: "OK"}, nil
 }
 

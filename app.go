@@ -474,6 +474,82 @@ func (a *App) VerifikasiSidikJari(noPeserta string) (string, error) {
 	return res.Token, nil
 }
 
+// PengajuanSEPFP — fallback ke BPJS supaya SEP bisa diterbitkan walau
+// biometrik gagal/tidak match (mis. pasien lansia / disabilitas / sensor
+// rusak). Mirror vendor btnDiagnosaAwal4ActionPerformed (line 2162) di
+// DlgRegistrasiSEPPertama.java — endpoint /Sep/pengajuanSEP.
+//
+// Frontend pakai ini sebagai escape hatch dari BiometrikChoiceModal:
+// kalau pasien gagal verifikasi 2-3x, tampilkan opsi "Pengajuan SEP"
+// yang panggil method ini dengan keterangan default vendor.
+//
+// Return error kalau BPJS reject (mis. pasien tidak eligible untuk
+// pengajuan, atau request rate limit). Frontend display message ke UI.
+func (a *App) PengajuanSEPFP(noKartu, jnsPelayanan, keterangan string) error {
+	if a.vclaim == nil {
+		return errors.New("vclaim client belum diinisialisasi")
+	}
+	if strings.TrimSpace(noKartu) == "" {
+		return errors.New("noKartu wajib diisi")
+	}
+
+	tglSEP := time.Now().Format("2006-01-02")
+	resp, err := a.vclaim.PengajuanSEP(a.ctx, vclaim.FPFallbackRequest{
+		NoKartu:      noKartu,
+		TglSEP:       tglSEP,
+		JnsPelayanan: jnsPelayanan,
+		Keterangan:   keterangan,
+		User:         "kiosk-tara",
+	})
+	if err != nil {
+		a.logger.Warn("PengajuanSEPFP gagal",
+			"no_kartu_masked", maskCardForLog(noKartu),
+			"err", err.Error())
+		return fmt.Errorf("pengajuan SEP: %w", err)
+	}
+	if !resp.Sukses {
+		return fmt.Errorf("pengajuan SEP: %s", resp.Message)
+	}
+	a.logger.Info("PengajuanSEPFP sukses",
+		"no_kartu_masked", maskCardForLog(noKartu))
+	return nil
+}
+
+// AprovalSEPFP — operator approval saat FP gagal. Mirror vendor
+// btnDiagnosaAwal3ActionPerformed (line 2111) — endpoint /Sep/aprovalSEP.
+// Vendor pakai ini di flow petugas, di kiosk kita expose sebagai backup
+// kalau pengajuan tidak cukup (mis. shift admin pakai PIN admin lalu
+// trigger approval).
+func (a *App) AprovalSEPFP(noKartu, jnsPelayanan, keterangan string) error {
+	if a.vclaim == nil {
+		return errors.New("vclaim client belum diinisialisasi")
+	}
+	if strings.TrimSpace(noKartu) == "" {
+		return errors.New("noKartu wajib diisi")
+	}
+
+	tglSEP := time.Now().Format("2006-01-02")
+	resp, err := a.vclaim.AprovalSEP(a.ctx, vclaim.FPFallbackRequest{
+		NoKartu:      noKartu,
+		TglSEP:       tglSEP,
+		JnsPelayanan: jnsPelayanan,
+		Keterangan:   keterangan,
+		User:         "kiosk-tara",
+	})
+	if err != nil {
+		a.logger.Warn("AprovalSEPFP gagal",
+			"no_kartu_masked", maskCardForLog(noKartu),
+			"err", err.Error())
+		return fmt.Errorf("approval SEP: %w", err)
+	}
+	if !resp.Sukses {
+		return fmt.Errorf("approval SEP: %s", resp.Message)
+	}
+	a.logger.Info("AprovalSEPFP sukses",
+		"no_kartu_masked", maskCardForLog(noKartu))
+	return nil
+}
+
 // maskCardForLog memendekkan no_kartu jadi "************XXXX" untuk
 // log (PHI safety). Duplikat kecil dari helper di paket lain — App
 // tidak import dari service/ supaya menghindari cycle.

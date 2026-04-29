@@ -56,4 +56,13 @@ type VClaimClient interface {
 	// Verified=true → SEP boleh di-issue tanpa prompt biometrik tambahan.
 	// Verified=false → frontend WAJIB prompt BiometrikChoiceModal dulu.
 	CekFingerprintStatus(ctx context.Context, noKartu string, tgl time.Time) (*FingerprintStatus, error)
+
+	// AprovalSEP — fallback approval saat FP gagal (vendor line 2122).
+	// Dipakai operator override supaya SEP bisa di-issue walau biometrik
+	// belum lewat. POST /Sep/aprovalSEP.
+	AprovalSEP(ctx context.Context, req FPFallbackRequest) (*FPFallbackResponse, error)
+
+	// PengajuanSEP — pengajuan resmi ke BPJS supaya SEP bisa diterbitkan
+	// walau FP tidak match (vendor line 2173). POST /Sep/pengajuanSEP.
+	PengajuanSEP(ctx context.Context, req FPFallbackRequest) (*FPFallbackResponse, error)
 }
