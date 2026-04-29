@@ -414,26 +414,26 @@ func (s *SEPService) buatSEPPasca(
 // Helpers
 // ============================================================
 
-// maybeBiometrik menentukan token biometrik untuk dilampirkan ke SEP.
+// maybeBiometrik menentukan apakah biometrik perlu di-prompt sebelum
+// issue SEP. Mirror vendor cekFinger() di DlgRegistrasiSEPPertama.java:
 //
-// Prioritas:
+//  1. Kalau perluBiometrik() = false (anak-anak / IGD) → skip total.
+//  2. Kalau perluBiometrik() = true → cek status server BPJS dulu via
+//     /SEP/FingerPrint/Peserta/{noka}/TglPelayanan/{tgl}.
+//     - Verified=true (statusfinger=true di vendor) → SEP boleh di-issue
+//       langsung, BPJS server sudah punya record. Return "" (tidak ada
+//       token yg perlu di-attach — vendor juga tidak attach).
+//     - Verified=false → frontend wajib prompt modal dulu (Frista atau
+//       After.exe), lalu retry BuatSEP. Return ErrBiometrikDibutuhkan.
 //
-//  1. Kalau perluBiometrik() = false (anak-anak / IGD) → return "" tanpa
-//     verify, FPToken di payload BPJS akan kosong.
-//  2. Kalau caller pasok externalToken (dari req.BiometrikToken — hasil
-//     VerifikasiWajah/VerifikasiSidikJari yang sudah dilakukan frontend
-//     lebih dulu) → pakai langsung, skip internal verify.
-//  3. Kalau externalToken kosong DAN biometrik diperlukan → return
-//     ErrBiometrikDibutuhkan supaya frontend tahu harus panggil
-//     VerifikasiWajah / VerifikasiSidikJari dulu sebelum BuatSEP.
+// Param externalToken di-terima untuk backward compat tapi TIDAK
+// di-attach ke payload SEP (vendor tidak punya field "finger" di body).
+// Token cuma sebagai sinyal "frontend sudah selesai pop modal" — kalau
+// non-empty, kita asumsikan flow biometrik sudah dijalankan & re-cek
+// status server untuk konfirmasi.
 //
-// CATATAN soal degradasi: dulu saat verifier tidak available kita
-// log warning + skip biometrik (return ""). Sekarang flow biometrik
-// sepenuhnya digerakkan frontend (panggil method khusus → pasok token),
-// jadi service layer cukup percaya externalToken atau gagal cepat.
-// Kalau hardware Frista/After.exe down, frontend akan tahu dari error
-// VerifikasiWajah/VerifikasiSidikJari dan bisa pilih path manual
-// (operator override) atau cancel.
+// Return value: string token utk legacy compat (selalu "" sekarang),
+// dan error ErrBiometrikDibutuhkan kalau pasien belum verified server-side.
 func (s *SEPService) maybeBiometrik(
 	ctx context.Context,
 	peserta domain.Peserta,
@@ -444,37 +444,40 @@ func (s *SEPService) maybeBiometrik(
 		return "", nil
 	}
 
-	// Path 1: frontend sudah pasok token (dari Wails VerifikasiWajah
-	// atau VerifikasiSidikJari). Pakai langsung — tidak ada internal
-	// verify lagi, supaya tidak ada double-prompt ke pasien.
-	if externalToken != "" {
-		s.logger.Info("sep: biometrik token diterima dari frontend",
-			"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli,
-			"token_len", len(externalToken))
-		return externalToken, nil
-	}
-
-	// Path 2: tidak ada token external — fallback ke internal fingerprint
-	// verifier (legacy path; flow ini akan jadi fallback saat frontend
-	// belum migrasi ke VerifikasiWajah/VerifikasiSidikJari pattern).
-	// Kalau verifier tidak available, return ErrBiometrikDibutuhkan
-	// supaya frontend explicit handle (panggil method biometrik).
-	if s.fp == nil || !s.fp.IsAvailable() {
-		s.logger.Warn("sep: biometrik diperlukan & token belum disediakan frontend",
-			"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli)
+	// Cek status biometrik di server BPJS (vendor pattern).
+	tglNow := s.now()
+	st, err := s.vclaim.CekFingerprintStatus(ctx, peserta.NoKartu, tglNow)
+	if err != nil {
+		// Network/decrypt error — degradasi: kalau frontend sudah pasok
+		// externalToken (artinya pasien baru saja verifikasi via modal),
+		// trust itu sebagai sinyal kesuksesan biometrik. Vendor server
+		// pun bisa lag setelah Frista/After.exe submit.
+		s.logger.Warn("sep: cek fingerprint server gagal",
+			"no_kartu_masked", maskID(peserta.NoKartu), "err", err.Error())
+		if externalToken != "" {
+			s.logger.Info("sep: trust externalToken karena cekFinger error",
+				"no_kartu_masked", maskID(peserta.NoKartu))
+			return "", nil
+		}
 		return "", domain.ErrBiometrikDibutuhkan
 	}
 
-	res, err := s.fp.Verify(ctx, peserta.NoKartu)
-	if err != nil {
-		s.logger.Warn("sep: verifikasi sidik jari gagal",
-			"no_kartu_masked", maskID(peserta.NoKartu), "err", err.Error())
-		return "", domain.ErrBiometrikDiperlukan
+	if st != nil && st.Verified {
+		s.logger.Info("sep: biometrik server-side verified, lanjut issue SEP",
+			"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli)
+		return "", nil
 	}
-	if !res.Success {
-		return "", domain.ErrBiometrikDiperlukan
-	}
-	return res.Token, nil
+
+	// Belum verified server-side — frontend harus prompt modal.
+	s.logger.Info("sep: biometrik belum verified server-side, prompt modal",
+		"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli,
+		"vendor_status", func() string {
+			if st != nil {
+				return st.Message
+			}
+			return ""
+		}())
+	return "", domain.ErrBiometrikDibutuhkan
 }
 
 // persistAndSyncKhanza menjalankan langkah 4-5 spec:

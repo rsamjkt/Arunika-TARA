@@ -82,6 +82,7 @@ func pesertaAnak() *domain.Peserta {
 }
 
 // stubVClaimSuccess: bikin v.CreateSEP / CreateSEPKontrol return SEP sukses.
+// Default biometrik server-verified (vendor pattern: cekFinger sebelum SEP).
 func stubVClaimSuccess(m *mocks, noSEP string) {
 	m.v.CreateSEPFunc = func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error) {
 		return &domain.SEP{
@@ -98,6 +99,9 @@ func stubVClaimSuccess(m *mocks, noSEP string) {
 	}
 	m.v.ValidasiRujukanFunc = func(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error) {
 		return &domain.Rujukan{NoSurat: noSurat, TglRujukan: time.Now().AddDate(0, -1, 0).Format("2006-01-02")}, nil
+	}
+	m.v.CekFingerprintStatusFunc = func(ctx context.Context, noKartu string, tgl time.Time) (*vclaim.FingerprintStatus, error) {
+		return &vclaim.FingerprintStatus{Verified: true, Message: "Sudah FP " + tgl.Format("2006-01-02")}, nil
 	}
 }
 
@@ -145,23 +149,30 @@ func TestBuatSEPRujukan_PesertaAnak_TanpaBiometrik(t *testing.T) {
 	}
 }
 
-func TestBuatSEPRujukan_BiometrikGagal_ReturnErrBiometrikDiperlukan(t *testing.T) {
+// TestBuatSEPRujukan_BiometrikBelumVerified_ReturnErrBiometrikDibutuhkan:
+// vendor pattern — kalau cekFinger return Verified=false (pasien belum
+// verifikasi biometrik di server BPJS untuk tgl pelayanan), service
+// return ErrBiometrikDibutuhkan supaya frontend prompt modal dulu.
+func TestBuatSEPRujukan_BiometrikBelumVerified_ReturnErrBiometrikDibutuhkan(t *testing.T) {
 	svc, m := setupSEP(t)
 	stubVClaimSuccess(m, "SEP-FAIL")
-	m.fp.SetNextFail() // dewasa + non-IGD → wajib biometrik → fail
+	// Override: server bilang BELUM verified (pasien belum FP hari ini)
+	m.v.CekFingerprintStatusFunc = func(ctx context.Context, noKartu string, tgl time.Time) (*vclaim.FingerprintStatus, error) {
+		return &vclaim.FingerprintStatus{Verified: false, Message: ""}, nil
+	}
 
 	_, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
 		NoRujukan: "RUJ-001", KdPoli: "INT", KdDokter: "D-001",
 	})
 	if err == nil {
-		t.Fatal("expected error karena biometrik gagal")
+		t.Fatal("expected error karena biometrik belum verified server-side")
 	}
-	if !errors.Is(err, domain.ErrBiometrikDiperlukan) {
-		t.Errorf("err harus wrap ErrBiometrikDiperlukan, got: %v", err)
+	if !errors.Is(err, domain.ErrBiometrikDibutuhkan) {
+		t.Errorf("err harus wrap ErrBiometrikDibutuhkan, got: %v", err)
 	}
-	// VClaim CreateSEP TIDAK boleh dipanggil kalau biometrik gagal
+	// VClaim CreateSEP TIDAK boleh dipanggil kalau biometrik belum OK
 	if m.v.CallCount("CreateSEP") != 0 {
-		t.Errorf("CreateSEP tidak boleh dipanggil saat biometrik gagal")
+		t.Errorf("CreateSEP tidak boleh dipanggil saat biometrik belum verified")
 	}
 }
 
@@ -393,63 +404,63 @@ func TestBuatSEPPostRANAP_KdPoliKosong_Error(t *testing.T) {
 // (kontrak baru pasca refactor frista→face verifier)
 // ============================================================
 
-// TestSEPService_FPUnavail_NoToken_ReturnErrBiometrikDibutuhkan: kalau
-// fingerprint verifier tidak tersedia DAN frontend tidak supply
-// BiometrikToken, service explicit gagal supaya frontend tahu harus
-// panggil VerifikasiWajah / VerifikasiSidikJari dulu (ada path biometrik
-// alternatif: Frista face).
-func TestSEPService_FPUnavail_NoToken_ReturnErrBiometrikDibutuhkan(t *testing.T) {
+// TestSEPService_CekFingerError_NoToken_ReturnErrBiometrikDibutuhkan:
+// kalau cekFinger ke server BPJS error (network/decrypt) DAN frontend
+// belum supply BiometrikToken, service gagal cepat → frontend prompt
+// modal supaya pasien verify ulang.
+func TestSEPService_CekFingerError_NoToken_ReturnErrBiometrikDibutuhkan(t *testing.T) {
 	svc, m := setupSEP(t)
 	stubVClaimSuccess(m, "SEP-NO-FP")
-	m.fp.SetAvailable(false)
+	// Override: cekFinger error (server BPJS unreachable)
+	m.v.CekFingerprintStatusFunc = func(ctx context.Context, noKartu string, tgl time.Time) (*vclaim.FingerprintStatus, error) {
+		return nil, errors.New("network error")
+	}
 
 	_, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
 		NoRujukan: "RUJ-001", KdPoli: "INT", KdDokter: "D",
 	})
 	if err == nil {
-		t.Fatal("expected ErrBiometrikDibutuhkan saat FP unavail & no token")
+		t.Fatal("expected ErrBiometrikDibutuhkan saat cekFinger error & no token")
 	}
 	if !errors.Is(err, domain.ErrBiometrikDibutuhkan) {
 		t.Errorf("err harus wrap ErrBiometrikDibutuhkan, got: %v", err)
 	}
 }
 
-// TestSEPService_BiometrikTokenDariFrontend_SkipInternalVerify: kalau
-// frontend sudah panggil VerifikasiWajah/VerifikasiSidikJari dan supply
-// token via req.BiometrikToken, service skip internal verify (supaya
-// pasien tidak prompt 2x) dan langsung pakai token.
-func TestSEPService_BiometrikTokenDariFrontend_SkipInternalVerify(t *testing.T) {
+// TestSEPService_ServerVerified_LangsungSukses: vendor happy path —
+// pasien dewasa, cekFinger return Verified=true (sudah FP hari ini),
+// SEP boleh issued tanpa prompt biometrik tambahan.
+func TestSEPService_ServerVerified_LangsungSukses(t *testing.T) {
 	svc, m := setupSEP(t)
-	stubVClaimSuccess(m, "SEP-EXT")
-	m.fp.SetNextFail() // kalau internal verify dipanggil → akan fail
+	stubVClaimSuccess(m, "SEP-EXT") // CekFingerprintStatus default Verified=true
+	m.fp.SetNextFail()               // kalau internal verify dipanggil → fail (harus tidak)
 
 	got, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
-		NoRujukan:      "RUJ-001",
-		KdPoli:         "INT",
-		KdDokter:       "D",
-		BiometrikToken: "MOCK_FACE_0001234567890012_120000",
+		NoRujukan: "RUJ-001",
+		KdPoli:    "INT",
+		KdDokter:  "D",
 	})
 	if err != nil {
-		t.Fatalf("expected sukses (token dari frontend), got: %v", err)
+		t.Fatalf("expected sukses (server bilang verified), got: %v", err)
 	}
 	if got.NoSEP != "SEP-EXT" {
-		t.Errorf("SEP harus issued dengan token frontend")
+		t.Errorf("SEP harus issued tanpa prompt biometrik")
 	}
-
-	// Pastikan token disampaikan ke VClaim CreateSEP via FPToken
-	// (mock CreateSEPFunc capture-able? Lihat req yang masuk).
-	// stubVClaimSuccess sudah override CreateSEPFunc, kita tidak punya
-	// hook capture — cukup verifikasi via behavior: kalau internal verify
-	// dipanggil (m.fp.SetNextFail), akan return error; kalau test sukses,
-	// berarti internal verify TIDAK dipanggil → externalToken dipakai.
+	if m.v.CallCount("CekFingerprintStatus") != 1 {
+		t.Errorf("CekFingerprintStatus harus dipanggil sekali")
+	}
 }
 
-// TestSEPService_FPUnavail_DenganToken_TetapSukses: backup path —
-// kalau frontend supply token DAN verifier unavail, tetap sukses.
-func TestSEPService_FPUnavail_DenganToken_TetapSukses(t *testing.T) {
+// TestSEPService_CekFingerError_DenganToken_TetapSukses: degradasi path —
+// kalau cekFinger error (server BPJS lag setelah Frista submit) DAN
+// frontend sudah pasok BiometrikToken (artinya pasien baru saja modal),
+// service trust token → SEP tetap issued.
+func TestSEPService_CekFingerError_DenganToken_TetapSukses(t *testing.T) {
 	svc, m := setupSEP(t)
 	stubVClaimSuccess(m, "SEP-OK")
-	m.fp.SetAvailable(false)
+	m.v.CekFingerprintStatusFunc = func(ctx context.Context, noKartu string, tgl time.Time) (*vclaim.FingerprintStatus, error) {
+		return nil, errors.New("network timeout")
+	}
 
 	got, err := svc.BuatSEPRujukan(context.Background(), pesertaDewasa(), domain.SEPRequest{
 		NoRujukan:      "RUJ-001",
@@ -458,7 +469,7 @@ func TestSEPService_FPUnavail_DenganToken_TetapSukses(t *testing.T) {
 		BiometrikToken: "MOCK_FACE_TOKEN_123",
 	})
 	if err != nil {
-		t.Fatalf("token frontend harus override unavail check, got: %v", err)
+		t.Fatalf("externalToken harus override cekFinger error, got: %v", err)
 	}
 	if got.NoSEP != "SEP-OK" {
 		t.Errorf("SEP harus issued: %+v", got)

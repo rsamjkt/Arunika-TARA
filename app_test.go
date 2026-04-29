@@ -212,6 +212,11 @@ func TestApp_BuatSEPRujukan_DenganCache_Sukses(t *testing.T) {
 	v.CreateSEPFunc = func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error) {
 		return &domain.SEP{NoSEP: "SEP-X", NoKartu: req.NoKartu}, nil
 	}
+	// Vendor pattern: cekFinger return Verified=true (pasien sudah verifikasi
+	// biometrik di server BPJS) → SEP boleh issued tanpa prompt modal.
+	v.CekFingerprintStatusFunc = func(ctx context.Context, noKartu string, tgl time.Time) (*vclaim.FingerprintStatus, error) {
+		return &vclaim.FingerprintStatus{Verified: true}, nil
+	}
 	k.SetResponse("SimpanSEP", nil, nil)
 
 	got, err := app.BuatSEPRujukan(domain.SEPRequest{

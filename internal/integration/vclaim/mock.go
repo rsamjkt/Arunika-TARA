@@ -17,12 +17,13 @@ import (
 //
 // Compile-time check: var _ VClaimClient = (*MockVClaimClient)(nil)
 type MockVClaimClient struct {
-	GetPesertaFunc          func(ctx context.Context, identifier string, tgl time.Time) (*domain.Peserta, error)
-	GetRiwayatPelayananFunc func(ctx context.Context, noKartu string, tglAwal, tglAkhir time.Time) ([]domain.RiwayatPelayanan, error)
-	ValidasiRujukanFunc     func(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error)
-	CreateSEPFunc           func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error)
-	CreateSEPKontrolFunc    func(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
-	CekSEPDuplikasiFunc     func(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
+	GetPesertaFunc           func(ctx context.Context, identifier string, tgl time.Time) (*domain.Peserta, error)
+	GetRiwayatPelayananFunc  func(ctx context.Context, noKartu string, tglAwal, tglAkhir time.Time) ([]domain.RiwayatPelayanan, error)
+	ValidasiRujukanFunc      func(ctx context.Context, noSurat string, tgl time.Time) (*domain.Rujukan, error)
+	CreateSEPFunc            func(ctx context.Context, req domain.SEPRequest) (*domain.SEP, error)
+	CreateSEPKontrolFunc     func(ctx context.Context, req domain.SEPKontrolRequest) (*domain.SEP, error)
+	CekSEPDuplikasiFunc      func(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
+	CekFingerprintStatusFunc func(ctx context.Context, noKartu string, tgl time.Time) (*FingerprintStatus, error)
 
 	mu        sync.Mutex
 	callCount map[string]int
@@ -95,5 +96,14 @@ func (m *MockVClaimClient) CekSEPDuplikasi(ctx context.Context, noKartu, tglSEP 
 		return m.CekSEPDuplikasiFunc(ctx, noKartu, tglSEP)
 	}
 	return nil, nil
+}
+
+func (m *MockVClaimClient) CekFingerprintStatus(ctx context.Context, noKartu string, tgl time.Time) (*FingerprintStatus, error) {
+	m.recordCall("CekFingerprintStatus")
+	if m.CekFingerprintStatusFunc != nil {
+		return m.CekFingerprintStatusFunc(ctx, noKartu, tgl)
+	}
+	// Default: belum verifikasi (frontend akan prompt modal).
+	return &FingerprintStatus{Verified: false}, nil
 }
 

@@ -48,4 +48,12 @@ type VClaimClient interface {
 	// yang berbeda (mis. kalau kiosk crash post-VClaim insert tapi
 	// pre-DB insert).
 	CekSEPDuplikasi(ctx context.Context, noKartu, tglSEP string) (*domain.SEP, error)
+
+	// CekFingerprintStatus mengecek apakah pasien sudah melakukan
+	// verifikasi biometrik (sidik jari/wajah) di server BPJS untuk
+	// tanggal pelayanan tertentu. Mirror vendor cekFinger().
+	//
+	// Verified=true → SEP boleh di-issue tanpa prompt biometrik tambahan.
+	// Verified=false → frontend WAJIB prompt BiometrikChoiceModal dulu.
+	CekFingerprintStatus(ctx context.Context, noKartu string, tgl time.Time) (*FingerprintStatus, error)
 }

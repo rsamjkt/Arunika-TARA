@@ -69,6 +69,11 @@ user_key             = "REPLACE_WITH_USER_KEY"   # wajib untuk decrypt response 
 antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
 detector_timeout_ms  = 5000        # Smart Detector parallel-check timeout
 
+# PPK Pelayanan — kode faskes RS sendiri (di-issue BPJS saat onboarding).
+# Wajib di-set, masuk ke field "ppkPelayanan" di payload SEP/2.0/insert.
+# Mirror vendor koneksiDB.KDPPK() di KhanzaHMSAnjunganSEP_RSAMXIP.
+ppk_pelayanan        = "REPLACE_WITH_PPK_RS"
+
 # Mock VClaim — hanya untuk dev/test tanpa hit real BPJS API.
 # true  → pakai canned response (lihat internal/integration/vclaim/mock_preset.go).
 #         Identifier prefix akan trigger scenario berbeda:

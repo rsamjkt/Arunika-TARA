@@ -14,12 +14,13 @@ import (
 // Thread-safe: resty.Client thread-safe, dan field lain immutable
 // setelah New().
 type Client struct {
-	consID     string
-	secretKey  string
-	userKey    string // BPJS user_key header (untuk decrypt AES-256-CBC response)
-	baseURL    string
-	httpClient *resty.Client
-	now        func() time.Time // injected untuk test
+	consID       string
+	secretKey    string
+	userKey      string // BPJS user_key header (untuk decrypt AES-256-CBC response)
+	baseURL      string
+	ppkPelayanan string // kode PPK RS sendiri (cfg.BPJS.PPKPelayanan)
+	httpClient   *resty.Client
+	now          func() time.Time // injected untuk test
 }
 
 // New membangun Client dari config.BPJSConfig (P-003).
@@ -50,12 +51,13 @@ func New(cfg config.BPJSConfig) *Client {
 		})
 
 	return &Client{
-		consID:     cfg.ConsID,
-		secretKey:  cfg.ConsumerSecret,
-		userKey:    cfg.UserKey,
-		baseURL:    baseURL,
-		httpClient: hc,
-		now:        time.Now,
+		consID:       cfg.ConsID,
+		secretKey:    cfg.ConsumerSecret,
+		userKey:      cfg.UserKey,
+		baseURL:      baseURL,
+		ppkPelayanan: cfg.PPKPelayanan,
+		httpClient:   hc,
+		now:          time.Now,
 	}
 }
 

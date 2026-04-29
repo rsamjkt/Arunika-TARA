@@ -84,6 +84,11 @@ type BPJSConfig struct {
 	AntrolURL         string `mapstructure:"antrol_url"`
 	DetectorTimeoutMs int    `mapstructure:"detector_timeout_ms"`
 
+	// PPKPelayanan — kode PPK (faskes) RS milik sendiri yang di-issue BPJS.
+	// Wajib di-set di config, karena masuk ke field "ppkPelayanan" di
+	// payload SEP/2.0/insert (vendor: koneksiDB.KDPPK() / KdPPK.getText()).
+	PPKPelayanan string `mapstructure:"ppk_pelayanan"`
+
 	// Mock = true → pakai MockVClaimClient dengan canned response varied
 	// (test 5 path Smart Detector tanpa hit real BPJS API). Hanya untuk
 	// dev environment. Default false. Lihat
