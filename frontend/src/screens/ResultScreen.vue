@@ -485,16 +485,34 @@ async function onDaftarUmum() {
   router.push({ name: 'input', query: { mode: 'umum' } })
 }
 
-function onHubungiPetugas() {
-  // P-046 admin panel akan emit event "staff:call" → audible alert.
-  // Sementara no-op visual.
+async function onHubungiPetugas() {
+  // P-046 admin panel nanti emit event "staff:call" → audible alert ke
+  // meja petugas. Sementara: window.alert + navigate ke home supaya
+  // user tidak terjebak di layar TidakAktif. Sebelumnya no-op visual,
+  // dilaporkan tombol "tidak responsif".
+  window.alert(
+    'Mohon ke meja petugas untuk bantuan.\n\n' +
+    'Petugas akan bantu reaktivasi BPJS atau pendaftaran khusus.'
+  )
+  await patient.reset()
+  router.push({ name: 'home' })
 }
 
 async function ghostAction() {
-  if (ptype.value === PatientType.TidakAktif || ptype.value === PatientType.Error) {
-    // "Hubungi petugas" — sementara no-op visual
+  // Semua case ghost button HARUS responsif — sebelumnya no-op untuk
+  // TidakAktif/Error bikin tombol terlihat tapi tidak merespon klik.
+  if (ptype.value === PatientType.TidakAktif) {
+    await onHubungiPetugas()
     return
   }
+  if (ptype.value === PatientType.Error) {
+    // Detection error (mis. timeout VClaim) — kembali ke input supaya
+    // pasien bisa retry typing nomor kartu.
+    await patient.reset()
+    router.push({ name: 'input', query: { mode: 'bpjs' } })
+    return
+  }
+  // Default: "Bukan saya — masukkan ulang" → input ulang BPJS.
   await patient.reset()
   router.push({ name: 'input', query: { mode: 'bpjs' } })
 }
