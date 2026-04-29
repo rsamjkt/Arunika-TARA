@@ -448,22 +448,19 @@ func (s *SEPService) buatSEPPasca(
 // issue SEP. Mirror vendor cekFinger() di DlgRegistrasiSEPPertama.java:
 //
 //  1. Kalau perluBiometrik() = false (anak-anak / IGD) → skip total.
-//  2. Kalau perluBiometrik() = true → cek status server BPJS dulu via
-//     /SEP/FingerPrint/Peserta/{noka}/TglPelayanan/{tgl}.
-//     - Verified=true (statusfinger=true di vendor) → SEP boleh di-issue
-//       langsung, BPJS server sudah punya record. Return "" (tidak ada
-//       token yg perlu di-attach — vendor juga tidak attach).
-//     - Verified=false → frontend wajib prompt modal dulu (Frista atau
-//       After.exe), lalu retry BuatSEP. Return ErrBiometrikDibutuhkan.
+//  2. Kalau frontend sudah pasok externalToken (hasil VerifikasiWajah /
+//     VerifikasiSidikJari yang baru di-trigger), TRUST tanpa cek server.
+//     Reason: Frista/After.exe submit hasil scan ke server BPJS secara
+//     async — eventual consistency. Cek server segera setelah submit
+//     bisa return Verified=false padahal user sudah selesai scan.
+//  3. Kalau externalToken kosong, cek status server BPJS via
+//     /SEP/FingerPrint/Peserta/{noka}/TglPelayanan/{tgl}:
+//     - Verified=true (statusfinger=true) → SEP boleh issued langsung.
+//     - Verified=false → return ErrBiometrikDibutuhkan, frontend prompt
+//       BiometrikChoiceModal.
 //
-// Param externalToken di-terima untuk backward compat tapi TIDAK
-// di-attach ke payload SEP (vendor tidak punya field "finger" di body).
-// Token cuma sebagai sinyal "frontend sudah selesai pop modal" — kalau
-// non-empty, kita asumsikan flow biometrik sudah dijalankan & re-cek
-// status server untuk konfirmasi.
-//
-// Return value: string token utk legacy compat (selalu "" sekarang),
-// dan error ErrBiometrikDibutuhkan kalau pasien belum verified server-side.
+// Token return ("") tidak di-attach ke payload SEP — vendor pattern
+// tidak pakai field "finger" di body insert.
 func (s *SEPService) maybeBiometrik(
 	ctx context.Context,
 	peserta domain.Peserta,
@@ -474,21 +471,22 @@ func (s *SEPService) maybeBiometrik(
 		return "", nil
 	}
 
-	// Cek status biometrik di server BPJS (vendor pattern).
+	// Path 1: frontend baru saja trigger biometrik via modal. Trust
+	// langsung tanpa hit server BPJS (eventual consistency, server
+	// mungkin lag beberapa detik setelah Frista/After.exe submit).
+	if externalToken != "" {
+		s.logger.Info("sep: trust externalToken (frontend baru trigger biometrik)",
+			"no_kartu_masked", maskID(peserta.NoKartu),
+			"kd_poli", kdPoli, "token_prefix", tokenPrefix(externalToken))
+		return "", nil
+	}
+
+	// Path 2: tidak ada token external — cek status server BPJS.
 	tglNow := s.now()
 	st, err := s.vclaim.CekFingerprintStatus(ctx, peserta.NoKartu, tglNow)
 	if err != nil {
-		// Network/decrypt error — degradasi: kalau frontend sudah pasok
-		// externalToken (artinya pasien baru saja verifikasi via modal),
-		// trust itu sebagai sinyal kesuksesan biometrik. Vendor server
-		// pun bisa lag setelah Frista/After.exe submit.
-		s.logger.Warn("sep: cek fingerprint server gagal",
+		s.logger.Warn("sep: cek fingerprint server gagal & token kosong",
 			"no_kartu_masked", maskID(peserta.NoKartu), "err", err.Error())
-		if externalToken != "" {
-			s.logger.Info("sep: trust externalToken karena cekFinger error",
-				"no_kartu_masked", maskID(peserta.NoKartu))
-			return "", nil
-		}
 		return "", domain.ErrBiometrikDibutuhkan
 	}
 
@@ -498,7 +496,6 @@ func (s *SEPService) maybeBiometrik(
 		return "", nil
 	}
 
-	// Belum verified server-side — frontend harus prompt modal.
 	s.logger.Info("sep: biometrik belum verified server-side, prompt modal",
 		"no_kartu_masked", maskID(peserta.NoKartu), "kd_poli", kdPoli,
 		"vendor_status", func() string {
@@ -508,6 +505,14 @@ func (s *SEPService) maybeBiometrik(
 			return ""
 		}())
 	return "", domain.ErrBiometrikDibutuhkan
+}
+
+// tokenPrefix masks token untuk log — hanya 8 char pertama.
+func tokenPrefix(t string) string {
+	if len(t) <= 8 {
+		return "***"
+	}
+	return t[:8] + "..."
 }
 
 // persistAndSyncKhanza menjalankan langkah 4-5 spec:
