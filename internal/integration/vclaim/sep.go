@@ -172,9 +172,11 @@ func (c *Client) buildSEPInsertBody(req domain.SEPRequest) map[string]any {
 					"noSurat":  req.NoSKDP,
 					"kodeDPJP": req.KdDPJP,
 				},
-				// vendor: dpjpLayan adalah string langsung (kode DPJP layanan
-				// terapis kalau berbeda dari DPJP utama). Kalau kosong → ""
-				"dpjpLayan": req.KdDokter,
+				// vendor (line 2666): dpjpLayan adalah KdDPJPLayanan (DPJP
+				// terapis layanan kalau BERBEDA dari KdDPJP utama). Field
+				// terpisah dari skdp.kodeDPJP. Biasanya kosong — diisi
+				// hanya kalau pasien butuh terapis berbeda dari DPJP utama.
+				"dpjpLayan": req.KdDPJPLayanan,
 				"noTelp":    req.NoTelp,
 				"user":      user,
 			},
@@ -184,6 +186,11 @@ func (c *Client) buildSEPInsertBody(req domain.SEPRequest) map[string]any {
 
 // buildSEPKontrolBody — payload untuk SEP dari SKDP existing.
 // Endpoint /SEP/2.0/kontrol/insert juga butuh t_sep wrapper.
+//
+// Pada SEP kontrol, dpjpLayan = KdDokter karena DPJP utama sudah
+// implicit dari NoSuratKontrol (BPJS server lookup SKDP record),
+// sehingga field dpjpLayan dipakai untuk override dokter layanan
+// hari ini (mis. kalau DPJP utama cuti, ditangani dokter pengganti).
 func (c *Client) buildSEPKontrolBody(req domain.SEPKontrolRequest) map[string]any {
 	jnsPelayanan := defaultStr(req.JnsPelayanan, "1")
 	return map[string]any{

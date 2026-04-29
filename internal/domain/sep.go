@@ -42,6 +42,12 @@ type SEPRequest struct {
 	NoSKDP string
 	KdDPJP string
 
+	// KdDPJPLayanan — kode DPJP layanan terapis (kalau berbeda dari KdDPJP
+	// utama di SKDP). Vendor populate dari pencarian dokter terapis
+	// terpisah (DlgRegistrasiSEPPertama line 168). Biasanya kosong —
+	// kalau diisi, masuk ke field "dpjpLayan" di payload SEP.
+	KdDPJPLayanan string
+
 	// Conditional / additional flags untuk klaim BPJS
 	Eksekutif        string // "0" / "1"
 	COB              string // "0" / "1"
