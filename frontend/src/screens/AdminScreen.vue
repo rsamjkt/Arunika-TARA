@@ -234,6 +234,33 @@ async function doApplyUpdate() {
   }
 }
 
+const loadingRollback = ref(false)
+function confirmRollback() {
+  if (loadingRollback.value) return
+  if (!updateStatus.value?.previous_version) {
+    errorModal.value = { visible: true, message: 'Tidak ada versi sebelumnya untuk di-rollback.' }
+    return
+  }
+  confirmModal.value = {
+    visible: true,
+    title: `Rollback ke ${updateStatus.value.previous_version}?`,
+    message: 'Kiosk akan kembali ke versi sebelumnya dan restart. Lakukan kalau update terbaru bermasalah. Lanjutkan?',
+    action: () => doRollback(),
+  }
+}
+async function doRollback() {
+  confirmModal.value.visible = false
+  loadingRollback.value = true
+  try {
+    await apmService.rollbackUpdate()
+    // Backend akan restart kiosk — UI akan reload otomatis.
+  } catch (e) {
+    errorModal.value = { visible: true, message: `Rollback gagal: ${e?.message ?? ''}` }
+  } finally {
+    loadingRollback.value = false
+  }
+}
+
 function confirmPendingSync(pending) {
   confirmModal.value = {
     visible: true,
@@ -499,6 +526,27 @@ onUnmounted(() => {
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </template>
+            </ActionTile>
+
+            <!-- Rollback: muncul kalau ada last-update.json (previous_version non-empty) -->
+            <ActionTile
+              v-if="updateStatus?.previous_version"
+              :title="`Rollback ke ${updateStatus.previous_version}`"
+              subtitle="Restore binary dari backup"
+              variant="danger"
+              :loading="loadingRollback"
+              @click="confirmRollback"
+            >
+              <template #icon>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" class="w-5 h-5"
+                >
+                  <polyline points="1 4 1 10 7 10" />
+                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
                 </svg>
               </template>
             </ActionTile>

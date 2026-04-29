@@ -950,6 +950,12 @@ type UpdateStatus struct {
 	ReleaseNotes   string `json:"release_notes"`
 	AssetSize      int64  `json:"asset_size"`
 	PublishedAt    string `json:"published_at"` // RFC3339
+
+	// PreviousVersion non-kosong = ada last-update.json yang bisa di-rollback.
+	// Frontend show tile "Rollback ke {{previous_version}}" kalau ada.
+	PreviousVersion string `json:"previous_version"`
+	BackupPath      string `json:"backup_path"`
+	UpdateAppliedAt string `json:"update_applied_at"` // RFC3339
 }
 
 // CheckUpdate — manual check dari AdminScreen. Sync (return setelah cek
@@ -978,7 +984,8 @@ func (a *App) CheckUpdate() (*UpdateStatus, error) {
 
 // GetUpdateStatus — return cache hasil check terakhir (tanpa hit GitHub).
 // Dipakai AdminScreen saat first-render supaya badge "update tersedia"
-// langsung muncul kalau startup-check sudah dapat hasil.
+// langsung muncul kalau startup-check sudah dapat hasil. Juga populate
+// rollback info dari last-update.json.
 func (a *App) GetUpdateStatus() *UpdateStatus {
 	a.updateLockMu.Lock()
 	info := a.latestUpdate
@@ -988,14 +995,21 @@ func (a *App) GetUpdateStatus() *UpdateStatus {
 		if a.cfg != nil {
 			st.CurrentVersion = a.cfg.App.Version
 		}
-		return st
+	} else {
+		st.Available = info.Available
+		st.CurrentVersion = info.CurrentVersion
+		st.LatestVersion = info.LatestVersion
+		st.ReleaseNotes = info.ReleaseNotes
+		st.AssetSize = info.AssetSize
+		st.PublishedAt = info.PublishedAt.Format(time.RFC3339)
 	}
-	st.Available = info.Available
-	st.CurrentVersion = info.CurrentVersion
-	st.LatestVersion = info.LatestVersion
-	st.ReleaseNotes = info.ReleaseNotes
-	st.AssetSize = info.AssetSize
-	st.PublishedAt = info.PublishedAt.Format(time.RFC3339)
+
+	// Populate rollback info kalau last-update.json ada.
+	if state, err := updater.LoadState(); err == nil && state != nil {
+		st.PreviousVersion = state.PreviousVersion
+		st.BackupPath = state.BackupPath
+		st.UpdateAppliedAt = state.AppliedAt.Format(time.RFC3339)
+	}
 	return st
 }
 

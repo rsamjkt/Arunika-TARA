@@ -458,6 +458,9 @@ export namespace main {
 	    release_notes: string;
 	    asset_size: number;
 	    published_at: string;
+	    previous_version: string;
+	    backup_path: string;
+	    update_applied_at: string;
 
 	    static createFrom(source: any = {}) {
 	        return new UpdateStatus(source);
@@ -472,6 +475,9 @@ export namespace main {
 	        this.release_notes = source["release_notes"];
 	        this.asset_size = source["asset_size"];
 	        this.published_at = source["published_at"];
+	        this.previous_version = source["previous_version"];
+	        this.backup_path = source["backup_path"];
+	        this.update_applied_at = source["update_applied_at"];
 	    }
 	}
 	export class AdminLogEntry {
