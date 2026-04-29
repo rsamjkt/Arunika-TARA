@@ -150,5 +150,43 @@ type SEP struct {
 
 	// Asesmen pelayanan — kode internal BPJS untuk assessment level
 	AsesmenPelayanan string
+
+	// ==== Field tambahan untuk INSERT bridging_sep (mirror vendor 52 kolom) ====
+	// Field-field ini di-populate oleh service.persistAndSyncKhanza dari
+	// SEPRequest + Peserta setelah CreateSEP berhasil — vendor row INSERT
+	// bridging_sep butuh data ini meski tidak return dari VClaim response.
+
+	// PPK Pelayanan (RS sendiri) — vendor line 2702-2703 kdppkpelayanan +
+	// nmppkpelayanan. Diisi dari config.BPJS.PPKPelayanan + branding hospital name.
+	KdPPKPelayanan string
+	NmPPKPelayanan string
+
+	// Catatan pelayanan — vendor line 2705 (Catatan.getText()).
+	Catatan string
+
+	// Profil pasien snapshot saat SEP issued — vendor line 2719-2720, 2726.
+	// JenisPeserta (PBI/Mandiri/PNS/dll), JK ("L"/"P"), TglLahir.
+	JenisPeserta string
+	JK           string
+	TglLahir     string // "2006-01-02"
+	NoTelp       string
+
+	// Suplesi — vendor line 2730-2731. Suplesi="1" kalau SEP ini suplemen
+	// dari SEP existing (mis. SEP RANAP lanjutan).
+	Suplesi      string // "0"/"1"
+	NoSepSuplesi string
+
+	// Flag procedure / Penunjang — vendor line 2742-2743 conditional fields.
+	FlagProcedure string
+	KdPenunjang   string
+
+	// DPJP Layanan terapis (kalau berbeda dari KdDPJP utama) —
+	// vendor line 2745-2746.
+	KdDPJPLayanan string
+	NmDPJPLayanan string
+
+	// User submitter — vendor line 2668 ("user" field di payload). Untuk
+	// audit trail BPJS. Default = NoKartu.
+	User string
 }
 

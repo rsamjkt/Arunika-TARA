@@ -315,7 +315,7 @@ func TestBuatSEPKontrol_HappyPath(t *testing.T) {
 		}, nil
 	}
 
-	got, err := svc.BuatSEPKontrol(context.Background(), pesertaAnak(), "SK-001", "")
+	got, err := svc.BuatSEPKontrol(context.Background(), pesertaAnak(), "SK-001", "", "")
 	if err != nil {
 		t.Fatalf("BuatSEPKontrol: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestBuatSEPKontrol_SuratTidakDitemukan(t *testing.T) {
 		return []domain.SuratKontrol{}, nil // empty
 	}
 
-	_, err := svc.BuatSEPKontrol(context.Background(), pesertaAnak(), "SK-NOT-EXIST", "")
+	_, err := svc.BuatSEPKontrol(context.Background(), pesertaAnak(), "SK-NOT-EXIST", "", "")
 	if !errors.Is(err, domain.ErrSuratKontrolTidakDitemukan) {
 		t.Errorf("err harus wrap ErrSuratKontrolTidakDitemukan, got: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestBuatSEPKontrol_JadwalBelumTiba_PakaiErrJadwalKontrolBelumTiba(t *testin
 		}, nil
 	}
 
-	_, err := svc.BuatSEPKontrol(context.Background(), pesertaAnak(), "SK-FUTURO", "")
+	_, err := svc.BuatSEPKontrol(context.Background(), pesertaAnak(), "SK-FUTURO", "", "")
 	if err == nil {
 		t.Fatal("expected error untuk jadwal besok")
 	}
@@ -366,7 +366,7 @@ func TestBuatSEPPostRANAP_HappyPath(t *testing.T) {
 	svc, m := setupSEP(t)
 	stubVClaimSuccess(m, "SEP-RANAP")
 
-	got, err := svc.BuatSEPPostRANAP(context.Background(), pesertaAnak(), "INT", "D-001")
+	got, err := svc.BuatSEPPostRANAP(context.Background(), pesertaAnak(), "INT", "D-001", "")
 	if err != nil {
 		t.Fatalf("BuatSEPPostRANAP: %v", err)
 	}
@@ -382,7 +382,7 @@ func TestBuatSEPPostRAJAL_HappyPath(t *testing.T) {
 	svc, m := setupSEP(t)
 	stubVClaimSuccess(m, "SEP-RAJAL")
 
-	got, err := svc.BuatSEPPostRAJAL(context.Background(), pesertaAnak(), "JTG", "D-002")
+	got, err := svc.BuatSEPPostRAJAL(context.Background(), pesertaAnak(), "JTG", "D-002", "")
 	if err != nil {
 		t.Fatalf("BuatSEPPostRAJAL: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestBuatSEPPostRAJAL_HappyPath(t *testing.T) {
 
 func TestBuatSEPPostRANAP_KdPoliKosong_Error(t *testing.T) {
 	svc, _ := setupSEP(t)
-	_, err := svc.BuatSEPPostRANAP(context.Background(), pesertaAnak(), "", "D")
+	_, err := svc.BuatSEPPostRANAP(context.Background(), pesertaAnak(), "", "D", "")
 	if err == nil {
 		t.Fatal("kdPoli kosong harus error")
 	}

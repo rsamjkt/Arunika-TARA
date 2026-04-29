@@ -116,14 +116,18 @@ export const apmService = {
     CreateAntrian(jenis, subJenis),
   getCounters: (): Promise<Record<string, number>> => GetCounters(),
 
-  // SEP — Peserta diambil dari cache backend (set by detect())
+  // SEP — Peserta diambil dari cache backend (set by detect()).
+  // biometrikToken (opsional) — kalau frontend baru saja panggil
+  // VerifikasiWajah/VerifikasiSidikJari, forward token-nya supaya
+  // backend service.maybeBiometrik trust sebagai sinyal kesuksesan
+  // verifikasi (kalau cekFinger BPJS server belum sync).
   buatSEPRujukan: (req: SEPRequest): Promise<SEP> => BuatSEPRujukan(req),
-  buatSEPKontrol: (noSuratKontrol: string, kdDokter = ''): Promise<SEP> =>
-    BuatSEPKontrol(noSuratKontrol, kdDokter),
-  buatSEPPostRANAP: (kdPoli: string, kdDokter: string): Promise<SEP> =>
-    BuatSEPPostRANAP(kdPoli, kdDokter),
-  buatSEPPostRAJAL: (kdPoli: string, kdDokter: string): Promise<SEP> =>
-    BuatSEPPostRAJAL(kdPoli, kdDokter),
+  buatSEPKontrol: (noSuratKontrol: string, kdDokter = '', biometrikToken = ''): Promise<SEP> =>
+    BuatSEPKontrol(noSuratKontrol, kdDokter, biometrikToken),
+  buatSEPPostRANAP: (kdPoli: string, kdDokter: string, biometrikToken = ''): Promise<SEP> =>
+    BuatSEPPostRANAP(kdPoli, kdDokter, biometrikToken),
+  buatSEPPostRAJAL: (kdPoli: string, kdDokter: string, biometrikToken = ''): Promise<SEP> =>
+    BuatSEPPostRAJAL(kdPoli, kdDokter, biometrikToken),
 
   // Biometrik — return token string (dipakai di field SEPRequest.BiometrikToken /
   // FPToken sesuai backend wiring). Method berbeda per provider:
@@ -135,12 +139,14 @@ export const apmService = {
   // Pengajuan SEP karena FP gagal — escape hatch ke BPJS supaya SEP
   // tetap bisa diterbitkan walau biometrik tidak berhasil. Mirror
   // vendor /Sep/pengajuanSEP. jnsPelayanan: "1" Rajal / "2" Ranap.
-  pengajuanSEPFP: (noKartu: string, jnsPelayanan = '1', keterangan = ''): Promise<void> =>
-    PengajuanSEPFP(noKartu, jnsPelayanan, keterangan),
+  // noRM dipakai backend untuk build field "user" = "NoRM:<noRM>"
+  // mirror vendor line 2182.
+  pengajuanSEPFP: (noKartu: string, noRM: string, jnsPelayanan = '1', keterangan = ''): Promise<void> =>
+    PengajuanSEPFP(noKartu, noRM, jnsPelayanan, keterangan),
 
   // Approval SEP — operator override (PIN admin gate di FE).
-  aprovalSEPFP: (noKartu: string, jnsPelayanan = '1', keterangan = ''): Promise<void> =>
-    AprovalSEPFP(noKartu, jnsPelayanan, keterangan),
+  aprovalSEPFP: (noKartu: string, noRM: string, jnsPelayanan = '1', keterangan = ''): Promise<void> =>
+    AprovalSEPFP(noKartu, noRM, jnsPelayanan, keterangan),
 
   // Pendaftaran umum
   cariPasien: (q: string): Promise<Pasien> => CariPasien(q),

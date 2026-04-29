@@ -1215,23 +1215,48 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 	}
 	asesmen := sep.AsesmenPelayanan
 
-	// REPLACE INTO supaya re-issue SEP idempoten — sekarang full
-	// 30+ kolom critical termasuk laka lantas, COB, eksekutif,
-	// tujuan kunjungan, asesmen pelayanan.
+	// Default suplesi
+	suplesiVal := sep.Suplesi
+	if suplesiVal == "" || suplesiVal == "0" {
+		suplesiVal = "0. Tidak"
+	} else if suplesiVal == "1" {
+		suplesiVal = "1.Ya"
+	}
+
+	// jenisPeserta override dari sep struct, fallback ke lookup pasien.
+	jenisPeserta := sep.JenisPeserta
+	jkVal := sep.JK
+	if jkVal == "" {
+		jkVal = jkPasien.String
+	}
+	tglLahirVal := sep.TglLahir
+	if tglLahirVal == "" {
+		tglLahirVal = tglLahirPasien.String
+	}
+
+	// REPLACE INTO supaya re-issue SEP idempoten — full vendor parity
+	// 52 kolom mirror DlgRegistrasiSEPPertama.java line 2694-2746.
+	// Field "user" tidak ada di bridging_sep (vendor hanya kirim ke
+	// VClaim payload, bukan DB column).
 	const sqlQ = `
 		REPLACE INTO bridging_sep (
 		  no_sep, no_rawat, tglsep,
 		  tglrujukan, no_rujukan, kdppkrujukan, nmppkrujukan,
-		  jnspelayanan, klsrawat,
+		  kdppkpelayanan, nmppkpelayanan,
+		  jnspelayanan, catatan,
 		  diagawal, nmdiagnosaawal,
 		  kdpolitujuan, nmpolitujuan,
-		  asal_rujukan, no_kartu,
-		  nomr, nama_pasien, tanggal_lahir, jkel,
-		  noskdp, kddpjp, nmdpdjp,
-		  lakalantas, tglkkl, keterangankkl,
+		  klsrawat, klsRawatNaik, pembiayaan, penanggungjawab,
+		  lakalantas,
+		  nomr, no_peserta, nama_pasien, tanggal_lahir, jenis_peserta, jkel,
+		  no_kartu, tgl_pulang,
+		  asal_rujukan, eksekutif, cob, notelp,
+		  katarak, tglkkl, keterangankkl,
+		  suplesi, nosepsuplesi,
 		  kdprop, nmprop, kdkab, nmkab, kdkec, nmkec,
-		  cob, eksekutif,
-		  tujuankunjungan, asesmenpelayanan
+		  noskdp, kddpjp, nmdpdjp,
+		  tujuankunjungan, flagprocedure, kdpenunjang, asesmenpelayanan,
+		  kddpjplayan, nmdpjplayan
 		) VALUES (
 		  ?,?,?,
 		  NULLIF(?, ''), ?, ?, ?,
@@ -1239,27 +1264,38 @@ func (c *MySQLClient) SimpanSEP(ctx context.Context, sep domain.SEP) error {
 		  ?, ?,
 		  ?, ?,
 		  ?, ?,
-		  ?, ?, NULLIF(?, ''), ?,
-		  ?, ?, ?,
-		  ?, NULLIF(?, ''), ?,
-		  ?, ?, ?, ?, ?, ?,
+		  ?, ?, ?, ?,
+		  ?,
+		  ?, ?, ?, NULLIF(?, ''), ?, ?,
 		  ?, ?,
+		  ?, ?, ?, ?,
+		  ?, NULLIF(?, ''), ?,
+		  ?, ?,
+		  ?, ?, ?, ?, ?, ?,
+		  ?, ?, ?,
+		  ?, ?, ?, ?,
 		  ?, ?
 		)
 	`
+	katarakVal := "0. Tidak"
 	if _, err := c.db.ExecContext(ctx, sqlQ,
 		sep.NoSEP, noRawat, tglSEP,
 		sep.TglRujukan, sep.NoRujukan, sep.KdPPKRujukan, sep.NmPPKRujukan,
-		jnsPelayanan, klsRawat,
+		sep.KdPPKPelayanan, sep.NmPPKPelayanan,
+		jnsPelayanan, sep.Catatan,
 		sep.DiagnosaAwal, sep.NamaDiagnosa,
 		sep.KdPoli, sep.NmPoli,
-		asalRujukan, sep.NoKartu,
-		nomr.String, namaPasien.String, tglLahirPasien.String, jkPasien.String,
-		sep.NoSKDP, valueOr(sep.KdDPJP, sep.KdDokter), valueOr(sep.NmDPJP, sep.NmDokter),
-		lakaLantas, sep.TglKejadian, sep.KetKecelakaan,
+		klsRawat, "", "", "",
+		lakaLantas,
+		nomr.String, nomr.String, namaPasien.String, tglLahirVal, jenisPeserta, jkVal,
+		sep.NoKartu, "0000-00-00 00:00:00",
+		asalRujukan, eksekutif, cob, sep.NoTelp,
+		katarakVal, sep.TglKejadian, sep.KetKecelakaan,
+		suplesiVal, sep.NoSepSuplesi,
 		sep.KdPropinsi, sep.NmPropinsi, sep.KdKabupaten, sep.NmKabupaten, sep.KdKecamatan, sep.NmKecamatan,
-		cob, eksekutif,
-		tujuan, asesmen,
+		sep.NoSKDP, valueOr(sep.KdDPJP, sep.KdDokter), valueOr(sep.NmDPJP, sep.NmDokter),
+		tujuan, sep.FlagProcedure, sep.KdPenunjang, asesmen,
+		sep.KdDPJPLayanan, sep.NmDPJPLayanan,
 	); err != nil {
 		return fmt.Errorf("simpan sep %s: %w", sep.NoSEP, wrapOfflineMySQL(err))
 	}

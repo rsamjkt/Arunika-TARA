@@ -6,16 +6,16 @@ export function BuatPendaftaran(arg1) {
   return window['go']['main']['App']['BuatPendaftaran'](arg1);
 }
 
-export function BuatSEPKontrol(arg1, arg2) {
-  return window['go']['main']['App']['BuatSEPKontrol'](arg1, arg2);
+export function BuatSEPKontrol(arg1, arg2, arg3) {
+  return window['go']['main']['App']['BuatSEPKontrol'](arg1, arg2, arg3);
 }
 
-export function BuatSEPPostRAJAL(arg1, arg2) {
-  return window['go']['main']['App']['BuatSEPPostRAJAL'](arg1, arg2);
+export function BuatSEPPostRAJAL(arg1, arg2, arg3) {
+  return window['go']['main']['App']['BuatSEPPostRAJAL'](arg1, arg2, arg3);
 }
 
-export function BuatSEPPostRANAP(arg1, arg2) {
-  return window['go']['main']['App']['BuatSEPPostRANAP'](arg1, arg2);
+export function BuatSEPPostRANAP(arg1, arg2, arg3) {
+  return window['go']['main']['App']['BuatSEPPostRANAP'](arg1, arg2, arg3);
 }
 
 export function BuatSEPRujukan(arg1) {
@@ -106,12 +106,12 @@ export function VerifikasiWajah(arg1) {
   return window['go']['main']['App']['VerifikasiWajah'](arg1);
 }
 
-export function PengajuanSEPFP(arg1, arg2, arg3) {
-  return window['go']['main']['App']['PengajuanSEPFP'](arg1, arg2, arg3);
+export function PengajuanSEPFP(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PengajuanSEPFP'](arg1, arg2, arg3, arg4);
 }
 
-export function AprovalSEPFP(arg1, arg2, arg3) {
-  return window['go']['main']['App']['AprovalSEPFP'](arg1, arg2, arg3);
+export function AprovalSEPFP(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['AprovalSEPFP'](arg1, arg2, arg3, arg4);
 }
 
 export function VerifyAdminPIN(arg1) {

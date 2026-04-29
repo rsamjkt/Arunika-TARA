@@ -48,6 +48,12 @@ type SEPService struct {
 	fp     fingerprint.FingerprintVerifier
 	store  *store.Queries
 
+	// PPK Pelayanan RS (kode + nama) — di-inject dari config.BPJS +
+	// config.Branding. Vendor populate ini ke bridging_sep.kdppkpelayanan
+	// & nmppkpelayanan (line 2702-2703).
+	ppkPelayanan     string
+	ppkPelayananName string
+
 	now    func() time.Time
 	logger *slog.Logger
 }
@@ -77,6 +83,13 @@ func (s *SEPService) SetLogger(l *slog.Logger) {
 	}
 }
 
+// SetPPKPelayanan inject PPK code + nama RS dari config (dipanggil
+// di App.initialize).
+func (s *SEPService) SetPPKPelayanan(kode, nama string) {
+	s.ppkPelayanan = kode
+	s.ppkPelayananName = nama
+}
+
 // ============================================================
 // BuatSEPRujukan — pasien rujukan FKTP (kunjungan baru)
 // ============================================================
@@ -100,6 +113,17 @@ func (s *SEPService) BuatSEPRujukan(
 	tglSEP := parseDateOrNow(req.TglSEP, s.now()).Format("2006-01-02")
 	if req.TglSEP == "" {
 		req.TglSEP = tglSEP
+	}
+
+	// Auto-populate field yang vendor expect tapi caller mungkin tidak
+	// pasok eksplisit. Vendor line 2623 noMR + line 2668 user.
+	// NoTelp tidak ada di domain.Peserta — caller (frontend) yang pasok
+	// kalau ada (mis. dari pasien.no_telp Khanza).
+	if req.NoMR == "" {
+		req.NoMR = peserta.NoRM
+	}
+	if req.User == "" {
+		req.User = peserta.NoKartu
 	}
 
 	// Step 1: pre-flight checks (mirror Java DlgRegistrasiSEPPertama:1734-1794)
@@ -151,7 +175,7 @@ func (s *SEPService) BuatSEPRujukan(
 	}
 
 	// Step 6: persist + post ke Khanza (bridging_sep + rujuk_masuk + bridging_rujukan_bpjs)
-	s.persistAndSyncKhanza(ctx, sepObj, "RUJUKAN", req)
+	s.persistAndSyncKhanza(ctx, sepObj, peserta, "RUJUKAN", req)
 
 	// Step 7: simpan rujukan FKTP audit trail (Java line 2688-2692)
 	_ = s.khanza.SimpanRujukMasuk(ctx, domain.RujukMasuk{
@@ -222,6 +246,7 @@ func (s *SEPService) BuatSEPKontrol(
 	peserta *domain.Peserta,
 	noSuratKontrol string,
 	kdDokter string,
+	biometrikToken string,
 ) (*domain.SEP, error) {
 	if peserta == nil {
 		return nil, fmt.Errorf("buat sep kontrol: peserta nil")
@@ -259,14 +284,11 @@ func (s *SEPService) BuatSEPKontrol(
 		return nil, err
 	}
 
-	// Step 3: biometrik kalau perlu (poli kontrol).
-	// BuatSEPKontrol di Wails app ambil BiometrikToken dari cache
-	// (di-set saat VerifikasiWajah / VerifikasiSidikJari) — saat ini
-	// signature method tidak terima req langsung, jadi kita pakai
-	// internal verify (degradasi ke fingerprint mock kalau ada).
-	// TODO P-031+: refactor signature kontrol terima domain.SEPKontrolRequest
-	// supaya frontend bisa supply BiometrikToken seperti SEPRujukan.
-	fpToken, err := s.maybeBiometrik(ctx, *peserta, sk.KdPoli, "")
+	// Step 3: biometrik kalau perlu — frontend supply token kalau pasien
+	// baru saja verifikasi via BiometrikChoiceModal (Frista/After.exe).
+	// Kalau biometrikToken kosong, maybeBiometrik cek server BPJS dulu;
+	// kalau Verified=true SEP boleh issued tanpa token.
+	fpToken, err := s.maybeBiometrik(ctx, *peserta, sk.KdPoli, biometrikToken)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +329,7 @@ func (s *SEPService) BuatSEPKontrol(
 	}
 
 	// Step 6: persist
-	s.persistAndSyncKhanza(ctx, sepObj, "KONTROL", req)
+	s.persistAndSyncKhanza(ctx, sepObj, peserta, "KONTROL", req)
 	return sepObj, nil
 }
 
@@ -320,8 +342,9 @@ func (s *SEPService) BuatSEPPostRANAP(
 	peserta *domain.Peserta,
 	kdPoliKontrol string,
 	kdDokter string,
+	biometrikToken string,
 ) (*domain.SEP, error) {
-	return s.buatSEPPasca(ctx, peserta, kdPoliKontrol, kdDokter, "POST_RANAP", "POST-RANAP")
+	return s.buatSEPPasca(ctx, peserta, kdPoliKontrol, kdDokter, biometrikToken, "POST_RANAP", "POST-RANAP", "2")
 }
 
 // ============================================================
@@ -333,18 +356,25 @@ func (s *SEPService) BuatSEPPostRAJAL(
 	peserta *domain.Peserta,
 	kdPoliTujuan string,
 	kdDokter string,
+	biometrikToken string,
 ) (*domain.SEP, error) {
-	return s.buatSEPPasca(ctx, peserta, kdPoliTujuan, kdDokter, "POST_RAJAL", "POST-RAJAL")
+	return s.buatSEPPasca(ctx, peserta, kdPoliTujuan, kdDokter, biometrikToken, "POST_RAJAL", "POST-RAJAL", "1")
 }
 
 // buatSEPPasca shared flow untuk POST-RANAP & POST-RAJAL.
 // Keduanya tidak butuh NoRujukan (basis: rawat sebelumnya), tapi
 // tetap perlu biometrik check & persist.
+//
+// jnsPelayanan: "1" Rawat Jalan / "2" Rawat Inap. POST-RANAP biasanya
+// dilanjutkan kontrol RJ (jenis "1") tapi vendor allow override —
+// caller (BuatSEPPostRANAP/RAJAL) pasok jenis sesuai konteks.
 func (s *SEPService) buatSEPPasca(
 	ctx context.Context,
 	peserta *domain.Peserta,
 	kdPoli, kdDokter string,
+	biometrikToken string,
 	kategori, label string,
+	jnsPelayanan string,
 ) (*domain.SEP, error) {
 	if peserta == nil {
 		return nil, fmt.Errorf("buat sep %s: peserta nil", label)
@@ -360,11 +390,9 @@ func (s *SEPService) buatSEPPasca(
 		return nil, err
 	}
 
-	// POST_RANAP/POST_RAJAL signature lama tidak terima BiometrikToken
-	// dari frontend — pakai internal verify (degradasi: fingerprint mock).
-	// TODO P-031+: ubah signature menerima req struct supaya frontend
-	// bisa supply token sebagaimana SEPRujukan.
-	fpToken, err := s.maybeBiometrik(ctx, *peserta, kdPoli, "")
+	// Biometrik — frontend supply token jika sudah verifikasi via modal,
+	// atau kosong → maybeBiometrik cek server BPJS dulu.
+	fpToken, err := s.maybeBiometrik(ctx, *peserta, kdPoli, biometrikToken)
 	if err != nil {
 		return nil, err
 	}
@@ -392,9 +420,11 @@ func (s *SEPService) buatSEPPasca(
 		TglSEP:       tglStr,
 		KdPoli:       kdPoli,
 		KdDokter:     kdDokter,
-		JnsPelayanan: "1",
+		JnsPelayanan: jnsPelayanan,
 		KelasRawat:   peserta.KelasHak,
 		FPToken:      fpToken,
+		NoMR:         peserta.NoRM,
+		User:         peserta.NoKartu,
 		// NoRujukan kosong — backend BPJS akan auto-link ke episode
 		// rawat sebelumnya untuk POST_RANAP/POST_RAJAL kalau valid.
 	}
@@ -406,7 +436,7 @@ func (s *SEPService) buatSEPPasca(
 		return nil, fmt.Errorf("vclaim CreateSEP %s: %w", label, err)
 	}
 
-	s.persistAndSyncKhanza(ctx, sepObj, kategori, req)
+	s.persistAndSyncKhanza(ctx, sepObj, peserta, kategori, req)
 	return sepObj, nil
 }
 
@@ -485,14 +515,20 @@ func (s *SEPService) maybeBiometrik(
 //	4. Insert ke print_history (backup + bahan reprint)
 //	5. Post ke Khanza; kalau gagal/offline → insert ke pending_sep
 //
+// Sebelum post: enrichSEPForBridging copy field-field tambahan dari
+// originalReq + peserta ke sepObj supaya bridging_sep INSERT lengkap
+// (vendor 52 kolom mirror).
+//
 // Tidak pernah mengembalikan error — SEP sudah issued di VClaim,
 // kegagalan downstream di-log dan masuk pending_sep untuk reconcile.
 func (s *SEPService) persistAndSyncKhanza(
 	ctx context.Context,
 	sepObj *domain.SEP,
+	peserta *domain.Peserta,
 	kategori string,
 	originalReq any,
 ) {
+	s.enrichSEPForBridging(sepObj, peserta, originalReq)
 	// Step 4: print_history (escpos_bytes placeholder JSON sampai
 	// ESC/POS template di P-033 mengganti dengan raw bytes asli).
 	sepBytes, _ := json.Marshal(sepObj)
@@ -559,6 +595,127 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// enrichSEPForBridging mengisi field-field tambahan di sepObj dari
+// originalReq supaya khanza.SimpanSEP punya data lengkap untuk INSERT
+// bridging_sep 52 kolom (vendor parity).
+//
+// VClaim CreateSEP response hanya return field core (noSep, tglSep,
+// kdPoli, kdDokter). Field tambahan (Catatan, JenisPeserta, NoTelp,
+// Suplesi, FlagProcedure, dll) ada di SEPRequest tapi tidak di response.
+// Service layer copy supaya tidak hilang saat persistence.
+func (s *SEPService) enrichSEPForBridging(sepObj *domain.SEP, peserta *domain.Peserta, originalReq any) {
+	if sepObj == nil {
+		return
+	}
+
+	// Profil pasien snapshot dari Peserta (vendor line 2719-2720, 2726).
+	// Field-field ini tidak ada di SEPRequest tapi vendor INSERT-nya.
+	if peserta != nil {
+		if sepObj.NamaPasien == "" {
+			sepObj.NamaPasien = peserta.Nama
+		}
+		if sepObj.JenisPeserta == "" {
+			sepObj.JenisPeserta = peserta.JenisPeserta
+		}
+		if sepObj.TglLahir == "" {
+			sepObj.TglLahir = peserta.TglLahir
+		}
+		if sepObj.NoMR == "" {
+			sepObj.NoMR = peserta.NoRM
+		}
+		if sepObj.User == "" {
+			sepObj.User = peserta.NoKartu
+		}
+		// JK tidak ada di domain.Peserta — mysql_client fallback ke
+		// lookup tabel pasien (column jk).
+	}
+
+	// PPK Pelayanan dari config (vendor line 2702-2703).
+	if sepObj.KdPPKPelayanan == "" {
+		sepObj.KdPPKPelayanan = s.ppkPelayanan
+	}
+	if sepObj.NmPPKPelayanan == "" {
+		sepObj.NmPPKPelayanan = s.ppkPelayananName
+	}
+
+	switch req := originalReq.(type) {
+	case domain.SEPRequest:
+		copySEPRequestToSEP(sepObj, &req)
+	case *domain.SEPRequest:
+		copySEPRequestToSEP(sepObj, req)
+	case domain.SEPKontrolRequest:
+		if sepObj.User == "" {
+			sepObj.User = req.NoKartu
+		}
+	}
+}
+
+func copySEPRequestToSEP(sepObj *domain.SEP, req *domain.SEPRequest) {
+	if req == nil || sepObj == nil {
+		return
+	}
+	if sepObj.Catatan == "" {
+		sepObj.Catatan = req.CatatanPelayanan
+	}
+	if sepObj.NoTelp == "" {
+		sepObj.NoTelp = req.NoTelp
+	}
+	if sepObj.Suplesi == "" {
+		sepObj.Suplesi = req.Suplesi
+	}
+	if sepObj.NoSepSuplesi == "" {
+		sepObj.NoSepSuplesi = req.NoSepSuplesi
+	}
+	if sepObj.FlagProcedure == "" {
+		sepObj.FlagProcedure = req.FlagProcedure
+	}
+	if sepObj.KdPenunjang == "" {
+		sepObj.KdPenunjang = req.KdPenunjang
+	}
+	if sepObj.KdDPJPLayanan == "" {
+		sepObj.KdDPJPLayanan = req.KdDPJPLayanan
+	}
+	if sepObj.NoMR == "" {
+		sepObj.NoMR = req.NoMR
+	}
+	if sepObj.User == "" {
+		sepObj.User = req.User
+	}
+	// Field core mirror (kalau VClaim response kosong)
+	if sepObj.LakaLantas == "" {
+		sepObj.LakaLantas = req.LakaLantas
+	}
+	if sepObj.TglKejadian == "" {
+		sepObj.TglKejadian = req.TglKejadian
+	}
+	if sepObj.KetKecelakaan == "" {
+		sepObj.KetKecelakaan = req.KetKecelakaan
+	}
+	if sepObj.KdPropinsi == "" {
+		sepObj.KdPropinsi = req.KdPropinsi
+		sepObj.NmPropinsi = req.NmPropinsi
+		sepObj.KdKabupaten = req.KdKabupaten
+		sepObj.NmKabupaten = req.NmKabupaten
+		sepObj.KdKecamatan = req.KdKecamatan
+		sepObj.NmKecamatan = req.NmKecamatan
+	}
+	if sepObj.AsesmenPelayanan == "" {
+		sepObj.AsesmenPelayanan = req.AsesmenPelayanan
+	}
+	if sepObj.TujuanKunjungan == "" {
+		sepObj.TujuanKunjungan = req.TujuanKunjungan
+	}
+	if sepObj.COB == "" {
+		sepObj.COB = req.COB
+	}
+	if sepObj.Eksekutif == "" {
+		sepObj.Eksekutif = req.Eksekutif
+	}
+	// Katarak tidak di-mirror — domain.SEP tidak punya field, mysql_client
+	// pakai default "0. Tidak" (mirror vendor line 2727).
+	_ = req.Katarak
 }
 
 // maskID memendekkan no_kartu / no_rm jadi "************XXXX" untuk log

@@ -6,11 +6,11 @@ import {store} from '../models';
 
 export function BuatPendaftaran(arg1:domain.PendaftaranRequest):Promise<domain.Pendaftaran>;
 
-export function BuatSEPKontrol(arg1:string,arg2:string):Promise<domain.SEP>;
+export function BuatSEPKontrol(arg1:string,arg2:string,arg3:string):Promise<domain.SEP>;
 
-export function BuatSEPPostRAJAL(arg1:string,arg2:string):Promise<domain.SEP>;
+export function BuatSEPPostRAJAL(arg1:string,arg2:string,arg3:string):Promise<domain.SEP>;
 
-export function BuatSEPPostRANAP(arg1:string,arg2:string):Promise<domain.SEP>;
+export function BuatSEPPostRANAP(arg1:string,arg2:string,arg3:string):Promise<domain.SEP>;
 
 export function BuatSEPRujukan(arg1:domain.SEPRequest):Promise<domain.SEP>;
 
@@ -56,8 +56,8 @@ export function VerifikasiSidikJari(arg1:string):Promise<string>;
 
 export function VerifikasiWajah(arg1:string):Promise<string>;
 
-export function PengajuanSEPFP(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function PengajuanSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
-export function AprovalSEPFP(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function AprovalSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function VerifyAdminPIN(arg1:string):Promise<boolean>;

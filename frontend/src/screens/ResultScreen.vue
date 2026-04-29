@@ -319,9 +319,10 @@ async function onPickBiometrik(method) {
   // method: 'face' | 'fingerprint'
   if (biometrikLoading.value) return
   if (!peserta.value?.NoKartu) {
+    showBiometrikModal.value = false
+    biometrikContext.value = null
     errorMsg.value = 'Data peserta tidak lengkap untuk verifikasi biometrik.'
     errorVisible.value = true
-    showBiometrikModal.value = false
     return
   }
 
@@ -342,14 +343,12 @@ async function onPickBiometrik(method) {
       const list = result.value?.Data ?? []
       const sk = Array.isArray(list) ? list[0] : list
       if (!sk?.NoSurat) throw new Error('Surat kontrol tidak ditemukan')
-      // BuatSEPKontrol signature saat ini: (noSurat, kdDokter). Backend
-      // agent akan inject FPToken via session cache (keset oleh
-      // VerifikasiWajah/VerifikasiSidikJari) sehingga signature tidak
-      // perlu berubah. Kalau signature berubah jadi (noSurat, kdDokter, token),
-      // tinggal forward token di sini.
+      // Forward token ke backend — service.maybeBiometrik akan trust
+      // ini sebagai sinyal kesuksesan kalau cekFinger BPJS server belum
+      // sync (eventual consistency setelah Frista/After.exe submit).
       ctaLoading.value = true
       try {
-        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value)
+        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value, token)
         patient.setLastSEP(sep)
         router.push({ name: 'tiket', query: { from: 'kontrol' } })
       } finally {
@@ -357,8 +356,11 @@ async function onPickBiometrik(method) {
       }
     } else if (biometrikContext.value === 'rujukan') {
       // P-046+: SEPRequest construction lengkap masih TBD — sementara
-      // navigate ke tiket; backend simpan token untuk dipakai saat builder
-      // SEP rujukan jalan.
+      // simpan token di session cache lalu navigate. Saat SEP rujukan
+      // builder jalan (DokterPickerScreen), token di-forward via
+      // req.BiometrikToken. Untuk sementara, juga kirim ke backend
+      // sebagai cache hint.
+      patient.setBiometrikToken?.(token)
       router.push({ name: 'tiket', query: { from: 'rujukan' } })
     }
 
@@ -367,14 +369,24 @@ async function onPickBiometrik(method) {
   } catch (e) {
     // Verify gagal (timeout / cancel hardware) — increment failCount supaya
     // setelah 2x gagal, modal tampilkan escape hatch pengajuan SEP.
+    // P4 fix: tutup modal dulu sebelum show error toast supaya tidak
+    // ada UI overlap (vendor pattern: error → return ke main dialog).
     biometrikFailCount.value += 1
+    showBiometrikModal.value = false
     errorMsg.value = e?.message ?? String(e)
     errorVisible.value = true
-    // Modal tetap visible supaya pasien bisa retry / pilih escape hatch
-    // setelah error toast di-tutup. Kalau failCount masih < 2, tetap show
-    // 2 tombol tanpa escape hatch.
   } finally {
     biometrikLoading.value = false
+  }
+}
+
+// reopenBiometrikModal — dipanggil kalau user tutup error toast dan
+// failCount masih > 0 (artinya verifikasi gagal sebelumnya). Re-open
+// modal supaya pasien bisa retry / pilih escape hatch (escape hatch
+// otomatis muncul kalau failCount >= 2).
+function reopenBiometrikModalIfNeeded() {
+  if (biometrikFailCount.value > 0 && biometrikContext.value !== null) {
+    showBiometrikModal.value = true
   }
 }
 
@@ -390,9 +402,30 @@ function onCancelBiometrik() {
 // lalu panggil apmService.pengajuanSEPFP. Sukses → tutup modal + retry
 // SEP creation tanpa biometrik (backend cekFinger akan tetap dipanggil
 // tapi degradasi via externalToken signal).
+// jnsPelayananDariPtype — vendor pattern: jnsPelayanan="1" Rajal,
+// "2" Ranap. PostRANAP → kontrol pasca rawat inap, biasanya RJ ("1").
+// PostRAJAL & Kontrol & Rujukan → "1" (RJ). Kalau pasien Ranap aktif
+// (mis. ICU lanjutan), backend akan koreksi via SEPRequest.JnsPelayanan
+// langsung. Sini: derive default sane dari ptype.
+function jnsPelayananDariPtype(t) {
+  // Saat ini semua pathway APM RJ (kiosk tidak handle ranap aktif).
+  // Disisakan switch supaya gampang extend ke "2" kalau Pathway baru.
+  switch (t) {
+    case PatientType.PostRANAP:
+    case PatientType.PostRAJAL:
+    case PatientType.Kontrol:
+    case PatientType.MJKN:
+    case PatientType.RujukanBaru:
+    default:
+      return '1'
+  }
+}
+
 async function onPengajuanSEP() {
   if (biometrikLoading.value) return
   if (!peserta.value?.NoKartu) {
+    showBiometrikModal.value = false
+    biometrikContext.value = null
     errorMsg.value = 'Data peserta tidak lengkap untuk pengajuan SEP.'
     errorVisible.value = true
     return
@@ -409,8 +442,10 @@ async function onPengajuanSEP() {
   biometrikLoading.value = true
   try {
     const noKartu = peserta.value.NoKartu
+    const noRM = peserta.value.NoRM ?? ''
+    const jnsPelayanan = jnsPelayananDariPtype(ptype.value)
     const keterangan = `Pengajuan SEP karena pasien gagal verifikasi biometrik (${biometrikFailCount.value}x) di Anjungan Pasien Mandiri RS Anggrek Mas`
-    await apmService.pengajuanSEPFP(noKartu, '1', keterangan)
+    await apmService.pengajuanSEPFP(noKartu, noRM, jnsPelayanan, keterangan)
 
     // Sukses — tutup modal + retry SEP creation. Backend akan re-cek
     // finger status; karena kita baru saja pengajuan, BPJS server akan
@@ -424,7 +459,9 @@ async function onPengajuanSEP() {
       if (!sk?.NoSurat) throw new Error('Surat kontrol tidak ditemukan')
       ctaLoading.value = true
       try {
-        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value)
+        // Token kosong — backend maybeBiometrik akan re-cek server BPJS,
+        // yang sudah dapat record dari pengajuanSEP barusan.
+        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value, '')
         patient.setLastSEP(sep)
         router.push({ name: 'tiket', query: { from: 'kontrol' } })
       } finally {
@@ -435,6 +472,7 @@ async function onPengajuanSEP() {
     }
     biometrikContext.value = null
   } catch (e) {
+    showBiometrikModal.value = false
     errorMsg.value = e?.message ?? String(e)
     errorVisible.value = true
   } finally {
@@ -742,7 +780,9 @@ const infoBarClass = (v) => {
 
     <IdleOverlay :seconds-left="secondsLeft" :visible="isCountingDown" />
 
-    <!-- Error modal -->
+    <!-- Error modal — saat tutup, kalau context biometrik masih ada
+         (gagal verify), reopen BiometrikChoiceModal supaya user bisa
+         retry / pilih escape hatch. -->
     <AlertModal
       :visible="errorVisible"
       variant="error"
@@ -750,8 +790,8 @@ const infoBarClass = (v) => {
       :message="errorMsg"
       primary-label="Coba lagi"
       close-label="Tutup"
-      @primary="errorVisible = false"
-      @close="errorVisible = false"
+      @primary="() => { errorVisible = false; reopenBiometrikModalIfNeeded() }"
+      @close="() => { errorVisible = false; reopenBiometrikModalIfNeeded() }"
     />
 
     <!-- Biometrik choice modal — muncul saat SEP butuh validasi biometrik

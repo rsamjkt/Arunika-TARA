@@ -204,6 +204,8 @@ func (a *App) initialize(ctx context.Context) error {
 	a.detectorSvc = detector.New(a.vclaim, a.antrol, a.khanza)
 	a.antrianSvc = antrian.New(a.khanza, db, a.antrol, cfg.Antrian)
 	a.sepSvc = sep.New(a.vclaim, a.khanza, a.hw.Fingerprint, db)
+	// Inject PPK Pelayanan dari config — vendor populate ke bridging_sep.
+	a.sepSvc.SetPPKPelayanan(cfg.BPJS.PPKPelayanan, cfg.Branding.HospitalName)
 
 	// Cron daily reset
 	c, err := antrian.StartDailyReset(a.antrianSvc, "")
@@ -365,30 +367,35 @@ func (a *App) BuatSEPRujukan(req domain.SEPRequest) (*domain.SEP, error) {
 
 // BuatSEPKontrol — pasien dengan SKDP. UI pilih dokter dari jadwal
 // (kdDokter di payload), atau pakai default dari surat kontrol.
-func (a *App) BuatSEPKontrol(noSuratKontrol, kdDokter string) (*domain.SEP, error) {
+//
+// biometrikToken — kalau frontend baru saja panggil VerifikasiWajah /
+// VerifikasiSidikJari (BiometrikChoiceModal), pasok token-nya disini.
+// Service.maybeBiometrik akan trust ini sebagai sinyal "pasien sudah
+// verify" kalau cekFinger server BPJS belum sync.
+func (a *App) BuatSEPKontrol(noSuratKontrol, kdDokter, biometrikToken string) (*domain.SEP, error) {
 	p, err := a.requirePeserta()
 	if err != nil {
 		return nil, err
 	}
-	return a.sepSvc.BuatSEPKontrol(a.ctx, p, noSuratKontrol, kdDokter)
+	return a.sepSvc.BuatSEPKontrol(a.ctx, p, noSuratKontrol, kdDokter, biometrikToken)
 }
 
 // BuatSEPPostRANAP — kontrol pasca rawat inap.
-func (a *App) BuatSEPPostRANAP(kdPoliKontrol, kdDokter string) (*domain.SEP, error) {
+func (a *App) BuatSEPPostRANAP(kdPoliKontrol, kdDokter, biometrikToken string) (*domain.SEP, error) {
 	p, err := a.requirePeserta()
 	if err != nil {
 		return nil, err
 	}
-	return a.sepSvc.BuatSEPPostRANAP(a.ctx, p, kdPoliKontrol, kdDokter)
+	return a.sepSvc.BuatSEPPostRANAP(a.ctx, p, kdPoliKontrol, kdDokter, biometrikToken)
 }
 
 // BuatSEPPostRAJAL — lanjutan rawat jalan beda poli.
-func (a *App) BuatSEPPostRAJAL(kdPoliTujuan, kdDokter string) (*domain.SEP, error) {
+func (a *App) BuatSEPPostRAJAL(kdPoliTujuan, kdDokter, biometrikToken string) (*domain.SEP, error) {
 	p, err := a.requirePeserta()
 	if err != nil {
 		return nil, err
 	}
-	return a.sepSvc.BuatSEPPostRAJAL(a.ctx, p, kdPoliTujuan, kdDokter)
+	return a.sepSvc.BuatSEPPostRAJAL(a.ctx, p, kdPoliTujuan, kdDokter, biometrikToken)
 }
 
 // requirePeserta ambil cached Peserta atau error kalau belum.
@@ -483,9 +490,12 @@ func (a *App) VerifikasiSidikJari(noPeserta string) (string, error) {
 // kalau pasien gagal verifikasi 2-3x, tampilkan opsi "Pengajuan SEP"
 // yang panggil method ini dengan keterangan default vendor.
 //
+// noRM dipakai untuk field "user" di payload — vendor format
+// "NoRM:<noRM>" supaya audit trail BPJS bisa link ke rekam medis.
+//
 // Return error kalau BPJS reject (mis. pasien tidak eligible untuk
 // pengajuan, atau request rate limit). Frontend display message ke UI.
-func (a *App) PengajuanSEPFP(noKartu, jnsPelayanan, keterangan string) error {
+func (a *App) PengajuanSEPFP(noKartu, noRM, jnsPelayanan, keterangan string) error {
 	if a.vclaim == nil {
 		return errors.New("vclaim client belum diinisialisasi")
 	}
@@ -499,7 +509,7 @@ func (a *App) PengajuanSEPFP(noKartu, jnsPelayanan, keterangan string) error {
 		TglSEP:       tglSEP,
 		JnsPelayanan: jnsPelayanan,
 		Keterangan:   keterangan,
-		User:         "kiosk-tara",
+		User:         buildUserField(noRM),
 	})
 	if err != nil {
 		a.logger.Warn("PengajuanSEPFP gagal",
@@ -520,7 +530,9 @@ func (a *App) PengajuanSEPFP(noKartu, jnsPelayanan, keterangan string) error {
 // Vendor pakai ini di flow petugas, di kiosk kita expose sebagai backup
 // kalau pengajuan tidak cukup (mis. shift admin pakai PIN admin lalu
 // trigger approval).
-func (a *App) AprovalSEPFP(noKartu, jnsPelayanan, keterangan string) error {
+//
+// noRM dipakai untuk field "user" di payload — sama dengan PengajuanSEPFP.
+func (a *App) AprovalSEPFP(noKartu, noRM, jnsPelayanan, keterangan string) error {
 	if a.vclaim == nil {
 		return errors.New("vclaim client belum diinisialisasi")
 	}
@@ -534,7 +546,7 @@ func (a *App) AprovalSEPFP(noKartu, jnsPelayanan, keterangan string) error {
 		TglSEP:       tglSEP,
 		JnsPelayanan: jnsPelayanan,
 		Keterangan:   keterangan,
-		User:         "kiosk-tara",
+		User:         buildUserField(noRM),
 	})
 	if err != nil {
 		a.logger.Warn("AprovalSEPFP gagal",
@@ -548,6 +560,21 @@ func (a *App) AprovalSEPFP(noKartu, jnsPelayanan, keterangan string) error {
 	a.logger.Info("AprovalSEPFP sukses",
 		"no_kartu_masked", maskCardForLog(noKartu))
 	return nil
+}
+
+// buildUserField membangun string "NoRM:<noRM>" untuk field "user"
+// di payload aprovalSEP/pengajuanSEP. Mirror vendor line 2131/2182:
+//
+//	"user": "NoRM:" + TNoRM.getText()
+//
+// Kalau noRM kosong (defensive — frontend selalu set), fallback ke
+// "kiosk-tara" supaya request tidak ditolak BPJS karena field kosong.
+func buildUserField(noRM string) string {
+	noRM = strings.TrimSpace(noRM)
+	if noRM == "" {
+		return "kiosk-tara"
+	}
+	return "NoRM:" + noRM
 }
 
 // maskCardForLog memendekkan no_kartu jadi "************XXXX" untuk
