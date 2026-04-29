@@ -5,7 +5,8 @@
 ._*
 
 # Sensitive — JANGAN PERNAH commit
-config.toml
+# config.toml — di-track (default RS Anggrek Mas, repo private + solo).
+# Untuk multi-RS deployment di masa depan, sanitize dulu sebelum push.
 *.env
 .env
 .env.local

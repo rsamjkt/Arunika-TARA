@@ -1,0 +1,78 @@
+# APM (T.A.R.A) — config template
+#
+# Copy ke config.toml lalu isi nilai yang sesuai environment Anda.
+# JANGAN PERNAH commit config.toml (.gitignore sudah block).
+#
+# Di Windows production, jalankan `apm.exe --encrypt-config` setelah copy
+# untuk meng-enkripsi credential dengan Windows DPAPI + AES-256-GCM.
+# Field bersuffix _enc menerima nilai plaintext (akan dienkripsi otomatis)
+# atau format "ENC:<base64>" hasil enkripsi.
+
+[app]
+idle_timeout_sec = 60
+log_level        = "info"          # debug | info | warn | error
+log_dir          = "./logs"
+timezone         = "Asia/Jakarta"
+version          = "1.0.0"
+
+[server]
+# SIMRS Khanza — Direct MySQL mode (mengikuti pola anjunganmandiriSEP).
+# Kosongkan khanza_url; isi khanza_dsn dengan Go MySQL DSN.
+khanza_url        = ""
+khanza_api_key    = ""
+khanza_dsn        = "rs4m:aPDXw64Bri8hHY8V0bIt@tcp(10.0.2.121:3306)/sikrsam260312?parseTime=true&loc=Local&timeout=5s"
+khanza_kd_pj_umum = "A03"
+khanza_kd_pj_bpjs = "BPJ"
+timeout_ms        = 5000
+retry             = 2
+
+[bpjs]
+# VClaim — production: https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
+# VClaim — development: https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/
+vclaim_url           = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
+cons_id              = "REPLACE_WITH_CONS_ID"
+consumer_secret      = "REPLACE_WITH_CONSUMER_SECRET"
+antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
+detector_timeout_ms  = 5000        # Smart Detector parallel-check timeout
+ppk_pelayanan        = "REPLACE_WITH_PPK_RS"  # kode faskes RS — masuk ke t_sep.ppkPelayanan
+mock                 = true        # dev: pakai NewMockPreset(), skip BPJS dvlp network
+
+[fingerprint]
+# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only)
+exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
+rest_url           = "https://fp.bpjs-kesehatan.go.id/finger-rest/"
+username_enc       = "REPLACE_WITH_FP_USERNAME"
+password_enc       = "REPLACE_WITH_FP_PASSWORD"
+scan_timeout_sec   = 30
+poll_interval_ms   = 500
+
+[frista]
+# Frista card reader (Windows only — di Mac otomatis pakai mock)
+exe_path          = "C:\\Program Files\\Frista\\frista.exe"
+username_enc      = "REPLACE_WITH_FRISTA_USERNAME"
+password_enc      = "REPLACE_WITH_FRISTA_PASSWORD"
+read_timeout_ms   = 1000
+restart_on_crash  = true
+
+[printer]
+# Mode: "console" (Mac dev — print ke stdout) | "escpos_usb" | "escpos_serial" | "escpos_network"
+mode      = "console"
+port      = "POS-58"               # nama printer (USB) / COM port (serial) / IP:port (network)
+width_mm  = 58                     # 58 atau 80
+
+[antrian]
+loket_prefix = "A"
+poli_prefix  = "B"
+umum_prefix  = "C"
+reset_time   = "00:01"             # HH:MM WIB — reset counter harian
+
+[admin]
+# PIN 4-6 digit untuk akses admin panel kiosk. Plaintext untuk
+# kemudahan dev — production hashing dapat ditambah di P-051.
+# Kosongkan kalau panel admin TIDAK dilindungi PIN.
+pin = "1234"
+
+[dev]
+# Hanya berlaku di non-Windows (Mac/Linux). Hardware otomatis di-mock.
+mock_hardware    = true
+mock_server_port = 9090
