@@ -106,6 +106,14 @@ export function VerifikasiWajah(arg1) {
   return window['go']['main']['App']['VerifikasiWajah'](arg1);
 }
 
+export function PengajuanSEPFP(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PengajuanSEPFP'](arg1, arg2, arg3);
+}
+
+export function AprovalSEPFP(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AprovalSEPFP'](arg1, arg2, arg3);
+}
+
 export function VerifyAdminPIN(arg1) {
   return window['go']['main']['App']['VerifyAdminPIN'](arg1);
 }

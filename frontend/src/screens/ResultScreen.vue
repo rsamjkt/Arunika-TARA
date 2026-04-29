@@ -65,6 +65,9 @@ const errorMsg = ref('')
 const showBiometrikModal = ref(false)
 const biometrikContext = ref(null) // 'kontrol' | 'rujukan' | null
 const biometrikLoading = ref(false)
+// failCount track berapa kali pasien gagal verifikasi di session ini.
+// Setelah >=2, BiometrikChoiceModal tampilkan escape hatch "Pengajuan SEP".
+const biometrikFailCount = ref(0)
 
 // Dokter picker state (untuk Kontrol)
 const dokterList = ref([]) // JadwalDokter[]
@@ -360,12 +363,16 @@ async function onPickBiometrik(method) {
     }
 
     biometrikContext.value = null
+    biometrikFailCount.value = 0 // reset on success
   } catch (e) {
-    // Verify gagal (timeout / cancel hardware) — tutup modal, tampilkan error toast
-    showBiometrikModal.value = false
-    biometrikContext.value = null
+    // Verify gagal (timeout / cancel hardware) — increment failCount supaya
+    // setelah 2x gagal, modal tampilkan escape hatch pengajuan SEP.
+    biometrikFailCount.value += 1
     errorMsg.value = e?.message ?? String(e)
     errorVisible.value = true
+    // Modal tetap visible supaya pasien bisa retry / pilih escape hatch
+    // setelah error toast di-tutup. Kalau failCount masih < 2, tetap show
+    // 2 tombol tanpa escape hatch.
   } finally {
     biometrikLoading.value = false
   }
@@ -375,6 +382,64 @@ function onCancelBiometrik() {
   if (biometrikLoading.value) return
   showBiometrikModal.value = false
   biometrikContext.value = null
+  biometrikFailCount.value = 0
+}
+
+// onPengajuanSEP — escape hatch pasien tidak bisa biometrik. Konfirmasi
+// dulu (irreversible — sekali submit, BPJS catat pengajuan formal),
+// lalu panggil apmService.pengajuanSEPFP. Sukses → tutup modal + retry
+// SEP creation tanpa biometrik (backend cekFinger akan tetap dipanggil
+// tapi degradasi via externalToken signal).
+async function onPengajuanSEP() {
+  if (biometrikLoading.value) return
+  if (!peserta.value?.NoKartu) {
+    errorMsg.value = 'Data peserta tidak lengkap untuk pengajuan SEP.'
+    errorVisible.value = true
+    return
+  }
+
+  const confirm = window.confirm(
+    'Pengajuan SEP via BPJS akan diajukan ke server BPJS dan tercatat formal.\n\n' +
+    'Lakukan hanya jika pasien benar-benar tidak bisa verifikasi biometrik ' +
+    '(lansia, alat rusak, dll).\n\n' +
+    'Lanjutkan?'
+  )
+  if (!confirm) return
+
+  biometrikLoading.value = true
+  try {
+    const noKartu = peserta.value.NoKartu
+    const keterangan = `Pengajuan SEP karena pasien gagal verifikasi biometrik (${biometrikFailCount.value}x) di Anjungan Pasien Mandiri RS Anggrek Mas`
+    await apmService.pengajuanSEPFP(noKartu, '1', keterangan)
+
+    // Sukses — tutup modal + retry SEP creation. Backend akan re-cek
+    // finger status; karena kita baru saja pengajuan, BPJS server akan
+    // izinkan SEP issued di attempt berikutnya (eventual consistency).
+    showBiometrikModal.value = false
+    biometrikFailCount.value = 0
+
+    if (biometrikContext.value === 'kontrol') {
+      const list = result.value?.Data ?? []
+      const sk = Array.isArray(list) ? list[0] : list
+      if (!sk?.NoSurat) throw new Error('Surat kontrol tidak ditemukan')
+      ctaLoading.value = true
+      try {
+        const sep = await apmService.buatSEPKontrol(sk.NoSurat, selectedDokter.value)
+        patient.setLastSEP(sep)
+        router.push({ name: 'tiket', query: { from: 'kontrol' } })
+      } finally {
+        ctaLoading.value = false
+      }
+    } else if (biometrikContext.value === 'rujukan') {
+      router.push({ name: 'tiket', query: { from: 'rujukan' } })
+    }
+    biometrikContext.value = null
+  } catch (e) {
+    errorMsg.value = e?.message ?? String(e)
+    errorVisible.value = true
+  } finally {
+    biometrikLoading.value = false
+  }
 }
 
 async function onDaftarUmum() {
@@ -695,9 +760,11 @@ const infoBarClass = (v) => {
     <BiometrikChoiceModal
       :visible="showBiometrikModal"
       :no-peserta="peserta?.NoKartu ?? ''"
+      :fail-count="biometrikFailCount"
       title="Verifikasi Biometrik Diperlukan"
       subtitle="Sebelum SEP dibuat, mohon verifikasi identitas dengan salah satu metode di bawah."
       @select="onPickBiometrik"
+      @pengajuan="onPengajuanSEP"
       @cancel="onCancelBiometrik"
     />
   </main>

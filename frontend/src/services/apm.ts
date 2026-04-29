@@ -46,6 +46,12 @@ import {
 // supaya import-nya resolve. Wails regen akan overwrite stub itu.
 import { VerifikasiWajah, VerifikasiSidikJari } from '../../wailsjs/go/main/App'
 
+// Fallback FP gagal — endpoint /Sep/{aprovalSEP,pengajuanSEP} BPJS.
+// Mirror vendor btnDiagnosaAwal3 + btnDiagnosaAwal4 di
+// DlgRegistrasiSEPPertama.java. Escape hatch saat pasien tidak bisa
+// verifikasi biometrik (lansia, sensor rusak, etc).
+import { PengajuanSEPFP, AprovalSEPFP } from '../../wailsjs/go/main/App'
+
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 
 import type { domain, main, store } from '../../wailsjs/go/models'
@@ -125,6 +131,16 @@ export const apmService = {
   //   verifikasiSidikJari → trigger After.exe (sensor sidik jari)
   verifikasiWajah: (noPeserta: string): Promise<string> => VerifikasiWajah(noPeserta),
   verifikasiSidikJari: (noPeserta: string): Promise<string> => VerifikasiSidikJari(noPeserta),
+
+  // Pengajuan SEP karena FP gagal — escape hatch ke BPJS supaya SEP
+  // tetap bisa diterbitkan walau biometrik tidak berhasil. Mirror
+  // vendor /Sep/pengajuanSEP. jnsPelayanan: "1" Rajal / "2" Ranap.
+  pengajuanSEPFP: (noKartu: string, jnsPelayanan = '1', keterangan = ''): Promise<void> =>
+    PengajuanSEPFP(noKartu, jnsPelayanan, keterangan),
+
+  // Approval SEP — operator override (PIN admin gate di FE).
+  aprovalSEPFP: (noKartu: string, jnsPelayanan = '1', keterangan = ''): Promise<void> =>
+    AprovalSEPFP(noKartu, jnsPelayanan, keterangan),
 
   // Pendaftaran umum
   cariPasien: (q: string): Promise<Pasien> => CariPasien(q),

@@ -6,14 +6,20 @@
   yang punya 2 tombol (btnFingerPrint1=Frista wajah, btnFingerPrint2=After.exe).
 
   Props:
-    visible    : boolean   — show / hide
-    noPeserta  : string    — No. Kartu BPJS pasien (akan di-mask ***1234)
-    title      : string    — override judul (default "Verifikasi Identitas")
-    subtitle   : string    — override subtitle
+    visible     : boolean   — show / hide
+    noPeserta   : string    — No. Kartu BPJS pasien (akan di-mask ***1234)
+    title       : string    — override judul (default "Verifikasi Identitas")
+    subtitle    : string    — override subtitle
+    failCount   : number    — counter berapa kali verifikasi gagal di session
+                              ini. Kalau >= 2, tampilkan escape hatch
+                              "Pengajuan SEP via BPJS" (vendor pattern
+                              btnDiagnosaAwal4 di DlgRegistrasiSEPPertama).
 
   Emits:
-    select     : ('face' | 'fingerprint')
-    cancel     : ()
+    select       : ('face' | 'fingerprint')
+    pengajuan    : ()  — pasien pilih escape hatch (FE harus konfirmasi
+                         + panggil apmService.pengajuanSEPFP)
+    cancel       : ()
 
   Spec UX:
     - Centered overlay full-screen, backdrop semi-transparent + blur
@@ -25,16 +31,17 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import { PhCamera, PhFingerprint, PhX } from '@phosphor-icons/vue'
+import { PhCamera, PhFingerprint, PhX, PhWarningCircle } from '@phosphor-icons/vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   noPeserta: { type: String, default: '' },
   title: { type: String, default: 'Verifikasi Identitas' },
   subtitle: { type: String, default: 'Pilih metode verifikasi biometrik untuk lanjut membuat SEP' },
+  failCount: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['select', 'cancel'])
+const emit = defineEmits(['select', 'pengajuan', 'cancel'])
 
 // Mask noPeserta: tampilkan ***1234 (last 4 digits) untuk PHI safety.
 const maskedNoPeserta = computed(() => {
@@ -43,8 +50,15 @@ const maskedNoPeserta = computed(() => {
   return '***' + s.slice(-4)
 })
 
+// Escape hatch hanya tampil setelah pasien gagal 2x — supaya tidak
+// jadi shortcut malas, tapi cukup ramah saat hardware/lansia bermasalah.
+const showEscapeHatch = computed(() => props.failCount >= 2)
+
 function pick(method) {
   emit('select', method)
+}
+function pengajuan() {
+  emit('pengajuan')
 }
 function cancel() {
   emit('cancel')
@@ -187,6 +201,49 @@ function cancel() {
                 After.exe &middot; pakai sensor
               </div>
             </button>
+          </div>
+
+          <!-- Escape hatch — pengajuan SEP via BPJS kalau pasien tidak
+               bisa verifikasi (lansia, sensor rusak, dll). Hanya tampil
+               setelah 2x gagal. Mirror vendor /Sep/pengajuanSEP. -->
+          <div
+            v-if="showEscapeHatch"
+            class="mx-[clamp(20px,3vw,32px)] mb-[clamp(12px,2vw,16px)]
+                   rounded-card border-2 border-amber-300
+                   bg-amber-50
+                   px-[clamp(16px,2.5vw,22px)] py-[clamp(14px,2vw,18px)]"
+          >
+            <div class="flex items-start gap-[clamp(10px,1.5vw,14px)]">
+              <div class="flex-shrink-0 mt-0.5 text-amber-600">
+                <PhWarningCircle :size="24" weight="fill" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <div
+                  class="text-[clamp(14px,1.8vw,16px)] font-bold text-amber-900 leading-tight"
+                >
+                  Tidak bisa verifikasi biometrik?
+                </div>
+                <div
+                  class="text-[clamp(12px,1.5vw,14px)] text-amber-800 mt-1 leading-relaxed"
+                >
+                  Pengajuan SEP ke BPJS bisa dilakukan tanpa biometrik
+                  untuk kasus khusus (lansia, alat rusak, dll).
+                </div>
+                <button
+                  type="button"
+                  class="mt-[clamp(10px,1.5vw,14px)] w-full sm:w-auto
+                         rounded-btn bg-amber-600 hover:bg-amber-700
+                         active:bg-amber-800 text-white font-semibold
+                         px-[clamp(16px,2.2vw,22px)] py-[clamp(10px,1.4vw,12px)]
+                         text-[clamp(13px,1.7vw,15px)]
+                         min-h-[clamp(44px,5.5vw,52px)]
+                         transition-colors"
+                  @click="pengajuan"
+                >
+                  Pengajuan SEP via BPJS
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Footer dengan tombol Batal redundan (lansia friendly) -->
