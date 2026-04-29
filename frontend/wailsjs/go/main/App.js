@@ -117,3 +117,23 @@ export function AprovalSEPFP(arg1, arg2, arg3, arg4) {
 export function VerifyAdminPIN(arg1) {
   return window['go']['main']['App']['VerifyAdminPIN'](arg1);
 }
+
+export function CheckUpdate() {
+  return window['go']['main']['App']['CheckUpdate']();
+}
+
+export function GetUpdateStatus() {
+  return window['go']['main']['App']['GetUpdateStatus']();
+}
+
+export function ApplyUpdate() {
+  return window['go']['main']['App']['ApplyUpdate']();
+}
+
+export function CancelAutoApplyUpdate() {
+  return window['go']['main']['App']['CancelAutoApplyUpdate']();
+}
+
+export function RollbackUpdate() {
+  return window['go']['main']['App']['RollbackUpdate']();
+}

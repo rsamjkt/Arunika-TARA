@@ -450,6 +450,30 @@ export namespace domain {
 
 export namespace main {
 	
+	export class UpdateStatus {
+	    enabled: boolean;
+	    available: boolean;
+	    current_version: string;
+	    latest_version: string;
+	    release_notes: string;
+	    asset_size: number;
+	    published_at: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UpdateStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.available = source["available"];
+	        this.current_version = source["current_version"];
+	        this.latest_version = source["latest_version"];
+	        this.release_notes = source["release_notes"];
+	        this.asset_size = source["asset_size"];
+	        this.published_at = source["published_at"];
+	    }
+	}
 	export class AdminLogEntry {
 	    id: number;
 	    table_name: string;

@@ -68,7 +68,7 @@ async function refreshPending() {
   }
 }
 async function refreshAll() {
-  await Promise.all([refreshStats(), refreshSysStatus(), refreshPending()])
+  await Promise.all([refreshStats(), refreshSysStatus(), refreshPending(), refreshUpdateStatus()])
 }
 
 // Status komponen — derive dari sysStatus
@@ -166,6 +166,71 @@ async function doTestPrint() {
     errorModal.value = { visible: true, message: e?.message ?? 'Test print gagal' }
   } finally {
     loadingTestPrint.value = false
+  }
+}
+
+// ============================================================
+// Auto-update — manual cek + apply
+// ============================================================
+const updateStatus = ref(null)
+const loadingCheckUpdate = ref(false)
+const loadingApplyUpdate = ref(false)
+
+async function refreshUpdateStatus() {
+  try {
+    updateStatus.value = await apmService.getUpdateStatus()
+  } catch (e) {
+    // ignore — banner cuma muncul kalau kita dapat data
+  }
+}
+
+async function doCheckUpdate() {
+  if (loadingCheckUpdate.value) return
+  loadingCheckUpdate.value = true
+  try {
+    updateStatus.value = await apmService.checkUpdate()
+    if (updateStatus.value?.available) {
+      successModal.value = {
+        visible: true,
+        message: `Update tersedia: ${updateStatus.value.latest_version}. Tekan tombol "Update sekarang" untuk install.`,
+      }
+    } else {
+      successModal.value = {
+        visible: true,
+        message: `Versi ${updateStatus.value?.current_version ?? 'sekarang'} sudah yang terbaru.`,
+      }
+    }
+  } catch (e) {
+    errorModal.value = { visible: true, message: `Cek update gagal: ${e?.message ?? ''}` }
+  } finally {
+    loadingCheckUpdate.value = false
+  }
+}
+
+function confirmApplyUpdate() {
+  if (loadingApplyUpdate.value) return
+  if (!updateStatus.value?.available) {
+    errorModal.value = { visible: true, message: 'Tidak ada update tersedia. Cek dulu.' }
+    return
+  }
+  confirmModal.value = {
+    visible: true,
+    title: `Apply update ${updateStatus.value.latest_version}?`,
+    message: 'Kiosk akan download + restart otomatis. Pastikan tidak ada pasien yang sedang menggunakan kiosk. Lanjutkan?',
+    action: () => doApplyUpdate(),
+  }
+}
+
+async function doApplyUpdate() {
+  confirmModal.value.visible = false
+  loadingApplyUpdate.value = true
+  try {
+    await apmService.applyUpdate()
+    // Backend emit progress events — App.vue akan show modal otomatis.
+  } catch (e) {
+    errorModal.value = { visible: true, message: `Apply update gagal: ${e?.message ?? ''}` }
+  } finally {
+    loadingApplyUpdate.value = false
   }
 }
 
@@ -392,6 +457,48 @@ onUnmounted(() => {
                   <polyline points="6 9 6 2 18 2 18 9" />
                   <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                   <rect x="6" y="14" width="12" height="8" />
+                </svg>
+              </template>
+            </ActionTile>
+
+            <!-- Auto-update: cek manual -->
+            <ActionTile
+              v-if="updateStatus?.enabled"
+              title="Cek update GitHub"
+              :subtitle="updateStatus?.current_version ? `Versi: ${updateStatus.current_version}` : 'Cek release terbaru'"
+              :loading="loadingCheckUpdate"
+              @click="doCheckUpdate"
+            >
+              <template #icon>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" class="w-5 h-5"
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+              </template>
+            </ActionTile>
+
+            <!-- Apply update: muncul hanya kalau ada update tersedia -->
+            <ActionTile
+              v-if="updateStatus?.available"
+              :title="`Update sekarang: ${updateStatus.latest_version}`"
+              subtitle="Download + restart otomatis"
+              variant="warning"
+              :loading="loadingApplyUpdate"
+              @click="confirmApplyUpdate"
+            >
+              <template #icon>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round" class="w-5 h-5"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
               </template>
             </ActionTile>

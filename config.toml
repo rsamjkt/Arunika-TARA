@@ -72,6 +72,18 @@ reset_time   = "00:01"             # HH:MM WIB — reset counter harian
 # Kosongkan kalau panel admin TIDAK dilindungi PIN.
 pin = "1234"
 
+[update]
+# Auto-update dari GitHub Releases. Kalau enabled, kiosk cek release
+# baru saat startup + (opsional) interval. Token PAT (Personal Access
+# Token) read-only ke repo private; rotate setiap 6-12 bulan.
+enabled               = true
+repo                  = "rsamjkt/Arunika-TARA"
+github_token          = "REPLACE_WITH_GITHUB_PAT"   # ghp_... atau github_pat_...
+check_on_startup      = true
+auto_apply            = false                       # true = countdown 30s lalu auto-restart
+check_interval_hours  = 24                          # 0 = off (cuma startup check)
+asset_pattern         = "apm-windows-amd64.exe"     # nama asset di release page
+
 [dev]
 # Hanya berlaku di non-Windows (Mac/Linux). Hardware otomatis di-mock.
 mock_hardware    = true

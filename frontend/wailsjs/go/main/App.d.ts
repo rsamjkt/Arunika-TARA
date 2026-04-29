@@ -61,3 +61,13 @@ export function PengajuanSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):
 export function AprovalSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function VerifyAdminPIN(arg1:string):Promise<boolean>;
+
+export function CheckUpdate():Promise<main.UpdateStatus>;
+
+export function GetUpdateStatus():Promise<main.UpdateStatus>;
+
+export function ApplyUpdate():Promise<void>;
+
+export function CancelAutoApplyUpdate():Promise<void>;
+
+export function RollbackUpdate():Promise<void>;

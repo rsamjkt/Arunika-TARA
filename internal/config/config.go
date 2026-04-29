@@ -27,6 +27,7 @@ type Config struct {
 	Antrian     AntrianConfig     `mapstructure:"antrian"`
 	Admin       AdminConfig       `mapstructure:"admin"`
 	Audio       AudioConfig       `mapstructure:"audio"`
+	Update      UpdateConfig      `mapstructure:"update"`
 	Dev         DevConfig         `mapstructure:"dev"`
 }
 
@@ -211,6 +212,26 @@ type AdminConfig struct {
 	// security hardening. Default kosong = admin panel terbuka
 	// tanpa PIN (untuk dev convenience).
 	PIN string `mapstructure:"pin"`
+}
+
+// UpdateConfig — auto-update via GitHub releases.
+//
+// Saat startup (kalau Enabled + CheckOnStartup), updater check
+// /repos/{Repo}/releases/latest, compare dengan versi current
+// (cfg.App.Version), kalau ada release lebih baru emit event ke
+// frontend supaya admin bisa apply via tombol "Update sekarang".
+//
+// AutoApply=true akan trigger countdown modal 30 detik di startup
+// dengan opsi Cancel — kalau user tidak intervene, .exe diganti +
+// kiosk restart otomatis. Untuk RS production, biarkan false.
+type UpdateConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	Repo               string `mapstructure:"repo"`               // "rsamjkt/Arunika-TARA"
+	GitHubToken        string `mapstructure:"github_token"`       // PAT (read-only ke repo)
+	CheckOnStartup     bool   `mapstructure:"check_on_startup"`   // cek begitu app jalan
+	AutoApply          bool   `mapstructure:"auto_apply"`         // apply tanpa admin confirm (dengan countdown 30s)
+	CheckIntervalHours int    `mapstructure:"check_interval_hours"` // background recheck (0 = off)
+	AssetPattern       string `mapstructure:"asset_pattern"`      // mis. "apm-windows-amd64.exe" — match release asset name
 }
 
 // DevConfig — flag pengembangan (hanya berlaku di non-Windows).

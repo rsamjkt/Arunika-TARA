@@ -37,6 +37,12 @@ import {
   GetAdminStats,
   GetRecentLogs,
   TestPrint,
+  // Auto-update
+  CheckUpdate,
+  GetUpdateStatus,
+  ApplyUpdate,
+  CancelAutoApplyUpdate,
+  RollbackUpdate,
 } from '../../wailsjs/go/main/App'
 
 // Biometrik verifikasi — SEP butuh token validasi (umur >=17, non-IGD).
@@ -77,6 +83,7 @@ export type Branding = main.Branding
 export type PendingSep = store.PendingSep
 export type AdminStats = main.AdminStats
 export type AdminLogEntry = main.AdminLogEntry
+export type UpdateStatus = main.UpdateStatus
 
 // PatientType enum mirror dari domain/detection.go (urut iota).
 export const PatientType = {
@@ -167,6 +174,13 @@ export const apmService = {
   // Reprint
   reprint: (printHistoryID: number): Promise<void> => Reprint(printHistoryID),
 
+  // Auto-update — admin panel
+  checkUpdate: (): Promise<UpdateStatus> => CheckUpdate(),
+  getUpdateStatus: (): Promise<UpdateStatus> => GetUpdateStatus(),
+  applyUpdate: (): Promise<void> => ApplyUpdate(),
+  cancelAutoApplyUpdate: (): Promise<void> => CancelAutoApplyUpdate(),
+  rollbackUpdate: (): Promise<void> => RollbackUpdate(),
+
   // Admin
   getPendingSEPs: (): Promise<PendingSep[]> => GetPendingSEPs(),
   confirmSEPSync: (id: number): Promise<void> => ConfirmSEPSync(id),
@@ -214,5 +228,31 @@ export const useWailsEvents = () => ({
   onHardwareStatus: (handler: (st: HardwareStatus) => void): Unsubscribe => {
     EventsOn('hardware:status', handler)
     return () => EventsOff('hardware:status')
+  },
+
+  // Auto-update events
+  onUpdateAvailable: (handler: (info: any) => void): Unsubscribe => {
+    EventsOn('update:available', handler)
+    return () => EventsOff('update:available')
+  },
+  onUpdateProgress: (handler: (data: { phase: string; downloaded?: number; total?: number }) => void): Unsubscribe => {
+    EventsOn('update:progress', handler)
+    return () => EventsOff('update:progress')
+  },
+  onUpdateApplied: (handler: (data: { version: string; backup: string }) => void): Unsubscribe => {
+    EventsOn('update:applied', handler)
+    return () => EventsOff('update:applied')
+  },
+  onUpdateError: (handler: (msg: string) => void): Unsubscribe => {
+    EventsOn('update:error', handler)
+    return () => EventsOff('update:error')
+  },
+  onUpdateAutoApplyCountdown: (handler: (seconds: number) => void): Unsubscribe => {
+    EventsOn('update:auto-apply-countdown', handler)
+    return () => EventsOff('update:auto-apply-countdown')
+  },
+  onUpdateAutoApplyCancelled: (handler: () => void): Unsubscribe => {
+    EventsOn('update:auto-apply-cancelled', handler)
+    return () => EventsOff('update:auto-apply-cancelled')
   },
 })
