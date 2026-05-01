@@ -823,6 +823,42 @@ wails version        # v2.x
 x86_64-w64-mingw32-gcc --version    # untuk cross-compile Windows
 ```
 
+### Prerequisites Windows (alternatif — recommended untuk live test hardware)
+
+Develop langsung di Windows lebih efisien kalau target ada interaksi
+hardware (Frista, After.exe, Win32 syscall).
+
+**One-click setup** — run script:
+
+```powershell
+# PowerShell as Administrator
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+# Download script (atau clone repo dulu manual)
+iwr https://raw.githubusercontent.com/rsamjkt/Arunika-TARA/main/scripts/setup-windows-dev.ps1 -OutFile setup.ps1
+.\setup.ps1
+
+# Atau dengan target folder custom
+.\setup.ps1 -TargetDir "D:\Dev\APM"
+```
+
+Script auto-install:
+- Go, Node 20 LTS, Git, GitHub CLI, VS Code
+- Wails CLI v2 + MinGW (CGo) + WebView2 Runtime
+- Claude Code CLI (`@anthropic-ai/claude-code` via npm)
+- Clone repo + `go mod download` + `npm install`
+- Configure git author `rsamjkt <randy@rsanggrekmas.com>` per-repo
+
+Setelah selesai (~10 menit):
+
+```powershell
+cd $env:USERPROFILE\APM
+notepad config.toml             # edit credential BPJS + path Frista/After.exe
+wails dev                       # hot-reload kiosk
+```
+
+Setup script: [`scripts/setup-windows-dev.ps1`](scripts/setup-windows-dev.ps1).
+
 ### Clone + Run Dev
 
 ```bash
