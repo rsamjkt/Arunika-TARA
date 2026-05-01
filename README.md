@@ -1,7 +1,7 @@
 # APM · T.A.R.A
 
 > **Arunihealth · T.A.R.A** — _Total Automated Registration Assistant_
-> Anjungan Pasien Mandiri (APM) generasi baru untuk rumah sakit Indonesia, dibangun dengan **Go + Wails + Vue 3**, terintegrasi langsung dengan **SIMRS Khanza** (MySQL atau REST), **BPJS** (VClaim · Antrol · Mobile JKN), **Frista card reader**, dan **Aplikasi Sidik Jari BPJS**.
+> Anjungan Pasien Mandiri (APM) generasi baru untuk rumah sakit Indonesia, dibangun dengan **Go + Wails + Vue 3**, terintegrasi langsung dengan **SIMRS Khanza** (MySQL atau REST), **BPJS** (VClaim · Antrol · Mobile JKN), **Frista** (sidik wajah BPJS), dan **After.exe** (sidik jari BPJS). Auto-update dari GitHub Releases dengan rollback otomatis.
 
 [![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Wails](https://img.shields.io/badge/Wails-v2-FF0000)](https://wails.io)
@@ -38,8 +38,10 @@ T.A.R.A adalah perangkat lunak Anjungan Pasien Mandiri yang berjalan sebagai **k
 | Atribut | Detail |
 |---|---|
 | **Pemilik** | PT. Arunika Komputasi Awan Integrasi |
-| **Codename rilis** | Mahatma (latest: v1.4.x) |
+| **Codename rilis** | Mahatma (latest: v2.3.x — vendor parity + auto-update + Frista live) |
 | **Repo** | [github.com/rsamjkt/Arunika-TARA](https://github.com/rsamjkt/Arunika-TARA) |
+| **Auto-update** | ✅ via GitHub Releases — admin trigger atau auto-apply countdown |
+| **Self-recovery** | ✅ Watchdog .bat auto-rollback kalau update broken |
 | **Stack** | Go 1.22+ · Wails v2 · Vue 3 · Tailwind CSS · SQLite |
 | **Target Deploy** | Windows 10/11 x64 (kiosk) |
 | **Development** | macOS / Linux (cross-compile ke Windows) |
@@ -89,8 +91,10 @@ Kalau pasien ragu-ragu pakai kiosk, footer ada tombol **"Panggil Petugas"** dan 
 - 🧠 **Smart BPJS Detector** — auto-classify pasien ke 6 kategori (MJKN / Kontrol / PostRANAP / PostRAJAL / Rujukan Baru / Tidak Aktif) tanpa pilih manual operator.
 - 🏥 **Pasien Umum lengkap** — INSERT 19 kolom `reg_periksa` benar (nama PJ, alamat lengkap join 5 tabel master, biaya dari `poliklinik.registrasilama`, smart umur Th/Bl/Hr).
 - 🔌 **Khanza Dual-Mode** — Direct MySQL (mengikuti pola `anjunganmandiriSEP`) **atau** REST API Laravel — switchable via 1 baris config.
-- 🆔 **Frista auto-launch** — spawn `frista.exe` headless, auto-login via Win32 UI Automation, capture data kartu via clipboard polling.
-- 👆 **Aplikasi Sidik Jari BPJS auto-login** — spawn `After.exe` headless, auto-isi username/password, REST polling untuk hasil scan.
+- 📷 **Frista auto-launch (Sidik Wajah BPJS)** — spawn `frista.exe`, auto-login via clipboard + SendInput keystroke (vendor pattern Khanza), pasien tinggal hadap kamera.
+- 👆 **After.exe auto-login (Sidik Jari BPJS)** — spawn `After.exe` headless (CREATE_NO_WINDOW), Win32 UI Automation auto-isi credential, REST polling untuk hasil scan.
+- 🛡️ **Escape hatch Pengajuan SEP** — kalau pasien gagal verifikasi biometrik 2x (lansia, sensor rusak), tombol "Pengajuan SEP via BPJS" otomatis muncul (mirror vendor `aprovalSEP`/`pengajuanSEP`).
+- 🚀 **Auto-update via GitHub Releases** — kiosk cek release baru saat startup, admin tap "Update sekarang" untuk install + restart otomatis. Backup binary di `./backups/` selama 7 hari untuk rollback.
 - 🖨️ **Thermal Printer ESC/POS** — USB / Serial / Network, template Go `text/template`.
 - 📋 **Antrian 3 Jalur** — Loket Admisi / Poli / Umum dengan reset harian via cron.
 - 🔄 **Offline Queue + Reconcile** — kalau Khanza atau BPJS down, data antri di SQLite lokal, sync otomatis saat pulih.
@@ -137,6 +141,55 @@ Pasien input **satu identitas saja** (No. Kartu / NIK / No. RM). Sistem fire 5 p
 3. **Multi-source fallback** — kalau Antrol down, fallback ke `booking_registrasi` di Khanza
 4. **Schema-aware mapping** — auto-translate `kd_poli` & `kd_dokter` BPJS ↔ kode RS via `maping_poli_bpjs` & `maping_dokter_dpjpvclaim`
 5. **Graceful degradation** — kalau VClaim error, tetap bisa lanjut sebagai kategori DB-lokal
+
+---
+
+## 🚀 Deploy Live di Kiosk Windows — Step by Step
+
+> Cheat sheet untuk first-time deployment di RS Anggrek Mas.
+
+### Pre-requisites
+
+- [ ] Kiosk Windows 10/11 x64 dengan internet
+- [ ] Akun BPJS PPK (cons_id, consumer_secret, user_key, kode PPK)
+- [ ] Khanza MySQL accessible (IP, user, password DB)
+- [ ] Frista + After.exe sudah ter-install dari vendor BPJS
+- [ ] GitHub PAT fine-grained (untuk auto-update)
+- [ ] Thermal printer terinstall (test print dari Windows OK)
+
+### Setup ringkas (10 menit pertama)
+
+```cmd
+# 1. Download release dari GitHub
+# https://github.com/rsamjkt/Arunika-TARA/releases/latest
+# Extract apm-windows-amd64.zip ke C:\APM\
+
+# 2. Edit C:\APM\config.toml — minimal isi:
+#    [server] khanza_dsn
+#    [bpjs] cons_id, consumer_secret, user_key, ppk_pelayanan
+#    [frista] username_enc, password_enc, exe_path
+#    [fingerprint] username_enc, password_enc, exe_path
+#    [update] github_token
+#    [printer] mode = "escpos_usb", port = "<nama printer>"
+
+# 3. Test mock dulu — set [bpjs] mock = true → run apm.exe
+#    Verify log: "app initialized" + "khanza: mode direct MySQL aktif"
+
+# 4. Test Frista live — pasien dewasa mock, klik "Sidik Wajah"
+#    Verify Frista kebuka + paste creds + paste noKartu
+
+# 5. Switch ke BPJS dvlp → test SEP creation end-to-end
+# 6. Production: ganti vclaim_url ke apijkn + cons_id production
+
+# 7. (Optional) Setup watchdog
+#    Copy scripts/apm-watchdog.bat ke C:\APM\
+#    Task Scheduler: At log on → run apm-watchdog.bat (BUKAN apm.exe)
+```
+
+**Dokumentasi lengkap**:
+- [`docs/AUTO_UPDATE.md`](docs/AUTO_UPDATE.md) — setup PAT GitHub + auto-update flow
+- [`docs/WATCHDOG.md`](docs/WATCHDOG.md) — supervisor + auto-rollback
+- [`docs/MANUAL_TEST_CHECKLIST.md`](docs/MANUAL_TEST_CHECKLIST.md) — verify deployment
 
 ---
 
@@ -275,14 +328,18 @@ consumer_secret      = "secret-string"    # untuk HMAC-SHA256 signing
 user_key             = "user-key-hex"     # API key BPJS (header X-cons-id)
 antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
 detector_timeout_ms  = 5000               # timeout fase paralel detector
+ppk_pelayanan        = "0301R001"         # WAJIB — kode PPK RS (di-issue BPJS)
+                                          # masuk ke field "ppkPelayanan" payload SEP
+mock                 = false              # true untuk dev tanpa hit BPJS API
 ```
 
 **Cara dapat credential BPJS**:
 1. RS daftar ke kantor cabang BPJS sebagai integrator
-2. BPJS issue: `cons_id`, `consumer_secret`, `user_key`
+2. BPJS issue: `cons_id`, `consumer_secret`, `user_key`, `ppk_pelayanan` (kode faskes)
 3. RS kasih: IP address kiosk untuk di-whitelist BPJS
 
 Tanpa whitelist → endpoint production akan return `connection refused`.
+Tanpa `ppk_pelayanan` → BPJS reject SEP insert (field wajib di payload).
 
 ### Section `[fingerprint]` — Aplikasi Sidik Jari BPJS
 
@@ -303,24 +360,31 @@ window_class_button   = "TButton"
 startup_delay_sec     = 3                # tunggu setelah spawn sebelum inject
 ```
 
-### Section `[frista]` — Card Reader
+### Section `[frista]` — Sidik Wajah BPJS
+
+Frista adalah aplikasi BPJS untuk verifikasi sidik wajah (kamera). APM
+spawn `frista.exe` + auto-login + paste No. Kartu (mirror vendor pattern
+`BukaFrista` di `KhanzaHMSAnjunganSEP_RSAMXIP`).
 
 ```toml
 [frista]
-exe_path          = "C:\\Program Files\\Frista\\frista.exe"
-username_enc      = "username_frista"
-password_enc      = "password_frista"
-read_timeout_ms   = 1000
-restart_on_crash  = true
+exe_path           = "C:\\Program Files\\Frista\\frista.exe"
+rest_url           = ""                  # tidak dipakai — vendor clipboard pattern
+username_enc       = "operator_frista"   # akun BPJS petugas
+password_enc       = "rahasia"
+scan_timeout_sec   = 30
+poll_interval_ms   = 500
+startup_delay_sec  = 5                   # tunggu setelah spawn (Frista lambat startup)
 
-# UI Automation — class names dialog login Frista
-window_class_login    = "TfrmLogin"
-window_class_edit     = "TEdit"
-window_class_button   = "TButton"
-startup_delay_sec     = 5                # Frista lebih lambat dari After.exe
+# Class names dialog login (opsional — APM pakai SendInput, ga butuh)
+window_class_login   = ""
+window_class_edit    = ""
+window_class_button  = ""
+```
 
-# Polling clipboard untuk capture card data
-poll_interval_ms      = 500
+**Verify path frista.exe** di kiosk Windows:
+```powershell
+Get-ChildItem "C:\Program Files*" -Recurse -Filter "frista.exe" -ErrorAction SilentlyContinue
 ```
 
 ### Section `[printer]`
@@ -361,6 +425,30 @@ reset_time   = "00:01"              # HH:MM WIB — auto-reset counter harian
 pin = "1234"                        # PIN 4-6 digit untuk akses admin panel
                                     # Kosongkan = panel admin tanpa PIN (dev)
 ```
+
+### Section `[update]` — Auto-update via GitHub Releases
+
+```toml
+[update]
+enabled               = true
+repo                  = "rsamjkt/Arunika-TARA"
+github_token          = "github_pat_..."     # PAT fine-grained, scope: Contents read-only
+check_on_startup      = true
+auto_apply            = false                # true = countdown 30s → auto-restart
+check_interval_hours  = 24                   # 0 = off (cuma startup check)
+asset_pattern         = "apm-windows-amd64.exe"
+```
+
+**Setup PAT GitHub** (sekali per kiosk):
+1. https://github.com/settings/tokens?type=beta
+2. Generate fine-grained PAT, scope:
+   - Resource owner: `rsamjkt`
+   - Repository: hanya `Arunika-TARA`
+   - Permissions: Contents → **Read-only**
+   - Expire: 1 year (rotate tahunan)
+3. Copy `github_pat_...` → paste ke `[update] github_token` di `config.toml`
+
+**Detail lengkap**: [`docs/AUTO_UPDATE.md`](docs/AUTO_UPDATE.md) + [`docs/WATCHDOG.md`](docs/WATCHDOG.md).
 
 ### Section `[dev]`
 
@@ -460,18 +548,27 @@ App auto-decrypt saat startup. Tidak perlu rebuild atau setup ulang.
 
 ## Setup Hardware
 
-### Frista Card Reader (Windows production)
+### Frista — Sidik Wajah BPJS (Windows production)
 
-1. **Install Frista** dari vendor (file dari BPJS / RSU)
-2. **Konfigurasi reader USB** terpasang dan terdeteksi Windows
-3. **Test manual** — buka `frista.exe`, login dengan operator credential, tap KTP → harus muncul data NIK + nama
+Frista bukan card reader — ini aplikasi verifikasi sidik wajah BPJS
+yang pasien gunakan saat tanda tangan elektronik untuk SEP. APM
+auto-launch + auto-login + paste No. Kartu, pasien tinggal hadap kamera.
+
+1. **Install Frista** dari vendor BPJS Kesehatan
+2. **Pastikan webcam kiosk** terdeteksi Windows (test via Camera app)
+3. **Test manual** — buka `frista.exe`, login dengan akun BPJS petugas, scan kartu pasien dummy → harus connect ke server BPJS
 4. **Edit `config.toml`** — set `[frista] exe_path` = path absolut ke `frista.exe`
-5. **Edit `[frista] username_enc / password_enc`** — credential operator
-6. **Restart app** — APM akan spawn frista.exe headless + auto-login + monitor clipboard
+5. **Edit `[frista] username_enc / password_enc`** — credential BPJS yang sama dengan After.exe
+6. **Restart APM** — saat pasien klik "Sidik Wajah" di BiometrikChoiceModal:
+   - Frista spawn, window kamera muncul
+   - APM tunggu 5 detik startup (`startup_delay_sec`)
+   - APM `BringToFront` Frista window
+   - Paste username → Tab → paste password → Tab → Space (login)
+   - Wait 2s, paste noKartu pasien
+   - **Pasien tinggal hadap kamera** — Frista submit hasil scan ke server BPJS
+   - APM return synthetic token, frontend retry SEP creation
 
-**Cara kerja capture card**: setelah login sukses, Frista output ke Windows clipboard setiap kartu di-tap. Format yang di-support:
-- JSON: `{"nik":"...","nama":"...","tgl_lahir":"...","alamat":"...","no_kartu":"..."}`
-- Pipe-delimited: `NIK#NAMA#TGL#ALAMAT#NO_KARTU`
+**Tweak kalau gagal**: tinggikan `startup_delay_sec` ke 8-10 kalau Frista lambat startup di kiosk.
 
 ### Aplikasi Sidik Jari BPJS (`After.exe`)
 
