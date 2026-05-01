@@ -38,21 +38,55 @@ ppk_pelayanan        = "REPLACE_WITH_PPK_RS"  # kode faskes RS — masuk ke t_se
 mock                 = true        # dev: pakai NewMockPreset(), skip BPJS dvlp network
 
 [fingerprint]
-# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only)
+# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only).
+# Verify path di kiosk:
+#   PowerShell: Get-ChildItem "C:\Program Files*" -Recurse -Filter "After.exe" -EA 0
 exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
+# REST endpoint lokal After.exe (port default 6080 di After versi baru,
+# kalau ga tau biarkan https BPJS — kalau gagal call, log akan jelas).
 rest_url           = "https://fp.bpjs-kesehatan.go.id/finger-rest/"
+# Kredensial After.exe (sama dengan Frista — akun BPJS petugas).
 username_enc       = "REPLACE_WITH_FP_USERNAME"
 password_enc       = "REPLACE_WITH_FP_PASSWORD"
 scan_timeout_sec   = 30
 poll_interval_ms   = 500
+# Delay setelah spawn After.exe sebelum inject login. After.exe lebih
+# cepat dari Frista — 3 detik default cukup.
+startup_delay_sec  = 3
+# Class names dialog login (opsional). Default TfrmLogin/TEdit/TButton.
+window_class_login   = ""
+window_class_edit    = ""
+window_class_button  = ""
 
 [frista]
-# Frista card reader (Windows only — di Mac otomatis pakai mock)
-exe_path          = "C:\\Program Files\\Frista\\frista.exe"
-username_enc      = "REPLACE_WITH_FRISTA_USERNAME"
-password_enc      = "REPLACE_WITH_FRISTA_PASSWORD"
-read_timeout_ms   = 1000
-restart_on_crash  = true
+# Frista — Aplikasi Sidik Wajah BPJS Kesehatan (Windows only).
+# Path executable hasil install Frista. Verify di kiosk:
+#   PowerShell: Get-Command frista.exe | Select Source
+# Atau cari di folder Program Files / Program Files (x86).
+exe_path           = "C:\\Program Files\\Frista\\frista.exe"
+# REST URL Frista lokal (kalau Frista versi baru expose API). Sementara
+# tidak dipakai — vendor pattern Robot+Clipboard yang dipakai. Biarkan
+# kosong atau diisi placeholder.
+rest_url           = ""
+# Kredensial login Frista (sama dengan akun BPJS yang petugas pakai
+# untuk login Frista manual). Plaintext akan otomatis di-encrypt
+# pertama kali apm.exe jalan dengan master key Windows DPAPI.
+username_enc       = "REPLACE_WITH_FRISTA_USERNAME"
+password_enc       = "REPLACE_WITH_FRISTA_PASSWORD"
+# Timeout total scan (vendor pattern: spawn → login → paste → user scan
+# → token submit ke BPJS). 30 detik biasanya cukup.
+scan_timeout_sec   = 30
+poll_interval_ms   = 500
+# Delay setelah spawn frista.exe sebelum mulai inject keystroke.
+# Vendor pakai 5500ms (Thread.sleep 5000+500). Kalau kiosk lambat,
+# naikkan ke 8.
+startup_delay_sec  = 5
+# Class names dialog login Frista untuk Win32 UI Automation (opsional).
+# Default Delphi VCL (TfrmLogin/TEdit/TButton) — APM sekarang pakai
+# clipboard+SendInput, tidak butuh class names. Biarkan kosong.
+window_class_login   = ""
+window_class_edit    = ""
+window_class_button  = ""
 
 [printer]
 # Mode: "console" (Mac dev — print ke stdout) | "escpos_usb" | "escpos_serial" | "escpos_network"
