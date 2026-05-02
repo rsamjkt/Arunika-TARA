@@ -48,7 +48,7 @@ const antrianLoading = ref(false)
 async function refreshStatus() {
   try {
     const sys = await apmService.getSystemStatus()
-    bpjsStatus.value = sys.Online ? 'online' : 'offline'
+    bpjsStatus.value = sys.BPJSOnline ? 'online' : 'offline'
     // Sistem dot reflect kondisi hardware penting: printer + biometrik (Frista wajah / After.exe).
     // RS Anggrek Mas tidak punya card reader; Frista di sini = aplikasi sidik wajah BPJS.
     sistemStatus.value = sys.Hardware?.Printer || sys.Hardware?.Frista || sys.Hardware?.Fingerprint ? 'online' : 'warning'

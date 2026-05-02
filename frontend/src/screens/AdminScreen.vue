@@ -76,8 +76,8 @@ const statusItems = computed(() => {
   const sys = sysStatus.value
   const hw = sys?.Hardware
   return [
-    { label: 'BPJS VClaim API', status: sys?.Online ? 'online' : 'offline' },
-    { label: 'BPJS Antrol', status: sys?.Online ? 'online' : 'offline' },
+    { label: 'BPJS VClaim API', status: sys?.BPJSOnline ? 'online' : 'offline' },
+    { label: 'BPJS Antrol', status: sys?.BPJSOnline ? 'online' : 'offline' },
     { label: 'SIMRS Khanza', status: sys?.Online ? 'online' : 'offline' },
     { label: 'Sidik Wajah BPJS (Frista)', status: hw?.Frista ? 'online' : 'offline',
       detail: hw?.Frista ? 'Aplikasi siap' : 'Aplikasi tidak aktif' },

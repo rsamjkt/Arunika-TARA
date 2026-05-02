@@ -595,6 +595,7 @@ export namespace main {
 	export class SystemStatus {
 	    hardware: HardwareStatus;
 	    online: boolean;
+	    bpjs_online: boolean;
 	    platform: string;
 	    version: string;
 	    uptime_sec: number;
@@ -608,6 +609,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.hardware = this.convertValues(source["hardware"], HardwareStatus);
 	        this.online = source["online"];
+	        this.bpjs_online = source["bpjs_online"];
 	        this.platform = source["platform"];
 	        this.version = source["version"];
 	        this.uptime_sec = source["uptime_sec"];

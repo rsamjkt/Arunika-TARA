@@ -917,12 +917,13 @@ type HardwareStatus struct {
 
 // SystemStatus aggregate untuk admin panel & status panel kiosk.
 type SystemStatus struct {
-	Hardware  HardwareStatus `json:"hardware"`
-	Online    bool           `json:"online"`     // overall (Khanza reachable)
-	Platform  string         `json:"platform"`   // "darwin" / "windows"
-	Version   string         `json:"version"`    // dari config.app.version
-	UptimeSec int64          `json:"uptime_sec"` // detik sejak app start
-	StartedAt string         `json:"started_at"` // ISO8601
+	Hardware    HardwareStatus `json:"hardware"`
+	Online      bool           `json:"online"`       // Khanza MySQL reachable (dari reconcile worker)
+	BPJSOnline  bool           `json:"bpjs_online"`  // BPJS VClaim credential loaded + mock=false
+	Platform    string         `json:"platform"`     // "darwin" / "windows"
+	Version     string         `json:"version"`      // dari config.app.version
+	UptimeSec   int64          `json:"uptime_sec"`   // detik sejak app start
+	StartedAt   string         `json:"started_at"`   // ISO8601
 }
 
 // GetHardwareStatus — snapshot hardware availability.
@@ -1145,10 +1146,21 @@ func (a *App) GetSystemStatus() SystemStatus {
 	if a.cfg != nil {
 		st.Version = a.cfg.App.Version
 	}
-	// Online: best-effort. Iterasi berikutnya P-050 reconcile worker
-	// track real connectivity. Untuk sekarang asumsi true kalau khanza
-	// client ada.
-	st.Online = a.khanza != nil
+	// Online: pakai reconcile worker (probe Khanza setiap 30 detik).
+	// Fallback ke true kalau reconciler belum siap (optimistic default).
+	if a.reconciler != nil {
+		st.Online = a.reconciler.IsOnline()
+	} else {
+		st.Online = a.khanza != nil
+	}
+	// BPJSOnline: credential ter-load + bukan mock. Tidak hit network —
+	// cukup indikasikan bahwa konfigurasi BPJS siap dipakai.
+	if a.cfg != nil {
+		st.BPJSOnline = !a.cfg.BPJS.Mock &&
+			a.cfg.BPJS.ConsID != "" &&
+			a.cfg.BPJS.ConsumerSecret != "" &&
+			a.cfg.BPJS.ConsID != "REPLACE_WITH_CONS_ID"
+	}
 	return st
 }
 
