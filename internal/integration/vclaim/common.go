@@ -39,7 +39,11 @@ func (c *Client) doGet(ctx context.Context, path string, target any) error {
 		return fmt.Errorf("HTTP GET %s: %w", path, err)
 	}
 	if resp.IsError() {
-		return fmt.Errorf("HTTP GET %s status %d", path, resp.StatusCode())
+		body := resp.Body()
+		if len(body) > 200 {
+			body = body[:200]
+		}
+		return fmt.Errorf("HTTP GET %s status %d: %s", path, resp.StatusCode(), body)
 	}
 	return c.parseEnvelope(resp.Body(), target)
 }
@@ -55,7 +59,11 @@ func (c *Client) doPost(ctx context.Context, path string, body any, target any) 
 		return fmt.Errorf("HTTP POST %s: %w", path, err)
 	}
 	if resp.IsError() {
-		return fmt.Errorf("HTTP POST %s status %d", path, resp.StatusCode())
+		rb := resp.Body()
+		if len(rb) > 200 {
+			rb = rb[:200]
+		}
+		return fmt.Errorf("HTTP POST %s status %d: %s", path, resp.StatusCode(), rb)
 	}
 	return c.parseEnvelope(resp.Body(), target)
 }

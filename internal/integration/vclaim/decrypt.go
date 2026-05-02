@@ -18,20 +18,27 @@ var errInvalidCiphertext = errors.New("ciphertext VClaim invalid")
 // Skema:
 //  1. base64 decode → raw ciphertext
 //  2. AES-256-CBC decrypt:
-//     key = SHA256(secretKey + consID)        — 32 bytes
-//     IV  = key[:16]                          — first 16 bytes
+//     key = SHA256(userKey)           — jika user_key di-set (rekomendasi BPJS)
+//         = SHA256(secretKey+consID)  — fallback jika user_key kosong
+//     IV  = key[:16]                  — first 16 bytes of same hash
 //  3. PKCS7 unpad
 //
-// Catatan: BPJS production stack juga menambahkan LZString compression
-// pada layer atas — itu di-handle di atas (caller bisa decompress hasil
-// decrypt ini jika perlu). Spec P-010 hanya minta AES+PKCS7 di sini.
+// BPJS server meng-enkripsi response menggunakan user_key yang dikirim
+// di header request. Client harus decrypt dengan key yang sama.
 func (c *Client) decrypt(ciphertext string) ([]byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("base64 decode: %w", err)
 	}
 
-	keyHash := sha256.Sum256([]byte(c.secretKey + c.consID))
+	// Pakai user_key kalau tersedia — BPJS server enkripsi response
+	// menggunakan user_key yang dikirim di header. Fallback ke
+	// secretKey+consID untuk kompatibilitas implementasi lama.
+	keyInput := c.userKey
+	if keyInput == "" {
+		keyInput = c.secretKey + c.consID
+	}
+	keyHash := sha256.Sum256([]byte(keyInput))
 	key := keyHash[:]
 	iv := key[:aes.BlockSize] // 16 bytes
 
