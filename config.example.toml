@@ -60,13 +60,28 @@ timeout_ms        = 5000
 retry             = 2
 
 [bpjs]
-# VClaim — production: https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
-# VClaim — development: https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/
+# URL endpoint BPJS — pilih sesuai environment:
+#
+#   VClaim
+#     production : https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/
+#     development: https://apijkn-dev.bpjs-kesehatan.go.id/vclaim-rest-dev
+#
+#   Antrean RS (antrol_url — dipakai Smart Detector + CreateAntrean)
+#     production : https://apijkn.bpjs-kesehatan.go.id/antreanrs/
+#     development: https://apijkn-dev.bpjs-kesehatan.go.id/antreanrs_dev
+#
+#   URL lain (referensi, belum dipakai di APM v1.x):
+#     Antrean FKTP dev : https://apijkn-dev.bpjs-kesehatan.go.id/antreanfktp_dev
+#     Apotek dev       : https://apijkn-dev.bpjs-kesehatan.go.id/apotek-rest-dev
+#     PCare dev        : https://apijkn-dev.bpjs-kesehatan.go.id/pcare-rest-dev
+#     iCare JKN dev    : https://apijkn-dev.bpjs-kesehatan.go.id/ihs_dev
+#     eRekamMedis dev  : https://apijkn-dev.bpjs-kesehatan.go.id/erekammedis_dev
+#
 vclaim_url           = "https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/"
 cons_id              = "REPLACE_WITH_CONS_ID"
 consumer_secret      = "REPLACE_WITH_CONSUMER_SECRET"
 user_key             = "REPLACE_WITH_USER_KEY"   # wajib untuk decrypt response BPJS
-antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
+antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antreanrs/"
 detector_timeout_ms  = 5000        # Smart Detector parallel-check timeout
 
 # PPK Pelayanan — kode faskes RS sendiri (di-issue BPJS saat onboarding).

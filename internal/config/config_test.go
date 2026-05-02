@@ -23,10 +23,10 @@ timeout_ms      = 10000
 retry           = 2
 
 [bpjs]
-vclaim_url           = "https://dvlp.bpjs-kesehatan.go.id/vclaim-rest/"
+vclaim_url           = "https://apijkn-dev.bpjs-kesehatan.go.id/vclaim-rest-dev"
 cons_id              = "12345"
 consumer_secret      = "secret-xyz"
-antrol_url           = "https://apijkn.bpjs-kesehatan.go.id/antrean-rest/"
+antrol_url           = "https://apijkn-dev.bpjs-kesehatan.go.id/antreanrs_dev"
 detector_timeout_ms  = 5000
 
 [fingerprint]
