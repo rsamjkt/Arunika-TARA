@@ -90,13 +90,10 @@ if (-not $afterWin) {
     exit 1
 }
 
-# Deteksi status login: cek id='a3' DAN apakah username sudah sesuai.
-# Kalau logged in sebagai akun lain, tetap lakukan login ulang.
+# Deteksi status login: kalau id='a3' ada (siapapun yang login), pakai sesi itu.
+# Kalau belum ada sesi, login dengan Username/Password yang diberikan.
 $loginStatusEl = Find-ById 'a3'
-$needLogin = $true
-if ($loginStatusEl -and $loginStatusEl.Current.Name -like "*$Username*") {
-    $needLogin = $false
-}
+$needLogin = (-not $loginStatusEl)
 
 if ($needLogin) {
     $userEl = Find-ById 'aj'
