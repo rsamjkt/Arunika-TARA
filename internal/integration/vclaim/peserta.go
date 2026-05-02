@@ -16,21 +16,17 @@ type pesertaWire struct {
 	NIK          string `json:"nik"`
 	Nama         string `json:"nama"`
 	TglLahir     string `json:"tglLahir"`
-	JenisKelamin struct {
-		Kode string `json:"kode"`
-	} `json:"sex"`
+	Sex          string `json:"sex"` // plain string: "L" / "P"
 	StatusPeserta struct {
-		Kode      string `json:"kode"`
+		Kode       string `json:"kode"`
 		Keterangan string `json:"keterangan"`
 	} `json:"statusPeserta"`
 	Hak struct {
-		Kelas struct {
-			Kode      string `json:"kode"`
-			Keterangan string `json:"keterangan"`
-		} `json:"kelas"`
+		Kode       string `json:"kode"`
+		Keterangan string `json:"keterangan"`
 	} `json:"hakKelas"`
 	JenisPeserta struct {
-		Kode      string `json:"kode"`
+		Kode       string `json:"kode"`
 		Keterangan string `json:"keterangan"`
 	} `json:"jenisPeserta"`
 	MR struct {
@@ -46,7 +42,7 @@ func (p *pesertaWire) toDomain() *domain.Peserta {
 		Nama:         p.Nama,
 		TglLahir:     p.TglLahir,
 		StatusAktif:  p.StatusPeserta.Kode,
-		KelasHak:     p.Hak.Kelas.Kode,
+		KelasHak:     p.Hak.Kode,
 		JenisPeserta: p.JenisPeserta.Keterangan,
 	}
 }

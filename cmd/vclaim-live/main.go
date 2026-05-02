@@ -1,5 +1,6 @@
-// Live integration test untuk VClaim client — hit server BPJS dev langsung.
+// Live integration test untuk VClaim client — hit server BPJS langsung.
 // Jalankan: go run ./cmd/vclaim-live
+// Atau:     go run ./cmd/vclaim-live <config.toml> [noKartu]
 package main
 
 import (
@@ -12,18 +13,14 @@ import (
 	"github.com/arunika/apm-go/internal/integration/vclaim"
 )
 
-var devNoKartu = []string{
-	"0002076061241",
-	"0002053875677",
-	"0002076678325",
-	"0002076680182",
-	"0002070402456",
-}
-
 func main() {
 	cfgPath := "config.toml"
+	noKartu := "0002259275861"
 	if len(os.Args) > 1 {
 		cfgPath = os.Args[1]
+	}
+	if len(os.Args) > 2 {
+		noKartu = os.Args[2]
 	}
 
 	cfg, err := config.Load(cfgPath)
@@ -37,22 +34,24 @@ func main() {
 	}
 
 	client := vclaim.New(cfg.BPJS)
+	fmt.Printf("URL     : %s\n", cfg.BPJS.VClaimURL)
+	fmt.Printf("cons_id : %s\n", cfg.BPJS.ConsID)
+	fmt.Printf("noKartu : %s\n\n", noKartu)
 
-	fmt.Printf("VClaim URL : %s\n", cfg.BPJS.VClaimURL)
-	fmt.Printf("cons_id    : %s\n", cfg.BPJS.ConsID)
-	fmt.Println()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 
-	for _, noka := range devNoKartu {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		peserta, err := client.GetPeserta(ctx, noka, time.Now())
-		cancel()
-
-		if err != nil {
-			fmt.Printf("[%s] ERROR: %v\n", noka, err)
-		} else {
-			fmt.Printf("[%s] OK: %s | NIK: %s | Kelas: %s | Status: %s\n",
-				noka, peserta.Nama, peserta.NIK, peserta.KelasHak, peserta.StatusAktif)
-			return // satu sukses sudah cukup
-		}
+	peserta, err := client.GetPeserta(ctx, noKartu, time.Now())
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		os.Exit(1)
 	}
+
+	fmt.Println("=== BERHASIL ===")
+	fmt.Printf("Nama       : %s\n", peserta.Nama)
+	fmt.Printf("NIK        : %s\n", peserta.NIK)
+	fmt.Printf("NoKartu    : %s\n", peserta.NoKartu)
+	fmt.Printf("Kelas Hak  : %s\n", peserta.KelasHak)
+	fmt.Printf("Status     : %s\n", peserta.StatusAktif)
+	fmt.Printf("Jenis      : %s\n", peserta.JenisPeserta)
 }

@@ -21,16 +21,10 @@ func (c *Client) sign(timestamp int64) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// headers mengembalikan empat header BPJS yang wajib ada di tiap request:
-// X-cons-id, X-timestamp, X-signature, user_key.
-//
-// user_key dipakai BPJS server untuk derive AES-256-CBC key buat decrypt
-// response payload. Kalau kosong, response akan blank atau encryption
-// header akan hilang.
-//
-// Timestamp diambil dari c.now() supaya bisa di-stub di test.
-func (c *Client) headers() map[string]string {
-	ts := c.now().Unix()
+// headers mengembalikan header BPJS untuk request dengan timestamp yang diberikan.
+// Timestamp di-pass eksplisit supaya nilai yang sama bisa dipakai untuk
+// derive AES decrypt key di parseEnvelope.
+func (c *Client) headers(ts int64) map[string]string {
 	h := map[string]string{
 		"X-cons-id":   c.consID,
 		"X-timestamp": strconv.FormatInt(ts, 10),

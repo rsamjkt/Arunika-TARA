@@ -18,6 +18,8 @@ import (
 
 // newTestClient membangun Client yang baseURL-nya diarahkan ke server
 // dan timeout/retry ringan supaya test cepat.
+// Clock di-freeze ke testFixedTS supaya key AES encrypt (makeEnvelope)
+// dan decrypt (parseEnvelope) menggunakan timestamp yang sama.
 func newTestClient(t *testing.T, server *httptest.Server) *Client {
 	t.Helper()
 	c := New(config.BPJSConfig{
@@ -25,6 +27,7 @@ func newTestClient(t *testing.T, server *httptest.Server) *Client {
 		ConsID:         "12345",
 		ConsumerSecret: "rahasia-bpjs",
 	})
+	c.now = func() time.Time { return time.Unix(testFixedTS, 0) }
 	c.SetTimeout(2 * time.Second)
 	c.httpClient.SetRetryCount(2)
 	c.httpClient.SetRetryWaitTime(50 * time.Millisecond)
@@ -36,7 +39,7 @@ func newTestClient(t *testing.T, server *httptest.Server) *Client {
 // (sesuai protocol VClaim v2.0).
 func makeEnvelope(t *testing.T, code, message string, plaintext []byte, secret, consID string) []byte {
 	t.Helper()
-	cipher, err := encrypt(secret, consID, plaintext)
+	cipher, err := encrypt(consID, secret, testFixedTS, plaintext)
 	if err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
@@ -69,7 +72,7 @@ func TestVClaim_GetPeserta_Success(t *testing.T) {
             "nama": "Budi Santoso",
             "tglLahir": "1980-05-15",
             "statusPeserta": {"kode":"1","keterangan":"AKTIF"},
-            "hakKelas": {"kelas": {"kode":"2","keterangan":"Kelas 2"}},
+            "hakKelas": {"kode":"2","keterangan":"Kelas 2"},
             "jenisPeserta": {"kode":"1","keterangan":"PBI"},
             "mr": {"noMR":"RM-12345"}
         }

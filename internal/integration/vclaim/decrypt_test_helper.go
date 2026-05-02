@@ -5,17 +5,19 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/base64"
+	"strconv"
 )
+
+// testFixedTS adalah timestamp tetap untuk semua unit test — harus sama
+// dengan nilai yang di-inject ke c.now di newTestClient supaya key derivasi
+// AES encrypt (test helper) dan decrypt (Client) menghasilkan key yang identik.
+const testFixedTS int64 = 1700000000
 
 // encrypt adalah inverse dari decrypt — dipakai oleh test helper untuk
 // membuat ciphertext yang valid dari plaintext known. Tidak di-export
 // karena production tidak butuh enkripsi (BPJS server yang enkripsi).
-//
-// Walaupun fungsi ini hanya dipanggil dari test, kita taruh di file
-// non-_test.go supaya bisa dipakai oleh test di package eksternal kalau
-// suatu hari diperlukan (mis. integration test di service layer).
-func encrypt(secretKey, consID string, plaintext []byte) (string, error) {
-	keyHash := sha256.Sum256([]byte(secretKey + consID))
+func encrypt(consID, secretKey string, ts int64, plaintext []byte) (string, error) {
+	keyHash := sha256.Sum256([]byte(consID + secretKey + strconv.FormatInt(ts, 10)))
 	key := keyHash[:]
 	iv := key[:aes.BlockSize]
 
