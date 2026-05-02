@@ -2,7 +2,36 @@
 
 > Self-service kiosk for hospital outpatient registration, BPJS SEP issuance, and queue management. Direct-DB integration with SIMRS Khanza, Smart BPJS Detector with auto-classification, modern accessibility-first UI built for **multi-generation Indonesian patients** (elderly + middle-aged + young).
 
-## What's New in v1.6 ("Mahatma 1.6")
+## What's New in v2.4.0 ("Mahatma 2.4")
+
+### 🖐 Frista v3.0.2 — Sidik Wajah BPJS (Full Working)
+
+Frista (aplikasi verifikasi wajah BPJS dari PyInstaller/Python) sekarang berjalan penuh end-to-end di kiosk Windows:
+
+- **DLL chain fix** — ekstrak semua 3456 file dari `frista_v3.0.2.zip` termasuk `python310.dll`, `libzbar-64.dll`, `libiconv.dll`; install `MSVCR120.dll` (VC++ 2013 runtime)
+- **Window retry loop** — cari window "Frista" selama 15 detik (500ms interval) supaya tidak gagal kalau startup lambat
+- **noKartu auto-paste** — setelah login, APM klik tengah window Frista via `SendInput` mouse absolute untuk fokus field noKartu, lalu paste nomor peserta otomatis via clipboard
+- Tested: spawn → login inject → noKartu paste → `FRISTA_TRIGGERED_<timestamp>` in ~11 detik
+
+### 🫆 After.exe v2.1.0 — Sidik Jari BPJS (UIAutomation Rewrite)
+
+After.exe (aplikasi sidik jari BPJS, WPF + SignalR) direwrite total dari pendekatan REST API ke **PowerShell UIAutomation**:
+
+- **Arsitektur baru** — After.exe adalah pure WPF SignalR client (tidak ada REST server lokal). Interaksi via `System.Windows.Automation` COM API
+- **Fresh spawn setiap verify** — After.exe selalu di-kill dan respawn supaya tidak ada stale session dari pasien sebelumnya
+- **Auto-login detection** — kalau After.exe sudah login (sesi aktif siapapun), skip re-login dan langsung inject noKartu ke field `id=ar`
+- **noKartu injection** — UIAutomation set `id=ao` (radio No. Kartu BPJS) lalu `id=ar` (input field) via `ValuePattern` dengan fallback clipboard paste
+- Tested: spawn → session detect → noKartu inject → `AFTEREXE_TRIGGERED_<timestamp>` in ~9 detik
+
+### ⚙️ Config & URL Fixes
+
+- BPJS API URL dev yang benar: `apijkn-dev.bpjs-kesehatan.go.id` (bukan `dvlp.bpjs-kesehatan.go.id` yang sudah obsolete)
+- Tambah referensi URL lengkap di `config.example.toml`: VClaim, Antrean RS/FKTP, Apotek, PCare, iCare JKN, eRekamMedis
+- `mock = false` default di `config.example.toml` — production-ready out of the box
+
+---
+
+## What's New in v2.3.1 (sebelumnya "Mahatma 1.6")
 
 ### 🎨 HomeScreen Polish — Combo unDraw + Tile Gradient
 
