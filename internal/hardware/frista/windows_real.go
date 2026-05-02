@@ -169,6 +169,22 @@ func (w *WindowsHeadlessVerifier) Verify(ctx context.Context, noPeserta string) 
 	// Wait Frista login process — vendor 2000ms
 	time.Sleep(2 * time.Second)
 
+	// Setelah login, Frista bisa buka window baru (HWND lama invalid).
+	// Re-find window terbaru sebelum click center.
+	mainHwnd := FindWindowByTitleSubstring("Frista")
+	if mainHwnd == 0 {
+		mainHwnd = hwnd // fallback ke hwnd lama kalau tidak ketemu
+	}
+	// Vendor: mouse click center untuk fokus field noKartu setelah login.
+	if mainHwnd != 0 {
+		_ = BringToFront(mainHwnd)
+		time.Sleep(200 * time.Millisecond)
+		if err := ClickWindowCenter(mainHwnd); err != nil {
+			w.logger.Warn("frista: click center gagal", "err", err.Error())
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+
 	if err := PasteText(noPeserta); err != nil {
 		return FRResult{}, fmt.Errorf("paste noPeserta: %w", err)
 	}

@@ -83,14 +83,15 @@ func (w *WindowsHeadlessVerifier) Verify(ctx context.Context, noPeserta string) 
 	}, nil
 }
 
-// ensureRunning spawn After.exe kalau belum berjalan. Idempotent.
+// ensureRunning selalu kill instance lama lalu spawn fresh supaya
+// After.exe tidak pakai stored session akun lain (mis. cobappk).
+// Fresh spawn = login form clean, injeksi credentials kita yang jalan.
 func (w *WindowsHeadlessVerifier) ensureRunning(ctx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.cmd != nil && w.cmd.ProcessState == nil {
-		return nil // sudah berjalan
-	}
+	// Kill existing instance kalau ada
+	_ = w.killProcess()
 
 	cmd := exec.Command(w.cfg.ExePath)
 	// CREATE_NO_WINDOW tidak cocok untuk After.exe (WPF butuh window untuk

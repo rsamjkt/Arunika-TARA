@@ -38,9 +38,13 @@ var (
 	procSendInput           = user32.NewProc("SendInput")
 	procPostMessageW        = user32.NewProc("PostMessageW")
 
-	procGlobalAlloc = kernel32.NewProc("GlobalAlloc")
-	procGlobalLock  = kernel32.NewProc("GlobalLock")
+	procGlobalAlloc  = kernel32.NewProc("GlobalAlloc")
+	procGlobalLock   = kernel32.NewProc("GlobalLock")
 	procGlobalUnlock = kernel32.NewProc("GlobalUnlock")
+
+	procGetWindowRect   = user32.NewProc("GetWindowRect")
+	procSetCursorPos    = user32.NewProc("SetCursorPos")
+	procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
 )
 
 const (
@@ -235,6 +239,59 @@ func BringToFront(hwnd uintptr) error {
 	r, _, e := procSetForegroundWindow.Call(hwnd)
 	if r == 0 {
 		return fmt.Errorf("SetForegroundWindow: %v", e)
+	}
+	return nil
+}
+
+// ClickWindowCenter klik kiri di tengah window (focus field noKartu Frista).
+// Mirror vendor: mouse click center untuk fokus field input setelah login.
+func ClickWindowCenter(hwnd uintptr) error {
+	if hwnd == 0 {
+		return fmt.Errorf("HWND 0")
+	}
+	var rect struct{ Left, Top, Right, Bottom int32 }
+	r, _, e := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rect)))
+	if r == 0 {
+		return fmt.Errorf("GetWindowRect: %v", e)
+	}
+	cx := (rect.Left + rect.Right) / 2
+	cy := (rect.Top + rect.Bottom) / 2
+
+	// GetSystemMetrics(SM_CXSCREEN=0, SM_CYSCREEN=1) untuk normalisasi SendInput
+	sw, _, _ := procGetSystemMetrics.Call(0)
+	sh, _, _ := procGetSystemMetrics.Call(1)
+	if sw == 0 || sh == 0 {
+		return fmt.Errorf("GetSystemMetrics gagal")
+	}
+	// Koordinat SendInput mouse harus dalam range 0-65535
+	nx := uintptr(int64(cx) * 65535 / int64(sw))
+	ny := uintptr(int64(cy) * 65535 / int64(sh))
+
+	type mouseInput struct {
+		Type uint32
+		Dx   int32
+		Dy   int32
+		Data uint32
+		Flags uint32
+		Time  uint32
+		Extra uintptr
+		_     [8]byte
+	}
+	const (
+		inputMouse      = 0
+		mousefMove      = 0x0001
+		mousefLeftDown  = 0x0002
+		mousefLeftUp    = 0x0004
+		mousefAbsolute  = 0x8000
+	)
+	move := mouseInput{Type: inputMouse, Dx: int32(nx), Dy: int32(ny), Flags: mousefMove | mousefAbsolute}
+	down := mouseInput{Type: inputMouse, Dx: int32(nx), Dy: int32(ny), Flags: mousefLeftDown | mousefAbsolute}
+	up   := mouseInput{Type: inputMouse, Dx: int32(nx), Dy: int32(ny), Flags: mousefLeftUp | mousefAbsolute}
+
+	for _, inp := range []mouseInput{move, down, up} {
+		inp := inp
+		procSendInput.Call(1, uintptr(unsafe.Pointer(&inp)), unsafe.Sizeof(inp))
+		time.Sleep(30 * time.Millisecond)
 	}
 	return nil
 }
