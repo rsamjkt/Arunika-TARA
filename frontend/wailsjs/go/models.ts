@@ -240,6 +240,20 @@ export namespace domain {
 	    Eksekutif: string;
 	    TujuanKunjungan: string;
 	    AsesmenPelayanan: string;
+	    KdPPKPelayanan: string;
+	    NmPPKPelayanan: string;
+	    Catatan: string;
+	    JenisPeserta: string;
+	    JK: string;
+	    TglLahir: string;
+	    NoTelp: string;
+	    Suplesi: string;
+	    NoSepSuplesi: string;
+	    FlagProcedure: string;
+	    KdPenunjang: string;
+	    KdDPJPLayanan: string;
+	    NmDPJPLayanan: string;
+	    User: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SEP(source);
@@ -283,6 +297,20 @@ export namespace domain {
 	        this.Eksekutif = source["Eksekutif"];
 	        this.TujuanKunjungan = source["TujuanKunjungan"];
 	        this.AsesmenPelayanan = source["AsesmenPelayanan"];
+	        this.KdPPKPelayanan = source["KdPPKPelayanan"];
+	        this.NmPPKPelayanan = source["NmPPKPelayanan"];
+	        this.Catatan = source["Catatan"];
+	        this.JenisPeserta = source["JenisPeserta"];
+	        this.JK = source["JK"];
+	        this.TglLahir = source["TglLahir"];
+	        this.NoTelp = source["NoTelp"];
+	        this.Suplesi = source["Suplesi"];
+	        this.NoSepSuplesi = source["NoSepSuplesi"];
+	        this.FlagProcedure = source["FlagProcedure"];
+	        this.KdPenunjang = source["KdPenunjang"];
+	        this.KdDPJPLayanan = source["KdDPJPLayanan"];
+	        this.NmDPJPLayanan = source["NmDPJPLayanan"];
+	        this.User = source["User"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -324,6 +352,7 @@ export namespace domain {
 	    NoTelp: string;
 	    NoSKDP: string;
 	    KdDPJP: string;
+	    KdDPJPLayanan: string;
 	    Eksekutif: string;
 	    COB: string;
 	    Katarak: string;
@@ -370,6 +399,7 @@ export namespace domain {
 	        this.NoTelp = source["NoTelp"];
 	        this.NoSKDP = source["NoSKDP"];
 	        this.KdDPJP = source["KdDPJP"];
+	        this.KdDPJPLayanan = source["KdDPJPLayanan"];
 	        this.Eksekutif = source["Eksekutif"];
 	        this.COB = source["COB"];
 	        this.Katarak = source["Katarak"];
@@ -450,36 +480,6 @@ export namespace domain {
 
 export namespace main {
 	
-	export class UpdateStatus {
-	    enabled: boolean;
-	    available: boolean;
-	    current_version: string;
-	    latest_version: string;
-	    release_notes: string;
-	    asset_size: number;
-	    published_at: string;
-	    previous_version: string;
-	    backup_path: string;
-	    update_applied_at: string;
-
-	    static createFrom(source: any = {}) {
-	        return new UpdateStatus(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.enabled = source["enabled"];
-	        this.available = source["available"];
-	        this.current_version = source["current_version"];
-	        this.latest_version = source["latest_version"];
-	        this.release_notes = source["release_notes"];
-	        this.asset_size = source["asset_size"];
-	        this.published_at = source["published_at"];
-	        this.previous_version = source["previous_version"];
-	        this.backup_path = source["backup_path"];
-	        this.update_applied_at = source["update_applied_at"];
-	    }
-	}
 	export class AdminLogEntry {
 	    id: number;
 	    table_name: string;
@@ -631,6 +631,36 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class UpdateStatus {
+	    enabled: boolean;
+	    available: boolean;
+	    current_version: string;
+	    latest_version: string;
+	    release_notes: string;
+	    asset_size: number;
+	    published_at: string;
+	    previous_version: string;
+	    backup_path: string;
+	    update_applied_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.available = source["available"];
+	        this.current_version = source["current_version"];
+	        this.latest_version = source["latest_version"];
+	        this.release_notes = source["release_notes"];
+	        this.asset_size = source["asset_size"];
+	        this.published_at = source["published_at"];
+	        this.previous_version = source["previous_version"];
+	        this.backup_path = source["backup_path"];
+	        this.update_applied_at = source["update_applied_at"];
+	    }
 	}
 
 }

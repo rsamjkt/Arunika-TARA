@@ -4,6 +4,10 @@ import {domain} from '../models';
 import {main} from '../models';
 import {store} from '../models';
 
+export function ApplyUpdate():Promise<void>;
+
+export function AprovalSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
 export function BuatPendaftaran(arg1:domain.PendaftaranRequest):Promise<domain.Pendaftaran>;
 
 export function BuatSEPKontrol(arg1:string,arg2:string,arg3:string):Promise<domain.SEP>;
@@ -14,7 +18,11 @@ export function BuatSEPPostRANAP(arg1:string,arg2:string,arg3:string):Promise<do
 
 export function BuatSEPRujukan(arg1:domain.SEPRequest):Promise<domain.SEP>;
 
+export function CancelAutoApplyUpdate():Promise<void>;
+
 export function CariPasien(arg1:string):Promise<domain.Pasien>;
+
+export function CheckUpdate():Promise<main.UpdateStatus>;
 
 export function ConfirmSEPSync(arg1:number):Promise<void>;
 
@@ -40,13 +48,19 @@ export function GetRecentLogs(arg1:number):Promise<Array<main.AdminLogEntry>>;
 
 export function GetSystemStatus():Promise<main.SystemStatus>;
 
+export function GetUpdateStatus():Promise<main.UpdateStatus>;
+
 export function Greet(arg1:string):Promise<string>;
+
+export function PengajuanSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function Reprint(arg1:number):Promise<void>;
 
 export function ResetCounters():Promise<void>;
 
 export function ResetSession():Promise<void>;
+
+export function RollbackUpdate():Promise<void>;
 
 export function RunStartupChecks():Promise<Array<main.CheckResult>>;
 
@@ -56,18 +70,4 @@ export function VerifikasiSidikJari(arg1:string):Promise<string>;
 
 export function VerifikasiWajah(arg1:string):Promise<string>;
 
-export function PengajuanSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
-
-export function AprovalSEPFP(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
-
 export function VerifyAdminPIN(arg1:string):Promise<boolean>;
-
-export function CheckUpdate():Promise<main.UpdateStatus>;
-
-export function GetUpdateStatus():Promise<main.UpdateStatus>;
-
-export function ApplyUpdate():Promise<void>;
-
-export function CancelAutoApplyUpdate():Promise<void>;
-
-export function RollbackUpdate():Promise<void>;

@@ -86,37 +86,24 @@ ppk_pelayanan        = "REPLACE_WITH_PPK_RS"
 mock                 = false
 
 [fingerprint]
-# After.exe — Aplikasi Sidik Jari BPJS Kesehatan (Windows only — di Mac otomatis pakai mock)
+# After.exe v2.1.0 — Aplikasi Sidik Jari BPJS Kesehatan (Windows only — di Mac otomatis pakai mock).
+# APM spawn After.exe, injeksi login + noKartu via PowerShell UIAutomation (WPF AutomationId).
+# After.exe sendiri yang submit scan ke server BPJS — APM trust synthetic token sebagai sinyal.
 exe_path           = "C:\\Program Files (x86)\\Aplikasi Sidik Jari BPJS Kesehatan\\After.exe"
-rest_url           = "http://localhost:9999/finger-rest/"   # internal After.exe REST port
-username_enc       = "REPLACE_WITH_FP_USERNAME"             # plaintext OK, atau "ENC:..." kalau encrypted
+username_enc       = "REPLACE_WITH_FP_USERNAME"   # akun BPJS petugas, plaintext OK atau "ENC:..."
 password_enc       = "REPLACE_WITH_FP_PASSWORD"
 scan_timeout_sec   = 30
-poll_interval_ms   = 500
-
-# UI Automation — class names dialog login After.exe (Win32 SendMessageW
-# injection). Default Delphi VCL standar — biasanya cukup. Override hanya
-# kalau RS pakai versi non-standar (verify dengan Spy++).
-window_class_login    = "TfrmLogin"
-window_class_edit     = "TEdit"
-window_class_button   = "TButton"
-startup_delay_sec     = 3          # tunggu setelah spawn sebelum inject login
+startup_delay_sec  = 5          # tunggu After.exe ready sebelum UIAutomation inject
 
 [frista]
-# Frista card reader (Windows only — di Mac otomatis pakai mock).
-# Aplikasi spawn headless (CREATE_NO_WINDOW), auto-login, lalu APM
-# polling clipboard untuk capture data kartu yang Frista tulis.
+# Frista v3.0.2 — Sidik Wajah BPJS Kesehatan (Windows only — di Mac otomatis pakai mock).
+# APM spawn Frista.exe, injeksi login + noKartu via Win32 SendInput (clipboard paste).
+# Frista sendiri yang push verifikasi ke server BPJS.
 exe_path          = "C:\\Program Files\\Frista\\frista.exe"
-username_enc      = "REPLACE_WITH_FRISTA_USERNAME"
+username_enc      = "REPLACE_WITH_FRISTA_USERNAME"  # akun BPJS petugas, plaintext OK atau "ENC:..."
 password_enc      = "REPLACE_WITH_FRISTA_PASSWORD"
-read_timeout_ms   = 1000
-restart_on_crash  = true
-
-# UI Automation — sama seperti fingerprint (default Delphi VCL).
-window_class_login    = "TfrmLogin"
-window_class_edit     = "TEdit"
-window_class_button   = "TButton"
-startup_delay_sec     = 5          # Frista lebih lambat dari After.exe
+scan_timeout_sec  = 30
+startup_delay_sec = 7          # Frista (Python/Qt) lebih lambat start dari After.exe
 
 # Polling clipboard untuk capture card scan data.
 poll_interval_ms      = 500
