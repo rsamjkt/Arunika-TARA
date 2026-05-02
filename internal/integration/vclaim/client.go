@@ -10,6 +10,36 @@ import (
 	"github.com/arunika/apm-go/internal/config"
 )
 
+// bpjsTransport mengganti nama header yang sudah dinormalisasi oleh Go
+// net/http kembali ke bentuk aslinya sebelum dikirim ke wire.
+//
+// Go canonicalizes HTTP headers (e.g., "X-cons-id" → "X-Cons-Id") per
+// RFC 7230, tapi BPJS server melakukan matching case-sensitive pada nama
+// header. Tanpa fix ini, server BPJS mengembalikan "Authentication
+// parameters missing" karena tidak mengenali X-Cons-Id / User_key.
+type bpjsTransport struct {
+	inner http.RoundTripper
+}
+
+// bpjsHeaderMap memetakan bentuk canonical Go → bentuk exact yang diharapkan BPJS.
+var bpjsHeaderMap = map[string]string{
+	"X-Cons-Id":   "X-cons-id",
+	"X-Timestamp": "X-timestamp",
+	"X-Signature": "X-signature",
+	"User_key":    "user_key",
+}
+
+func (t *bpjsTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req2 := req.Clone(req.Context())
+	for canonical, original := range bpjsHeaderMap {
+		if vals, ok := req2.Header[canonical]; ok {
+			delete(req2.Header, canonical)
+			req2.Header[original] = vals
+		}
+	}
+	return t.inner.RoundTrip(req2)
+}
+
 // Client adalah implementasi HTTP nyata untuk VClaimClient.
 // Thread-safe: resty.Client thread-safe, dan field lain immutable
 // setelah New().
@@ -38,6 +68,7 @@ func New(cfg config.BPJSConfig) *Client {
 		SetTimeout(15*time.Second).
 		SetHeader("User-Agent", "APM-TARA/1.0 (Go vclaim client)").
 		SetHeader("Content-Type", "application/json").
+		SetTransport(&bpjsTransport{inner: http.DefaultTransport}).
 		SetRetryCount(2).
 		SetRetryWaitTime(500*time.Millisecond).
 		SetRetryMaxWaitTime(2*time.Second).
