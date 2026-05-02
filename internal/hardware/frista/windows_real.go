@@ -109,9 +109,22 @@ func (w *WindowsHeadlessVerifier) Verify(ctx context.Context, noPeserta string) 
 	case <-time.After(startupDelay):
 	}
 
-	// Step 3: bring window to front. Vendor pakai bringToFront(urlfrista)
-	// yang search by exe name; kita scan window title containing "Frista".
-	hwnd := FindWindowByTitleSubstring("Frista")
+	// Step 3: bring window to front. Retry sampai window muncul atau
+	// timeout 15 detik (Frista kadang butuh waktu ekstra untuk render UI).
+	var hwnd uintptr
+	windowDeadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(windowDeadline) {
+		hwnd = FindWindowByTitleSubstring("Frista")
+		if hwnd != 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			_ = w.killProcess()
+			return FRResult{}, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 	if hwnd != 0 {
 		if err := BringToFront(hwnd); err != nil {
 			w.logger.Warn("frista: bring to front gagal (lanjut, mungkin already focused)",
@@ -119,7 +132,7 @@ func (w *WindowsHeadlessVerifier) Verify(ctx context.Context, noPeserta string) 
 		}
 		time.Sleep(300 * time.Millisecond)
 	} else {
-		w.logger.Warn("frista: window 'Frista' tidak ditemukan — paste mungkin gagal target")
+		w.logger.Warn("frista: window 'Frista' tidak ditemukan setelah 15 detik — paste mungkin gagal target")
 	}
 
 	// Step 4: inject username + password + noPeserta via clipboard.

@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # APM — Windows Development Setup (one-click)
 # ============================================================
 #
@@ -62,12 +62,12 @@ function Test-CommandExists($command) {
 
 function Install-WingetPackage($packageId, $name) {
     Write-Step "Installing $name ($packageId)"
-    $existing = winget list --id $packageId --exact 2>$null | Select-String $packageId
+    $existing = winget list --id $packageId --exact --source winget 2>$null | Select-String $packageId
     if ($existing) {
         Write-Skip "$name sudah terinstall"
         return
     }
-    winget install --id $packageId --silent --accept-package-agreements --accept-source-agreements
+    winget install --id $packageId --source winget --silent --accept-package-agreements --accept-source-agreements
     if ($LASTEXITCODE -eq 0) {
         Write-Success "$name installed"
     } else {
